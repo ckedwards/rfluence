@@ -1,0 +1,37 @@
+{
+  "authorId": "712020:05eb3148-b0e1-450d-a60d-67073e3cc131",
+  "parentType": "page",
+  "parentId": "295011",
+  "ownerId": "712020:05eb3148-b0e1-450d-a60d-67073e3cc131",
+  "lastOwnerId": null,
+  "createdAt": "2026-10-04T04:14:10.761Z",
+  "version": {
+    "number": 5,
+    "message": "",
+    "minorEdit": false,
+    "authorId": "712020:05eb3148-b0e1-450d-a60d-67073e3cc131",
+    "createdAt": "2026-10-04T04:52:53.059Z",
+    "ncsStepVersion": "457"
+  },
+  "position": 6372,
+  "id": "458790",
+  "labels": {
+    "results": [],
+    "meta": {
+      "hasMore": false
+    },
+    "_links": {
+      "self": "/api/v2/pages/458790/labels"
+    }
+  },
+  "spaceId": "294914",
+  "status": "current",
+  "title": "rfluence ADF reference",
+  "_links": {
+    "editui": "/pages/resumedraft.action?draftId=458790",
+    "webui": "/spaces/~71202005eb3148b0e1450da60d67073e3cc131/pages/458790/rfluence+ADF+reference",
+    "edituiv2": "/spaces/~71202005eb3148b0e1450da60d67073e3cc131/pages/edit-v2/458790",
+    "tinyui": "/x/JgAH",
+    "base": "https://tech-accounts11.atlassian.net/wiki"
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "authorId": "712020:05eb3148-b0e1-450d-a60d-67073e3cc131",
+  "parentType": null,
+  "parentId": null,
+  "spaceId": "295145",
+  "ownerId": "712020:05eb3148-b0e1-450d-a60d-67073e3cc131",
+  "lastOwnerId": null,
+  "createdAt": "2026-10-04T00:02:45.394Z",
+  "version": {
+    "number": 1,
+    "message": "",
+    "minorEdit": false,
+    "authorId": "712020:05eb3148-b0e1-450d-a60d-67073e3cc131",
+    "createdAt": "2026-10-04T00:02:48.626Z",
+    "ncsStepVersion": null
+  },
+  "labels": {
+    "results": [],
+    "meta": {
+      "hasMore": false
+    },
+    "_links": {
+      "self": "/api/v2/pages/295257/labels"
+    }
+  },
+  "position": 752,
+  "id": "295257",
+  "status": "current",
+  "title": "Software development",
+  "_links": {
+    "editui": "/pages/resumedraft.action?draftId=295257",
+    "webui": "/spaces/SD/overview",
+    "edituiv2": "/spaces/SD/pages/edit-v2/295257",
+    "tinyui": "/x/WYEE",
+    "base": "https://tech-accounts11.atlassian.net/wiki"
+  }
+}

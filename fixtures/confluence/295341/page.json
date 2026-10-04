@@ -1,0 +1,37 @@
+{
+  "authorId": "712020:05eb3148-b0e1-450d-a60d-67073e3cc131",
+  "parentType": "page",
+  "parentId": "295011",
+  "ownerId": "712020:05eb3148-b0e1-450d-a60d-67073e3cc131",
+  "lastOwnerId": null,
+  "createdAt": "2026-10-04T02:02:44.455Z",
+  "version": {
+    "number": 1,
+    "message": "",
+    "minorEdit": false,
+    "authorId": "712020:05eb3148-b0e1-450d-a60d-67073e3cc131",
+    "createdAt": "2026-10-04T02:03:58.751Z",
+    "ncsStepVersion": "7"
+  },
+  "labels": {
+    "results": [],
+    "meta": {
+      "hasMore": false
+    },
+    "_links": {
+      "self": "/api/v2/pages/295341/labels"
+    }
+  },
+  "position": 1205,
+  "spaceId": "294914",
+  "status": "current",
+  "title": "merfluence",
+  "id": "295341",
+  "_links": {
+    "editui": "/pages/resumedraft.action?draftId=295341",
+    "webui": "/spaces/~71202005eb3148b0e1450da60d67073e3cc131/pages/295341/merfluence",
+    "edituiv2": "/spaces/~71202005eb3148b0e1450da60d67073e3cc131/pages/edit-v2/295341",
+    "tinyui": "/x/rYEE",
+    "base": "https://tech-accounts11.atlassian.net/wiki"
+  }
+}

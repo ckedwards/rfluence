@@ -1,0 +1,5595 @@
+{
+  "type": "doc",
+  "content": [
+    {
+      "type": "paragraph",
+      "attrs": {
+        "localId": "689f4d1cc125"
+      },
+      "content": [
+        {
+          "text": "API test page for rfluence: one code block per language name (the block's text is the name sent), then breakout and table width variants. XX",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "attrs": {
+        "level": 2,
+        "localId": "1688236b796f"
+      },
+      "content": [
+        {
+          "text": "Languages",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "shell",
+        "localId": "7d5132b76709"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "bash",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "sh",
+        "localId": "9ccc30c384db"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "sh",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "zsh",
+        "localId": "7756f3aaacb0"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "zsh",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "fish",
+        "localId": "bf2872c437c3"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "fish",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "shell",
+        "localId": "baccba77337d"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "shell",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "console",
+        "localId": "917dfb7dad3b"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "console",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "shell-session",
+        "localId": "ad8634dd60bb"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "shell-session",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "terminal",
+        "localId": "b63099cbba24"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "terminal",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "powershell",
+        "localId": "10f420e669a3"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "powershell",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "ps1",
+        "localId": "b5f5cfb1db5a"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "ps1",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "pwsh",
+        "localId": "e22eb1dcb346"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "pwsh",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "bat",
+        "localId": "c2a5fbdeec1b"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "bat",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "batch",
+        "localId": "6e36d55c1211"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "batch",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "cmd",
+        "localId": "9f4d3668a772"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "cmd",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "javascript",
+        "localId": "9b9c37ed1573"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "js",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "javascript",
+        "localId": "148bf354d5c1"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "javascript",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "jsx",
+        "localId": "01a9ca8943f4"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "jsx",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "mjs",
+        "localId": "847b358d79c0"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "mjs",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "node",
+        "localId": "395d1f3598ae"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "node",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "ts",
+        "localId": "3876f7338880"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "ts",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "typescript",
+        "localId": "a16340ca8610"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "typescript",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "tsx",
+        "localId": "b83e3f534afa"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "tsx",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "python",
+        "localId": "679188bdb47f"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "py",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "python",
+        "localId": "47899c12d573"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "python",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "python3",
+        "localId": "cfbe85e96a15"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "python3",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "py3",
+        "localId": "98c8b431b0cd"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "py3",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "ipython",
+        "localId": "fbd5c2a75e3c"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "ipython",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "rb",
+        "localId": "ade2bf0d8b8d"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "rb",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "ruby",
+        "localId": "b97923082172"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "ruby",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "rs",
+        "localId": "44d2d3bad165"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "rs",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "rust",
+        "localId": "8ec30f06ba2f"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "rust",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "go",
+        "localId": "8c171bc71d37"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "go",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "golang",
+        "localId": "a21288b76dbc"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "golang",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "java",
+        "localId": "d462117be484"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "java",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "kotlin",
+        "localId": "61acda4991a9"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "kotlin",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "kt",
+        "localId": "ebb591e26a35"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "kt",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "scala",
+        "localId": "904226b11755"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "scala",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "groovy",
+        "localId": "d78b88dafc16"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "groovy",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "gradle",
+        "localId": "9606fd228688"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "gradle",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "c",
+        "localId": "38de3a2cc76a"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "c",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "h",
+        "localId": "a8b0037a7db2"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "h",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "c++",
+        "localId": "641cd6550b0d"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "cpp",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "c++",
+        "localId": "016fdcda8aa6"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "c++",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "cc",
+        "localId": "5d7b93416f3c"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "cc",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "cxx",
+        "localId": "f291ab00b545"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "cxx",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "hpp",
+        "localId": "6a9e43233e61"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "hpp",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "cs",
+        "localId": "a0f24b7ca591"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "cs",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "csharp",
+        "localId": "d018457c4859"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "csharp",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "csharp",
+        "localId": "ad463807b9ec"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "c#",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "fsharp",
+        "localId": "e7849c4dae90"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "fsharp",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "f#",
+        "localId": "fcce389b0c39"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "f#",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "objective-c",
+        "localId": "025046785cd8"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "objective-c",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "objc",
+        "localId": "f92cd8d72a1c"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "objc",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "objectivec",
+        "localId": "734b4c043898"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "objectivec",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "swift",
+        "localId": "0b2f4d81e4d8"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "swift",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "dart",
+        "localId": "56acd2b0c62c"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "dart",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "php",
+        "localId": "260017b477a9"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "php",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "perl",
+        "localId": "048e3dd4417d"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "perl",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "pl",
+        "localId": "2ae4d144c245"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "pl",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "lua",
+        "localId": "0b1ffbe19ee1"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "lua",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "r",
+        "localId": "ac25c19baca1"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "r",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "julia",
+        "localId": "545c9b2c7a90"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "julia",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "matlab",
+        "localId": "5b9731f1f101"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "matlab",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "octave",
+        "localId": "486777107205"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "octave",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "haskell",
+        "localId": "230423612df1"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "haskell",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "hs",
+        "localId": "4d9c4890ea24"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "hs",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "elixir",
+        "localId": "0a67d8d850ee"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "elixir",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "ex",
+        "localId": "8c1ba333d84c"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "ex",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "erlang",
+        "localId": "40dccf69d4e8"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "erlang",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "clojure",
+        "localId": "a6bef1339698"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "clojure",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "clj",
+        "localId": "55a07622545a"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "clj",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "ocaml",
+        "localId": "998014922130"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "ocaml",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "elm",
+        "localId": "bfde2816343e"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "elm",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "nim",
+        "localId": "6a2c9afcdbe6"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "nim",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "zig",
+        "localId": "4f45755a01c5"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "zig",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "sql",
+        "localId": "296d0567829d"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "sql",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "mysql",
+        "localId": "a28fb2631f70"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "mysql",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "postgresql",
+        "localId": "bda73f953005"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "postgresql",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "postgres",
+        "localId": "7bd89b3983b7"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "postgres",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "psql",
+        "localId": "0e54e46d486b"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "psql",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "plsql",
+        "localId": "fa64b0bbd941"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "plsql",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "tsql",
+        "localId": "eff1d374269a"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "tsql",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "sqlite",
+        "localId": "dcf876d8da4b"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "sqlite",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "pgsql",
+        "localId": "652a6e5f516a"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "pgsql",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "json",
+        "localId": "62c5cb5a511e"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "json",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "jsonc",
+        "localId": "acda253a3edb"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "jsonc",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "json5",
+        "localId": "9ad4d681ed50"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "json5",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "yaml",
+        "localId": "e51ae28315d0"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "yaml",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "yml",
+        "localId": "51fd243df86c"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "yml",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "toml",
+        "localId": "7157a38797f1"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "toml",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "ini",
+        "localId": "0625d8bf6bcc"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "ini",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "cfg",
+        "localId": "d9bafffbc285"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "cfg",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "conf",
+        "localId": "809179420df9"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "conf",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "properties",
+        "localId": "69cc5bff76c8"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "properties",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "env",
+        "localId": "2de2158143c0"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "env",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "dotenv",
+        "localId": "83dd01b5c2b8"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "dotenv",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "xml",
+        "localId": "9cd75c77259d"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "xml",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "html",
+        "localId": "f2d6399a9723"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "html",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "htm",
+        "localId": "a75e72097637"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "htm",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "xhtml",
+        "localId": "d2f8e604ff06"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "xhtml",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "svg",
+        "localId": "2c11ef2b9aac"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "svg",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "css",
+        "localId": "55d86fb52812"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "css",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "scss",
+        "localId": "304f7833d03a"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "scss",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "sass",
+        "localId": "dfd6f4931245"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "sass",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "less",
+        "localId": "2c42911fa9fe"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "less",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "stylus",
+        "localId": "87ac4654b8b8"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "stylus",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "markdown",
+        "localId": "5fd340d64ff2"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "markdown",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "md",
+        "localId": "6f93db4f9404"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "md",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "mdx",
+        "localId": "91631f9ba4d4"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "mdx",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "rst",
+        "localId": "45765ed084be"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "rst",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "tex",
+        "localId": "21577b501fda"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "tex",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "latex",
+        "localId": "5bcd44e16884"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "latex",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "dockerfile",
+        "localId": "07b1a60b4aee"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "dockerfile",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "docker",
+        "localId": "bbc49266f010"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "docker",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "containerfile",
+        "localId": "be7f495f8b04"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "containerfile",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "makefile",
+        "localId": "add32bbfc0f0"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "makefile",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "make",
+        "localId": "55149846fa02"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "make",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "cmake",
+        "localId": "2a94184e17fb"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "cmake",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "nginx",
+        "localId": "45efddc3a9c0"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "nginx",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "apache",
+        "localId": "2e927357aa44"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "apache",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "terraform",
+        "localId": "20d39b635133"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "terraform",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "tf",
+        "localId": "77814b5efa5b"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "tf",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "hcl",
+        "localId": "3225708019ff"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "hcl",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "graphql",
+        "localId": "536df4e371c4"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "graphql",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "gql",
+        "localId": "0b834a35e5bf"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "gql",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "protobuf",
+        "localId": "b62eacfef9cf"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "protobuf",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "proto",
+        "localId": "0529903e3499"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "proto",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "thrift",
+        "localId": "8748864ec34c"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "thrift",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "diff",
+        "localId": "215c178f0c4e"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "diff",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "patch",
+        "localId": "cdb9e294570c"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "patch",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "plaintext",
+        "localId": "4e5f408f30de"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "text",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "plaintext",
+        "localId": "f676333ca678"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "plaintext",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "txt",
+        "localId": "b067890bf308"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "txt",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "plain",
+        "localId": "75ef98556924"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "plain",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "none",
+        "localId": "5ff91e0061da"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "none",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "http",
+        "localId": "796525a31498"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "http",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "https",
+        "localId": "78c12f31b2d7"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "https",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "curl",
+        "localId": "93df1773407b"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "curl",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "wasm",
+        "localId": "ddca47df9fde"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "wasm",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "asm",
+        "localId": "9ef100f37bbe"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "asm",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "nasm",
+        "localId": "0e1c50984219"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "nasm",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "x86asm",
+        "localId": "84eda5dc7c34"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "x86asm",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "visualbasic",
+        "localId": "d09fc6d8742e"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "vb",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "vbnet",
+        "localId": "39759fefa1ae"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "vbnet",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "vba",
+        "localId": "459aa976c9f0"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "vba",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "visual-basic",
+        "localId": "e26386149632"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "visual-basic",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "delphi",
+        "localId": "98e08589bda9"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "delphi",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "pascal",
+        "localId": "ece80074d1d7"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "pascal",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "fortran",
+        "localId": "037cab866ff8"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "fortran",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "cobol",
+        "localId": "3d2fe88e1c8b"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "cobol",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "abap",
+        "localId": "5dd73579f1d4"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "abap",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "prolog",
+        "localId": "830d5728dab1"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "prolog",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "scheme",
+        "localId": "eb8378690cac"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "scheme",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "racket",
+        "localId": "c4f6efbfc9a1"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "racket",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "lisp",
+        "localId": "0b28789291d4"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "lisp",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "elisp",
+        "localId": "ef857eeb06dc"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "elisp",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "verilog",
+        "localId": "fa82c0da70e5"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "verilog",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "vhdl",
+        "localId": "21ad2a03da09"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "vhdl",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "tcl",
+        "localId": "9814dc46f41c"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "tcl",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "awk",
+        "localId": "b3a823839c8f"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "awk",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "sed",
+        "localId": "6b92d214108d"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "sed",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "jq",
+        "localId": "33deaa79c9d9"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "jq",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "regex",
+        "localId": "1dddf2b63851"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "regex",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "vim",
+        "localId": "ee7b0443d5cb"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "vim",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "viml",
+        "localId": "7eeca3606cdf"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "viml",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "handlebars",
+        "localId": "be2dd9a43b20"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "handlebars",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "hbs",
+        "localId": "a5b033c7f039"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "hbs",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "twig",
+        "localId": "50ee6a3616dd"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "twig",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "jinja",
+        "localId": "47fcb7d41c6b"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "jinja",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "jinja2",
+        "localId": "85e4ed7eaab1"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "jinja2",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "liquid",
+        "localId": "1cec24839aa3"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "liquid",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "ejs",
+        "localId": "21ab964bc4c1"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "ejs",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "erb",
+        "localId": "b79945319750"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "erb",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "vue",
+        "localId": "23b54c6e9ce4"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "vue",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "svelte",
+        "localId": "34279c394871"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "svelte",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "astro",
+        "localId": "a6a8756a4b96"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "astro",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "python",
+        "localId": "0b7574ca8700"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "Python",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "json",
+        "localId": "a70a487038f3"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "JSON",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "shell",
+        "localId": "a703f15a4b88"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "Bash",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "javascript",
+        "localId": "b452d447adb8"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "JS",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "c++",
+        "localId": "24b2054d8935"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "Cpp",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "plaintext",
+        "localId": "d2032c5c201d"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "TEXT",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "yaml",
+        "localId": "921e10a5b422"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "YAML",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "shell",
+        "localId": "72af209c5cea"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "Shell",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "csv",
+        "localId": "235033e87658"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "csv",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "tsv",
+        "localId": "c878177240c8"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "tsv",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "log",
+        "localId": "44cd65824bc6"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "log",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "mermaid",
+        "localId": "9d8d94425aad"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "mermaid",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "plantuml",
+        "localId": "f2f88402e091"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "plantuml",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "puml",
+        "localId": "cfe1ccba66aa"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "puml",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "dot",
+        "localId": "938edbf5b6ca"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "dot",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "graphviz",
+        "localId": "e96f42388c83"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "graphviz",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "solidity",
+        "localId": "be626676bfad"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "solidity",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "sol",
+        "localId": "77bbb4fdded7"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "sol",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "coffeescript",
+        "localId": "dd4bcb2f17dd"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "coffeescript",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "coffee",
+        "localId": "903c9c7207e8"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "coffee",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "actionscript",
+        "localId": "88b0944c6b4d"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "actionscript",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "localId": "706fc45a931e"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "(language omitted)",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "localId": "5bbd88e8de81"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "(language empty string)",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "attrs": {
+        "level": 2,
+        "localId": "8111ebc16d59"
+      },
+      "content": [
+        {
+          "text": "Code block widths",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "attrs": {
+        "localId": "2d50162d4e86"
+      },
+      "content": [
+        {
+          "text": "A: no breakout mark",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "plaintext",
+        "localId": "a85500f3dbe1"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "A: no breakout mark\n| column 01 | column 02 | column 03 | column 04 | column 05 | column 06 | column 07 | column 08 | column 09 | column 10 | column 11 | column 12 | column 13 | column 14 | column 15 | column 16 | column 17 | column 18 | column 19 | column 20 | column 21 | column 22 | column 23 | column 24 |",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "attrs": {
+        "localId": "7e07bd7fd111"
+      },
+      "content": [
+        {
+          "text": "B: wide 760 (editor default)",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "plaintext",
+        "localId": "757cf6d545a2"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "B: wide 760 (editor default)\n| column 01 | column 02 | column 03 | column 04 | column 05 | column 06 | column 07 | column 08 | column 09 | column 10 | column 11 | column 12 | column 13 | column 14 | column 15 | column 16 | column 17 | column 18 | column 19 | column 20 | column 21 | column 22 | column 23 | column 24 |",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "attrs": {
+        "localId": "bd527d4ba06f"
+      },
+      "content": [
+        {
+          "text": "C: wide 4000 (editor-widened)",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "plaintext",
+        "localId": "4cc6ddf51b6c"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 4000
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "C: wide 4000 (editor-widened)\n| column 01 | column 02 | column 03 | column 04 | column 05 | column 06 | column 07 | column 08 | column 09 | column 10 | column 11 | column 12 | column 13 | column 14 | column 15 | column 16 | column 17 | column 18 | column 19 | column 20 | column 21 | column 22 | column 23 | column 24 |",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "attrs": {
+        "localId": "54f3d156a26c"
+      },
+      "content": [
+        {
+          "text": "D: wide 1200",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "plaintext",
+        "localId": "d7c2a42ce4d7"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 1200
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "D: wide 1200\n| column 01 | column 02 | column 03 | column 04 | column 05 | column 06 | column 07 | column 08 | column 09 | column 10 | column 11 | column 12 | column 13 | column 14 | column 15 | column 16 | column 17 | column 18 | column 19 | column 20 | column 21 | column 22 | column 23 | column 24 |",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "attrs": {
+        "localId": "c23ae21d463b"
+      },
+      "content": [
+        {
+          "text": "E: wide, no width",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "plaintext",
+        "localId": "618c26731846"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 1011
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "E: wide, no width\n| column 01 | column 02 | column 03 | column 04 | column 05 | column 06 | column 07 | column 08 | column 09 | column 10 | column 11 | column 12 | column 13 | column 14 | column 15 | column 16 | column 17 | column 18 | column 19 | column 20 | column 21 | column 22 | column 23 | column 24 |",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "attrs": {
+        "localId": "38dfeccfbcb5"
+      },
+      "content": [
+        {
+          "text": "F: full-width, no width",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "plaintext",
+        "localId": "a614faa62b72"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "full-width",
+            "width": 1800
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "F: full-width, no width\n| column 01 | column 02 | column 03 | column 04 | column 05 | column 06 | column 07 | column 08 | column 09 | column 10 | column 11 | column 12 | column 13 | column 14 | column 15 | column 16 | column 17 | column 18 | column 19 | column 20 | column 21 | column 22 | column 23 | column 24 |",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "attrs": {
+        "localId": "11e203156041"
+      },
+      "content": [
+        {
+          "text": "G: full-width 1800",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "plaintext",
+        "localId": "ff4c7787f747"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "full-width",
+            "width": 1800
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "G: full-width 1800\n| column 01 | column 02 | column 03 | column 04 | column 05 | column 06 | column 07 | column 08 | column 09 | column 10 | column 11 | column 12 | column 13 | column 14 | column 15 | column 16 | column 17 | column 18 | column 19 | column 20 | column 21 | column 22 | column 23 | column 24 |",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "attrs": {
+        "level": 2,
+        "localId": "2c64feb6694d"
+      },
+      "content": [
+        {
+          "text": "Expand and layout widths",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "attrs": {
+        "localId": "15b09e9af2b1"
+      },
+      "content": [
+        {
+          "text": "H: expand, no breakout",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "expand",
+      "attrs": {
+        "title": "H expand",
+        "localId": "a45b9168ce6b"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "type": "paragraph",
+          "attrs": {
+            "localId": "ad5a013a868f"
+          },
+          "content": [
+            {
+              "text": "| column 01 | column 02 | column 03 | column 04 | column 05 | column 06 | column 07 | column 08 | column 09 | column 10 | column 11 | column 12 | column 13 | column 14 | column 15 | column 16 | column 17 | column 18 | column 19 | column 20 | column 21 | column 22 | column 23 | column 24 |",
+              "type": "text"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "attrs": {
+        "localId": "dd9d2e5cb97d"
+      },
+      "content": [
+        {
+          "text": "I: expand, wide 1200",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "expand",
+      "attrs": {
+        "title": "I expand",
+        "localId": "13bc38ef1af6"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 1200
+          }
+        }
+      ],
+      "content": [
+        {
+          "type": "paragraph",
+          "attrs": {
+            "localId": "80c07070f117"
+          },
+          "content": [
+            {
+              "text": "| column 01 | column 02 | column 03 | column 04 | column 05 | column 06 | column 07 | column 08 | column 09 | column 10 | column 11 | column 12 | column 13 | column 14 | column 15 | column 16 | column 17 | column 18 | column 19 | column 20 | column 21 | column 22 | column 23 | column 24 |",
+              "type": "text"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "attrs": {
+        "localId": "220fcbed5ff3"
+      },
+      "content": [
+        {
+          "text": "J: layout, full-width",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "layoutSection",
+      "attrs": {
+        "localId": "b7c53a89fc6b"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "full-width",
+            "width": 1800
+          }
+        }
+      ],
+      "content": [
+        {
+          "type": "layoutColumn",
+          "attrs": {
+            "width": 50.0,
+            "localId": "1f2d719a5db1"
+          },
+          "content": [
+            {
+              "type": "paragraph",
+              "attrs": {
+                "localId": "9e759ff1b6b5"
+              },
+              "content": [
+                {
+                  "text": "J left",
+                  "type": "text"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "layoutColumn",
+          "attrs": {
+            "width": 50.0,
+            "localId": "cc0b9db064fc"
+          },
+          "content": [
+            {
+              "type": "paragraph",
+              "attrs": {
+                "localId": "7432f6e2f1e4"
+              },
+              "content": [
+                {
+                  "text": "J right",
+                  "type": "text"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "attrs": {
+        "level": 2,
+        "localId": "9227b488a2c1"
+      },
+      "content": [
+        {
+          "text": "Table widths",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "attrs": {
+        "localId": "d6bb63aef3b2"
+      },
+      "content": [
+        {
+          "text": "K: no width",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "attrs": {
+        "layout": "default",
+        "width": 760.0,
+        "localId": "2e078b33-3592-4b60-af47-62211e276fb2"
+      },
+      "content": [
+        {
+          "type": "tableRow",
+          "attrs": {
+            "localId": "5280756f9473"
+          },
+          "content": [
+            {
+              "type": "tableHeader",
+              "attrs": {
+                "colspan": 1,
+                "rowspan": 1,
+                "localId": "91c27cb0aa83"
+              },
+              "content": [
+                {
+                  "type": "paragraph",
+                  "attrs": {
+                    "localId": "0a71c915ef70"
+                  },
+                  "content": [
+                    {
+                      "text": "A",
+                      "type": "text"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "tableHeader",
+              "attrs": {
+                "colspan": 1,
+                "rowspan": 1,
+                "localId": "b941117ec1cd"
+              },
+              "content": [
+                {
+                  "type": "paragraph",
+                  "attrs": {
+                    "localId": "e465a665fab5"
+                  },
+                  "content": [
+                    {
+                      "text": "B",
+                      "type": "text"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "tableRow",
+          "attrs": {
+            "localId": "55940b84dd8f"
+          },
+          "content": [
+            {
+              "type": "tableCell",
+              "attrs": {
+                "colspan": 1,
+                "rowspan": 1,
+                "localId": "ed7cba6c2cb8"
+              },
+              "content": [
+                {
+                  "type": "paragraph",
+                  "attrs": {
+                    "localId": "de3ec3a4e195"
+                  },
+                  "content": [
+                    {
+                      "text": "{}",
+                      "type": "text"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "tableCell",
+              "attrs": {
+                "colspan": 1,
+                "rowspan": 1,
+                "localId": "d0285d08e933"
+              },
+              "content": [
+                {
+                  "type": "paragraph",
+                  "attrs": {
+                    "localId": "023a04bc085f"
+                  },
+                  "content": [
+                    {
+                      "text": "x",
+                      "type": "text"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "attrs": {
+        "localId": "6ce4f4fae862"
+      },
+      "content": [
+        {
+          "text": "L: width 760",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "attrs": {
+        "layout": "default",
+        "width": 760.0,
+        "localId": "06588ce5-093a-4dd4-a243-c464e367baa7"
+      },
+      "content": [
+        {
+          "type": "tableRow",
+          "attrs": {
+            "localId": "1b46faff192d"
+          },
+          "content": [
+            {
+              "type": "tableHeader",
+              "attrs": {
+                "colspan": 1,
+                "rowspan": 1,
+                "localId": "e2432b2f8aef"
+              },
+              "content": [
+                {
+                  "type": "paragraph",
+                  "attrs": {
+                    "localId": "c4b6635f265f"
+                  },
+                  "content": [
+                    {
+                      "text": "A",
+                      "type": "text"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "tableHeader",
+              "attrs": {
+                "colspan": 1,
+                "rowspan": 1,
+                "localId": "41cc2c69848a"
+              },
+              "content": [
+                {
+                  "type": "paragraph",
+                  "attrs": {
+                    "localId": "5a30ff5d4744"
+                  },
+                  "content": [
+                    {
+                      "text": "B",
+                      "type": "text"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "tableRow",
+          "attrs": {
+            "localId": "d99b86d42c67"
+          },
+          "content": [
+            {
+              "type": "tableCell",
+              "attrs": {
+                "colspan": 1,
+                "rowspan": 1,
+                "localId": "be9394af7c26"
+              },
+              "content": [
+                {
+                  "type": "paragraph",
+                  "attrs": {
+                    "localId": "76312df95a51"
+                  },
+                  "content": [
+                    {
+                      "text": "{\"width\": 760}",
+                      "type": "text"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "tableCell",
+              "attrs": {
+                "colspan": 1,
+                "rowspan": 1,
+                "localId": "c17a390b3ce8"
+              },
+              "content": [
+                {
+                  "type": "paragraph",
+                  "attrs": {
+                    "localId": "4e0ca90217a0"
+                  },
+                  "content": [
+                    {
+                      "text": "x",
+                      "type": "text"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "attrs": {
+        "localId": "7144d8bbd3f8"
+      },
+      "content": [
+        {
+          "text": "M: width 1200",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "attrs": {
+        "layout": "default",
+        "width": 1200.0,
+        "localId": "ae34e53e-49bb-4a05-8929-cb288e4172f6"
+      },
+      "content": [
+        {
+          "type": "tableRow",
+          "attrs": {
+            "localId": "b3b0bac3fa25"
+          },
+          "content": [
+            {
+              "type": "tableHeader",
+              "attrs": {
+                "colspan": 1,
+                "rowspan": 1,
+                "localId": "4c7b9b22bbdf"
+              },
+              "content": [
+                {
+                  "type": "paragraph",
+                  "attrs": {
+                    "localId": "d53eac713dbb"
+                  },
+                  "content": [
+                    {
+                      "text": "A",
+                      "type": "text"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "tableHeader",
+              "attrs": {
+                "colspan": 1,
+                "rowspan": 1,
+                "localId": "6453571b4e5f"
+              },
+              "content": [
+                {
+                  "type": "paragraph",
+                  "attrs": {
+                    "localId": "efe4494afdfb"
+                  },
+                  "content": [
+                    {
+                      "text": "B",
+                      "type": "text"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "tableRow",
+          "attrs": {
+            "localId": "d5841b10cbe1"
+          },
+          "content": [
+            {
+              "type": "tableCell",
+              "attrs": {
+                "colspan": 1,
+                "rowspan": 1,
+                "localId": "dc31dc549aaf"
+              },
+              "content": [
+                {
+                  "type": "paragraph",
+                  "attrs": {
+                    "localId": "8ec2811a4d7b"
+                  },
+                  "content": [
+                    {
+                      "text": "{\"width\": 1200}",
+                      "type": "text"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "tableCell",
+              "attrs": {
+                "colspan": 1,
+                "rowspan": 1,
+                "localId": "9a3254b510fb"
+              },
+              "content": [
+                {
+                  "type": "paragraph",
+                  "attrs": {
+                    "localId": "367f176f4b0a"
+                  },
+                  "content": [
+                    {
+                      "text": "x",
+                      "type": "text"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "attrs": {
+        "localId": "d8e5c103a91c"
+      },
+      "content": [
+        {
+          "text": "N: layout wide",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "attrs": {
+        "layout": "wide",
+        "width": 960.0,
+        "localId": "82e72e0f-792e-4854-ab91-feccc2c8f433"
+      },
+      "content": [
+        {
+          "type": "tableRow",
+          "attrs": {
+            "localId": "f0fa4970e654"
+          },
+          "content": [
+            {
+              "type": "tableHeader",
+              "attrs": {
+                "colspan": 1,
+                "rowspan": 1,
+                "localId": "36a0522a7635"
+              },
+              "content": [
+                {
+                  "type": "paragraph",
+                  "attrs": {
+                    "localId": "78d2201cba44"
+                  },
+                  "content": [
+                    {
+                      "text": "A",
+                      "type": "text"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "tableHeader",
+              "attrs": {
+                "colspan": 1,
+                "rowspan": 1,
+                "localId": "1d71ae958b5b"
+              },
+              "content": [
+                {
+                  "type": "paragraph",
+                  "attrs": {
+                    "localId": "231edbf8f71d"
+                  },
+                  "content": [
+                    {
+                      "text": "B",
+                      "type": "text"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "tableRow",
+          "attrs": {
+            "localId": "c5e2d40e036c"
+          },
+          "content": [
+            {
+              "type": "tableCell",
+              "attrs": {
+                "colspan": 1,
+                "rowspan": 1,
+                "localId": "17b51abe5226"
+              },
+              "content": [
+                {
+                  "type": "paragraph",
+                  "attrs": {
+                    "localId": "0a0cf76b686b"
+                  },
+                  "content": [
+                    {
+                      "text": "{\"layout\": \"wide\"}",
+                      "type": "text"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "tableCell",
+              "attrs": {
+                "colspan": 1,
+                "rowspan": 1,
+                "localId": "5eb5b328f8ca"
+              },
+              "content": [
+                {
+                  "type": "paragraph",
+                  "attrs": {
+                    "localId": "abde69ace9aa"
+                  },
+                  "content": [
+                    {
+                      "text": "x",
+                      "type": "text"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "attrs": {
+        "localId": "a813e374257d"
+      },
+      "content": [
+        {
+          "text": "O: layout full-width",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "attrs": {
+        "layout": "full-width",
+        "width": 1800.0,
+        "localId": "c74784b1-5cfe-4bdd-a7e7-243a2e106562"
+      },
+      "content": [
+        {
+          "type": "tableRow",
+          "attrs": {
+            "localId": "4ee09a0904cd"
+          },
+          "content": [
+            {
+              "type": "tableHeader",
+              "attrs": {
+                "colspan": 1,
+                "rowspan": 1,
+                "localId": "a27ec3f84e33"
+              },
+              "content": [
+                {
+                  "type": "paragraph",
+                  "attrs": {
+                    "localId": "b799646517f3"
+                  },
+                  "content": [
+                    {
+                      "text": "A",
+                      "type": "text"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "tableHeader",
+              "attrs": {
+                "colspan": 1,
+                "rowspan": 1,
+                "localId": "37dd77cd6d73"
+              },
+              "content": [
+                {
+                  "type": "paragraph",
+                  "attrs": {
+                    "localId": "7917ebaad266"
+                  },
+                  "content": [
+                    {
+                      "text": "B",
+                      "type": "text"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "tableRow",
+          "attrs": {
+            "localId": "b8644000fba1"
+          },
+          "content": [
+            {
+              "type": "tableCell",
+              "attrs": {
+                "colspan": 1,
+                "rowspan": 1,
+                "localId": "90cbc1f957bd"
+              },
+              "content": [
+                {
+                  "type": "paragraph",
+                  "attrs": {
+                    "localId": "286972401dd1"
+                  },
+                  "content": [
+                    {
+                      "text": "{\"layout\": \"full-width\"}",
+                      "type": "text"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "tableCell",
+              "attrs": {
+                "colspan": 1,
+                "rowspan": 1,
+                "localId": "29014f02fe55"
+              },
+              "content": [
+                {
+                  "type": "paragraph",
+                  "attrs": {
+                    "localId": "7a0ba5cea27b"
+                  },
+                  "content": [
+                    {
+                      "text": "x",
+                      "type": "text"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "attrs": {
+        "localId": "e39b103248e5"
+      },
+      "content": [
+        {
+          "text": "P: layout align-start, width 400",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "attrs": {
+        "layout": "align-start",
+        "width": 400.0,
+        "localId": "ac98e702-47ce-4811-9939-966eef68ccad"
+      },
+      "content": [
+        {
+          "type": "tableRow",
+          "attrs": {
+            "localId": "4ac251057afe"
+          },
+          "content": [
+            {
+              "type": "tableHeader",
+              "attrs": {
+                "colspan": 1,
+                "rowspan": 1,
+                "localId": "dc1f2802edb8"
+              },
+              "content": [
+                {
+                  "type": "paragraph",
+                  "attrs": {
+                    "localId": "d33d0358b26d"
+                  },
+                  "content": [
+                    {
+                      "text": "A",
+                      "type": "text"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "tableHeader",
+              "attrs": {
+                "colspan": 1,
+                "rowspan": 1,
+                "localId": "03719ec127de"
+              },
+              "content": [
+                {
+                  "type": "paragraph",
+                  "attrs": {
+                    "localId": "a761757e8d0a"
+                  },
+                  "content": [
+                    {
+                      "text": "B",
+                      "type": "text"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "tableRow",
+          "attrs": {
+            "localId": "4153d216de3e"
+          },
+          "content": [
+            {
+              "type": "tableCell",
+              "attrs": {
+                "colspan": 1,
+                "rowspan": 1,
+                "localId": "6d87ce831d53"
+              },
+              "content": [
+                {
+                  "type": "paragraph",
+                  "attrs": {
+                    "localId": "3da66ae28765"
+                  },
+                  "content": [
+                    {
+                      "text": "{\"layout\": \"align-start\", \"width\": 400}",
+                      "type": "text"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "tableCell",
+              "attrs": {
+                "colspan": 1,
+                "rowspan": 1,
+                "localId": "811e6cc32501"
+              },
+              "content": [
+                {
+                  "type": "paragraph",
+                  "attrs": {
+                    "localId": "565c32d00d6c"
+                  },
+                  "content": [
+                    {
+                      "text": "x",
+                      "type": "text"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "version": 1
+}

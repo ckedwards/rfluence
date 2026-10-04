@@ -1,0 +1,37 @@
+{
+  "authorId": "712020:05eb3148-b0e1-450d-a60d-67073e3cc131",
+  "parentType": "page",
+  "parentId": "295011",
+  "ownerId": "712020:05eb3148-b0e1-450d-a60d-67073e3cc131",
+  "lastOwnerId": null,
+  "createdAt": "2026-10-04T03:55:49.318Z",
+  "version": {
+    "number": 2,
+    "message": "",
+    "minorEdit": false,
+    "authorId": "712020:05eb3148-b0e1-450d-a60d-67073e3cc131",
+    "createdAt": "2026-10-04T04:46:30.789Z",
+    "ncsStepVersion": "5"
+  },
+  "labels": {
+    "results": [],
+    "meta": {
+      "hasMore": false
+    },
+    "_links": {
+      "self": "/api/v2/pages/426008/labels"
+    }
+  },
+  "position": 5098,
+  "spaceId": "294914",
+  "status": "current",
+  "title": "rfluence emoji API test",
+  "id": "426008",
+  "_links": {
+    "editui": "/pages/resumedraft.action?draftId=426008",
+    "webui": "/spaces/~71202005eb3148b0e1450da60d67073e3cc131/pages/426008/rfluence+emoji+API+test",
+    "edituiv2": "/spaces/~71202005eb3148b0e1450da60d67073e3cc131/pages/edit-v2/426008",
+    "tinyui": "/x/GIAG",
+    "base": "https://tech-accounts11.atlassian.net/wiki"
+  }
+}

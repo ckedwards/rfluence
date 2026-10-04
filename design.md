@@ -15,6 +15,51 @@ Byte-for-byte equality is not achievable (list markers, emphasis style, table al
   * Fixed point: a second upload/fetch cycle produces no changes.
   * Confluence rewrites content on save (adds `localId` attributes, reorders/normalizes nodes). The converter must handle what Confluence *returns*, not just what was sent. Recorded test responses must capture real Confluence responses for this reason.
 
+The normalizer is comrak's CommonMark renderer with these settings (verified against the corpus in `fixtures/markdown` by `spikes/comrak-normalize`: fixed point, unchanged AST, `rf:` comments still attached):
+
+  * Extensions: strikethrough, table, autolink, tasklist, footnotes, alerts, front matter (`---`). Not comrak's shortcodes extension (it would turn `:name:` into Unicode); emoji are handled by the converter, see "Emoji".
+  * `parse.escaped_char_spans = true`, so `\:tada:` (literal text) can be told apart from `:tada:` (an emoji).
+  * Emoji shortcodes: GitHub aliases are rewritten to Atlassian's name (`:+1:` -> `:thumbsup:`), and `\:` escapes before shortcodes are kept; see "Emoji".
+  * `render.prefer_fenced = true`. Without it, a fence with no info string is written as an indented code block, and two adjacent indented blocks merge into one on the next parse (a lost code block).
+  * Trailing whitespace is stripped from every line outside code and HTML blocks after rendering. comrak leaves it on lines like `> ` and blank lines inside list items; hard breaks are rendered as `\`, so it never carries meaning outside those blocks.
+  * comrak inserts `<!-- end list -->` between adjacent lists so they don't merge when re-parsed. The converter treats it as a list separator and never uploads it as content.
+  * Expected restyling, all with an unchanged AST: `-` bullets, ATX headings, `*` / `**` emphasis, `\` hard breaks, reference links inlined, entities decoded, compact table delimiter rows, longer fences when the content contains backticks, footnote text on an indented line under `[^name]:`.
+
+### What Confluence rewrites on save
+
+Verified on test page 458790, which was created through the API with every common node type; the stored ADF was diffed against what was sent. Beyond the image and link rewrites described in their own sections:
+
+  * **Code block languages are renamed**: `bash` is stored as `shell`. A ```` ```bash ```` fence would come back as ```` ```shell ````, so the converter needs an alias table like the one for emoji (see Open questions).
+  * **Marks are reordered** into a canonical order (`link`, `em`, `strong` for a bold italic link). Compare marks as a set, and render them in a fixed order on fetch.
+  * **Adjacent text nodes with the same marks are merged**, and empty text nodes are dropped. The converter must not depend on how text is split.
+  * **Defaults are filled in**: `orderedList` gets `order: 1`, `table` gets `layout: "default"`, every table cell gets `colspan: 1` / `rowspan: 1`, `status` gets `style: "bold"`. As with images, defaults must not produce `rf:` comments.
+  * **Links get `__confluenceMetadata`** (`linkType` `self` / `page`, `anchorName`, `contentTitle`, `versionAtSave`), as do `inlineCard` and `blockCard` page links. Fetch ignores it; upload doesn't send it.
+  * **Mentions**: `text` is replaced with the user's current display name (`@me` -> `@Chris Edwards`), and an empty `accessLevel` is dropped.
+  * **Macros** get `macroId` and `macroParams._parentId` (the page ID). The Children Display macro was upgraded (`schemaVersion` 1 -> 2, title `Child pages`) and its `localId` dropped. For ```` ```adf ```` passthrough, this means macro JSON fetched from one page carries that page's ID; upload should strip `macroId` and `_parentId` so a block copied to another page doesn't point back at the original.
+  * Stored as sent: table `colwidth`, `isNumberColumnEnabled`, merged cells, cell `background`, `nestedExpand`, `caption`, image `alt`, `border` and `link` marks on media, `mediaGroup`, panel types including custom colour and icon, `alignment` and `indentation` marks, `subsup`, `textColor`, `backgroundColor`, `decisionList`, nested `taskList`, `blockCard`, `embedCard`, `date`, `layoutSection` with three columns, `bodiedExtension` (excerpt), TOC macro.
+
+An **editor save rewrites the whole page**, not just the part a person changed. Verified on page 458790 by editing only its last section in the editor; the API-created blocks above it were rewritten too:
+
+  * Every node gets a `localId` (12 hex characters), and nodes without attrs get `attrs: {}`.
+  * Attributes the API save added are removed again: `__fileName` / `__fileMimeType` / `__fileSize` on images, `__confluenceMetadata` on links and cards, `macroParams._parentId` on macros.
+  * Tables get `width: 760`; code blocks, expands and layouts get a `breakout` mark (`mode: "wide"`, `width: 760`); embed cards get `originalWidth` / `originalHeight`.
+  * Marks are reordered again, into a different order from the API save (`strong`, `em`, `link` instead of `link`, `em`, `strong`). Neither order is canonical.
+  * Empty paragraphs added in the editor are kept (`{"type": "paragraph", "attrs": {}}`). Markdown has no empty paragraph, so these are dropped on fetch.
+
+So the converter must treat `localId`, `__*` attributes, default `breakout` marks and table widths, `__confluenceMetadata`, `_parentId`, empty `attrs`, mark order and text-node splits as noise: none of them may produce a markdown change. Otherwise any human edit in Confluence would show up as a diff across the whole page. `breakout` and table `width` are open (see Open questions).
+
+Editor-inserted nodes, compared with the same nodes created through the API (page 458790, last section):
+
+  * Status: the editor writes `style: "mixedCase"` (the API save fills in `bold`), and custom colours are stored as hex (`color: "#FFF0B3"`) as well as named colours. Status nodes are preserved as ```` ```adf ```` blocks, so this only matters for fixtures.
+  * Mention: `{"id": "<accountId>", "text": "@<display name>"}`, no `accessLevel`.
+  * Date: `{"timestamp": "<ms since epoch>"}`, same as the API.
+  * Inline comment: an `annotation` mark on the text, `{"annotationType": "inlineComment", "id": "<uuid>"}`. See "Inline comments" for how upload keeps it.
+  * Image resized in the editor: `mediaSingle` with `layout: "align-end"`, `width: 653`, `widthType: "pixel"`; `media` keeps its natural `width` / `height` (128); `border` and `link` marks on `media` as with the API.
+  * Resized table columns: `colwidth` as floats (`[193.0]`), table `width: 760.0`.
+  * The code block language picker has no `bash`, only `shell`, so `bash` -> `shell` is Confluence's naming, not an API quirk.
+  * Code block widened in the editor: `breakout` mark with `mode: "wide"` and `width: 4000` (the editor default is `width: 760`).
+  * Code block word wrap is a viewing toggle, not page content: turning it on stores nothing in the ADF or the page's content properties, and it is gone after a page refresh or in a private window. The converter ignores it; there is nothing to round-trip.
+
 ### Content Confluence has that markdown doesn't
 
 Pages edited by humans in Confluence will contain things markdown can't express (Jira macros, status lozenges, @mentions, layouts, other app macros). `fetch` must not drop these, or the next `upload` will delete them. Unsupported nodes are preserved as opaque fenced blocks containing the raw ADF JSON (e.g. ```` ```adf ````), which `upload` passes back unchanged.
@@ -26,8 +71,20 @@ These should map to native Confluence elements where possible:
   * Mermaid code blocks -> merfluence macro
   * GitHub alerts (`> [!NOTE]`, `> [!WARNING]`, ...) -> Confluence info/note/warning panels
   * Task lists (`- [ ]`) -> Confluence task lists
-  * Code fences with language tags -> code blocks with language
-  * Tables (including pipes inside inline code), nested lists mixed with code blocks, footnotes, emoji, inline HTML
+  * Code fences with language tags -> code blocks with language (see "Code block languages and widths")
+  * Emoji shortcodes (`:rotating_light:`) -> Confluence `emoji` nodes (see "Emoji")
+  * Tables (including pipes inside inline code), nested lists mixed with code blocks, footnotes, inline HTML
+
+### Inline comments
+
+An inline comment is an `annotation` mark on the commented text, `{"annotationType": "inlineComment", "id": "<uuid>"}` (observed on page 458790). The thread itself lives on the server; the mark is its anchor. If an upload sends the text without the mark, the thread is detached from the page.
+
+Inline comments are kept out of the markdown and re-anchored on upload:
+
+  * Fetch drops `annotation` marks. The markdown stays clean: no IDs for an LLM to read past or break, and annotations never affect `normalize(md) == fetch(upload(md))`.
+  * Upload already GETs the remote page for the version check; that call also returns the body. A pure function in `rfluence-convert` takes the remote ADF and the new ADF and puts each annotation back on the same text in the new ADF, matching by the annotated text and its occurrence index (the nth match in the document), then by surrounding text if the occurrence index no longer matches. This mirrors Confluence's own anchoring: the v2 inline comments API locates a comment by `textSelection` + `textSelectionMatchIndex`.
+  * An annotation whose text was changed or deleted can't be re-anchored, and its comment is detached, the same as when someone deletes commented text in the Confluence editor. Ambiguous matches are not guessed. Upload and `--dry-run` report both, e.g. `2 inline comments will be detached: "…"`.
+  * An annotation can cover part of a text node, several text nodes with different marks, or text in several paragraphs (one mark per text node, same `id`). The re-anchoring works on the plain text of each block, then splits text nodes as needed.
 
 ### Mermaid diagrams (merfluence)
 
@@ -73,6 +130,49 @@ Merfluence is a Forge app. A diagram is a single `extension` node (not `bodiedEx
   * **Never send cached SVGs with a changed `source`.** Verified: when `source` changes but the old `svgLight` / `svgDark` are kept, merfluence shows the old diagram. Simplest rule: always strip `svgLight`, `svgDark`, `renderedVersion` and `cacheV` on upload. Keeping them for unchanged diagrams is a possible later optimization.
   * `embeddedMacroContext` holds page-specific data (page ID, version, space, account). Don't send it on upload.
 
+### Emoji
+
+An emoji in ADF is an inline node: `{"type": "emoji", "attrs": {"shortName": ":thumbsup:", "id": "1f44d", "text": "👍"}}`. Standard emoji have the hex codepoint(s) as `id` (`-`-joined, keeping zero-width joiners: `1f62e-200d-1f4a8`).
+
+Names (checked against the catalogs on 2026-10-03):
+
+  * Atlassian's standard catalog (`GET <site>/gateway/api/emoji/standard`, 1890 emoji) gives each emoji exactly one `shortName`, with no aliases.
+  * GitHub's shortcodes, which LLMs write, often differ for the same emoji: of 1913 Unicode GitHub names, 1200 match Atlassian's name, 451 are the same emoji under another name (`:+1:` -> `:thumbsup:`, `:memo:` -> `:pencil:`, `:stop_sign:` -> `:octagonal_sign:`, country flags `:albania:` -> `:flag_al:`), and the rest didn't match by `id`, mostly because GitHub drops zero-width joiners from codepoints. 23 GitHub names (`:octocat:`, ...) are images with no Unicode emoji.
+
+What Confluence does (verified on test page 426008):
+
+  * Emoji nodes are stored exactly as sent. Missing attrs are not filled in, and invalid `shortName`s (`:+1:`, `:not_an_emoji:`) are accepted.
+  * In the browser, a valid `shortName` renders even without `id` / `text`, but an invalid one (`:+1:`, `:not_an_emoji:`) shows a question mark. So GitHub aliases must be translated, not passed through.
+  * The server renderer (`body-format=view`) is stricter: without an `id` it shows a blue-star placeholder, even for a valid `shortName`. Upload therefore always sends `shortName` + `id` + `text`, which render in both.
+  * Unicode emoji and `:name:` in plain text are left as text, never converted to emoji nodes.
+  * An editor save doesn't repair emoji nodes: after page 426008 was edited and re-published in the editor, the nodes only gained a `localId`. Missing `id` / `text` and invalid `shortName`s stay as they were, so upload must get all three attrs right, and fetch must handle `shortName`-only nodes written by other tools (the catalog lookup does).
+
+Converter rules:
+
+  * `rfluence-convert` bundles Atlassian's standard catalog plus GitHub's names as aliases (matched by codepoint, ignoring zero-width joiners and variation selectors). A script regenerates it from both sources.
+  * Shortcode syntax: `:name:` in text (never in code), where `name` is `[a-z0-9_+-]+`, not directly preceded or followed by a letter or digit (so `1:100:3` is not an emoji). Upload, fetch and normalize use the same rule.
+  * Upload: a `:name:` found in the catalog (Atlassian name or GitHub alias) becomes an emoji node with `shortName`, `id` and `text` from the catalog. An escaped `\:name:` is literal text. Other names go to the custom emoji lookup (below), and stay text if that finds nothing.
+  * Fetch: an emoji node is written as:
+    * `:shortName:` if `shortName` is in the catalog;
+    * its `text` if `text` is exactly the characters encoded by `id` (a standard emoji newer than the bundled catalog), so it isn't written as a shortcode that wouldn't upload;
+    * otherwise `:shortName:` as a custom emoji (below). The format of custom `id`s hasn't been observed, so classification compares `text` with `id` rather than guessing from the `id`'s shape.
+  * Fetch: plain text that matches a catalog shortcode (e.g. text `:tada:` typed in Confluence, as on test page 426008) is written as `\:tada:`, so the next upload doesn't turn it into an emoji node.
+  * Normalize:
+    * GitHub aliases are rewritten to Atlassian's name, so `normalize(md) == fetch(upload(md))` holds for the 451 renamed emoji.
+    * `\:` is kept before a catalog shortcode and dropped elsewhere (comrak's default). comrak's renderer ignores source escapes and never escapes `:`, so the normalizer parses with `escaped_char_spans` and replaces each kept escape with a raw inline HTML node `\:`, which is written verbatim and parses back as an escape. Verified with `fixtures/markdown/emoji.md` in the spike (fixed point, unchanged AST).
+  * Unicode emoji typed directly (`✅`) stay text in both directions.
+
+Custom (site-uploaded) emoji. Observed on page 458790 after uploading a custom emoji `rfluence` through the editor:
+
+  * The node is `{"shortName": ":rfluence:", "id": "8c4f3c94-1ade-4ce8-8b3a-0fdc390d2f04", "text": ":rfluence:"}`. The `id` is a UUID, which is all hex and dashes, so it can't be told apart from a codepoint sequence by its shape; the `text`-vs-`id` comparison above classifies it correctly (`text` is the shortcode, not the encoded characters).
+  * Confluence refuses a custom emoji named like a standard one (uploading one named `tada` fails with "emoji name already exists").
+  * Fetch writes them as `:<shortName>:` like standard emoji, using the classification above.
+  * Upload resolves a `:name:` that isn't in the standard catalog against the site emoji API (one extra call, only when such a name is present). A match becomes an emoji node with the site emoji's `shortName`, `id`, and `text` set to the shortName, as the editor writes it.
+  * Known limitations, because fetch doesn't call the site emoji API (it must stay one API call) and normalize is pure:
+    * Plain text matching a custom emoji's name (e.g. `:partyparrot:` typed as text) isn't escaped on fetch, so the next upload turns it into the emoji. Likewise `\:partyparrot:` in markdown loses its escape on normalize.
+    * The standard catalog wins over site emoji. A custom emoji named like a GitHub alias (e.g. `:memo:`) is fetched as `:memo:`, normalized to `:pencil:`, and uploaded as the standard emoji. Clashes with Atlassian's own names can't happen (Confluence refuses them), only clashes with GitHub aliases.
+  * The site emoji API response also contains a media access token, so never store it in fixtures.
+
 ### Images and attachments
 
 How images appear in ADF (observed on the test site, e.g. page 295257):
@@ -106,6 +206,39 @@ Upload:
 
 Scope: images only for now. Other attachments (PDFs etc., shown as file cards in a `mediaGroup`) are fetched as plain links to the attachment.
 
+### Code block languages and widths
+
+Languages (verified on test page 98404, one code block per name for 197 names LLMs commonly put on fences, including aliases and mixed case):
+
+  * Confluence lowercases the language, then renames exactly these aliases: `bash` -> `shell`, `js` -> `javascript`, `py` -> `python`, `cpp` -> `c++`, `c#` -> `csharp`, `vb` -> `visualbasic`, `text` -> `plaintext`. `Bash` and `BASH` become `shell` too.
+  * Every other name is stored lowercased but otherwise as sent, including names Confluence doesn't highlight (`golang`, `sh`, `none`, `mermaid`). An empty language (`""`) is removed.
+  * The editor's language picker uses the renamed forms (it offers `shell`, not `bash`). An editor save renames nothing further: after page 98404 was re-saved in the editor, every language was unchanged.
+
+Converter rules:
+
+  * The language is the first word of the fence info string; the rest holds settings (`mermaid theme=dark`, `shell width=4000`).
+  * `rfluence-convert` bundles the alias table above. Upload sends the lowercased, de-aliased name. Normalize rewrites the fence language the same way (```` ```Bash ```` -> ```` ```shell ````, ```` ```js ```` -> ```` ```javascript ````), so `normalize(md) == fetch(upload(md))` holds. Fetch writes the stored language as-is.
+  * Names outside the table pass through. If a live round-trip test finds another rename, it goes into the table.
+
+Widths (`breakout` mark on code blocks, expands and layouts; `width` / `layout` on tables). Verified on page 98404 (API) and 458790 (editor):
+
+  * The API stores them exactly as sent: `breakout` with `mode: "wide"` or `"full-width"`, with or without `width`; table `width` and `layout` (`default`, `wide`, `full-width`, `align-start`). A table sent without `layout` gets `layout: "default"`.
+  * An editor save fills in a width for each mode on blocks nobody touched (page 98404 re-saved in the editor):
+    * code block / expand with no `breakout` mark -> `{mode: "wide", width: 760}`; it looks the same as no mark (checked in the browser);
+    * `breakout` `{mode: "full-width"}` without a width -> `width: 1800` (code blocks and layouts);
+    * `breakout` `{mode: "wide"}` without a width -> `width: 1011` (possibly depends on the editor's window size, so `rf` never sends this form);
+    * table with no `width` -> `760` for `layout: "default"`, `960` for `"wide"`, `1800` for `"full-width"`; a table without `layout` gets `"default"`.
+  * So defaults are per mode: `wide` -> 760, `full-width` -> 1800 for `breakout`; `default` -> 760, `wide` -> 960, `full-width` -> 1800 for tables. A missing width and the mode's default width are the same setting.
+  * A width someone chose in the editor: `breakout` `{mode: "wide", width: 4000}` for a widened code block.
+
+Converter rules:
+
+  * Fetch writes nothing for defaults (no mark, or `wide` at 760). Otherwise code blocks get fence settings: `breakout=full-width` when the mode is full width, and `width=<n>` when the width is present and isn't the mode's default. Examples: ```` ```shell width=4000 ````, ```` ```shell breakout=full-width ````. `breakout` `{mode: "wide"}` without a width (only seen from the API) is written as `breakout=wide`.
+  * Tables get the same rule in an `rf:` comment after the table: `layout=<layout>` when not `default`, `width=<n>` when present and not the layout's default.
+  * Upload sends no `breakout` mark / table `width` for defaults, the mode without a width when the width is the mode's default, and the width otherwise. Either way, an editor save that fills in the default width doesn't change the markdown.
+  * Expands and layouts are written as ```` ```adf ```` blocks, so their `breakout` stays in the JSON. Fetch removes default `breakout` marks (and other editor-save noise, see "What Confluence rewrites on save") from ```` ```adf ```` blocks too, so an editor save doesn't change them.
+  * Code block word wrap isn't stored (see "What Confluence rewrites on save"), so there is nothing to round-trip.
+
 ### Confluence-only settings in markdown
 
 Some Confluence settings have no markdown syntax. To keep round trips independent of the remote page, they are stored in the markdown file itself:
@@ -117,10 +250,19 @@ Some Confluence settings have no markdown syntax. To keep round trips independen
     ![roadmap](page.assets/roadmap.svg)<!-- rf: layout=center width=1070 -->
     ```
 
+  * **Tables:** a table has no line to share, so its `rf:` comment goes on the line directly after the last row. comrak parses it as an HTML block that is the table's next sibling (a block-level HTML comment ends a GFM table); normalizing inserts a blank line between them but keeps it the next sibling. Verified in the spike (`fixtures/markdown/images-and-links.md`).
+
+    ```markdown
+    | Quarter | Revenue |
+    | --- | --- |
+    | Q1 | 10 |
+    <!-- rf: width=1200 -->
+    ```
+
 Rules:
 
   * Only non-default values are written. Defaults are what Confluence fills in when a setting is omitted, so a round trip without a comment is stable. For images that's left-aligned (`align-start`) at natural width with `widthType=pixel`; such an image has no comment.
-  * The comment only applies when it's immediately adjacent to the element on the same line (comrak parses it as an inline HTML node following the image).
+  * The comment only applies when it's immediately adjacent to the element: on the same line for inline elements (comrak parses it as an inline HTML node following the image or link), or as the very next block for tables.
   * `key=value` pairs, not JSON: shorter and less likely to be broken by an LLM editing around it.
   * If the comment is missing (e.g. an LLM dropped it), Confluence defaults are used. The content still uploads; only the setting is lost.
   * HTML comments are invisible in rendered markdown, so the file still reads cleanly.
@@ -276,6 +418,9 @@ Reference pages on the test site (personal space, ID 294914). Don't delete them:
   * [rfluence image API test](https://tech-accounts11.atlassian.net/wiki/spaces/~71202005eb3148b0e1450da60d67073e3cc131/pages/131074) (ID 131074) has images created through the API: a minimal node, explicit size/layout, a new attachment version referenced by new and old `fileId`, and an external image. All render correctly.
   * [rfluence link API test](https://tech-accounts11.atlassian.net/wiki/spaces/~71202005eb3148b0e1450da60d67073e3cc131/pages/295349) (ID 295349) has page links (text link, URL with title, smart link) and headings with punctuation, unicode, duplicates and extra spaces for checking anchor IDs.
   * [rfluence tree test](https://tech-accounts11.atlassian.net/wiki/spaces/~71202005eb3148b0e1450da60d67073e3cc131/folder/131110) (folder ID 131110, under the space homepage) has nested folders and pages for checking hierarchy: folder `api`, page `api` (same title as the folder), folder `rfluence tree page` (same title as a page), and page `rfluence tree page` (moved from `api` to the top folder).
+  * [rfluence ADF reference](https://tech-accounts11.atlassian.net/wiki/spaces/~71202005eb3148b0e1450da60d67073e3cc131/pages/458790) (ID 458790) was created through the API with every common node type (code blocks, tables with merged cells / header column / widths / images / nested expand, nested lists and tasks, decisions, all panel types, text marks, alignment, indentation, quotes, heading links, smart link cards and embeds, captioned / bordered / linked images, a PDF file card, emoji, status, mention, date, expand, TOC / excerpt / child pages macros, a three-column layout). Its last section holds the same kinds of content inserted through the editor, for comparison.
+  * [rfluence code language and width API test](https://tech-accounts11.atlassian.net/wiki/spaces/~71202005eb3148b0e1450da60d67073e3cc131/pages/98404) (ID 98404) has one code block per language name (197 names, the block's text is the name sent), then `breakout` variants on code blocks, expands and layouts, and table `width` / `layout` variants.
+  * [rfluence emoji API test](https://tech-accounts11.atlassian.net/wiki/spaces/~71202005eb3148b0e1450da60d67073e3cc131/pages/426008) (ID 426008) has emoji nodes created through the API: `shortName` only, all three attrs, a GitHub alias as `shortName`, an unknown `shortName`, a zero-width-joiner emoji, and Unicode / `:name:` in plain text.
   * [rfluence label API test](https://tech-accounts11.atlassian.net/wiki/spaces/~71202005eb3148b0e1450da60d67073e3cc131/pages/524309) (ID 524309) has labels added via the API, including the results of splitting (`two`, `words`, `comma`, `label`), lowercasing (`upper`) and non-ASCII (`ünïcode`).
   * [rfluence lifecycle test](https://tech-accounts11.atlassian.net/wiki/spaces/~71202005eb3148b0e1450da60d67073e3cc131/folder/262167) (folder ID 262167, under the space homepage) has the results of the rename/delete tests: folder `new-name` holding a page with an `rfluence` content property (moved there from the trashed folder `old-name`), and pages moved up to this folder when their parent page / folder was deleted. A folder `old-name` and page `lifecycle parent page` were recreated after their originals were trashed, to show trashed titles can be reused. The originals are in the space trash.
 
@@ -623,6 +768,14 @@ Links to non-markdown local files (`[spec](./spec.pdf)`) and non-image attachmen
   * Upload: a relative link to a local non-markdown file would upload it as an attachment (same rules as images: named after the file, new version only if the content changed) and link to the attachment.
   * Fetch: attachment links and file cards (`mediaGroup`) would become relative links to `<name>.assets/<file>`, downloaded only with `-o`.
   * Decide whether file cards (`mediaGroup` / `mediaSingle` with non-image files) need their own markdown form, e.g. a link plus an `rf: card=file` comment.
+
+### `rf fetch --comments`
+
+Inline comments are left out of fetched markdown (see "Inline comments"), but their text can be useful context for an LLM reviewing a page. `rf fetch --comments` would add the comment threads as read-only output, e.g. as footnotes on the commented text, with author and date. Upload would ignore them; it re-anchors from the remote page as usual. Page (footer) comments could be included the same way. Costs one extra API call (`/wiki/api/v2/pages/{id}/inline-comments`), so it stays opt-in.
+
+### Jira content
+
+The test site has no Jira, so Jira issue macros, Jira smart links and Jira issue lists haven't been observed. Until then they are handled like any other unsupported node (preserved as ```` ```adf ```` blocks; smart links as `inlineCard` / `blockCard`). With a Jira-connected test site: capture each form, decide whether any deserve a markdown form (e.g. `[PROJ-123](<issue url>)` for an inline issue link), and check what an LLM most needs from them on fetch (issue key, summary, status).
 
 ### rfluence-desktop
 

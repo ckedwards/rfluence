@@ -1,0 +1,37 @@
+{
+  "authorId": "712020:05eb3148-b0e1-450d-a60d-67073e3cc131",
+  "parentType": "page",
+  "parentId": "295011",
+  "spaceId": "294914",
+  "ownerId": "712020:05eb3148-b0e1-450d-a60d-67073e3cc131",
+  "lastOwnerId": null,
+  "createdAt": "2026-10-04T02:28:56.910Z",
+  "version": {
+    "number": 3,
+    "message": "more bottom padding",
+    "minorEdit": false,
+    "authorId": "712020:05eb3148-b0e1-450d-a60d-67073e3cc131",
+    "createdAt": "2026-10-04T02:37:40.026Z",
+    "ncsStepVersion": "3"
+  },
+  "labels": {
+    "results": [],
+    "meta": {
+      "hasMore": false
+    },
+    "_links": {
+      "self": "/api/v2/pages/295349/labels"
+    }
+  },
+  "position": 2508,
+  "id": "295349",
+  "status": "current",
+  "title": "rfluence link API test",
+  "_links": {
+    "editui": "/pages/resumedraft.action?draftId=295349",
+    "webui": "/spaces/~71202005eb3148b0e1450da60d67073e3cc131/pages/295349/rfluence+link+API+test",
+    "edituiv2": "/spaces/~71202005eb3148b0e1450da60d67073e3cc131/pages/edit-v2/295349",
+    "tinyui": "/x/tYEE",
+    "base": "https://tech-accounts11.atlassian.net/wiki"
+  }
+}

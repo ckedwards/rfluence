@@ -1,0 +1,129 @@
+{
+  "type": "doc",
+  "content": [
+    {
+      "type": "paragraph",
+      "attrs": {
+        "localId": "23d43a6b33f1"
+      },
+      "content": [
+        {
+          "text": "A shortName only: ",
+          "type": "text"
+        },
+        {
+          "type": "emoji",
+          "attrs": {
+            "shortName": ":rotating_light:",
+            "localId": "d9e99cdf2229"
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "attrs": {
+        "localId": "f9f125ebe907"
+      },
+      "content": [
+        {
+          "text": "B all attrs: ",
+          "type": "text"
+        },
+        {
+          "type": "emoji",
+          "attrs": {
+            "id": "1f44d",
+            "text": "👍",
+            "shortName": ":thumbsup:",
+            "localId": "ff8abd6dbb70"
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "attrs": {
+        "localId": "3416c0d093fd"
+      },
+      "content": [
+        {
+          "text": "C GitHub alias as shortName: ",
+          "type": "text"
+        },
+        {
+          "type": "emoji",
+          "attrs": {
+            "shortName": ":+1:",
+            "localId": "b0a390f140a0"
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "attrs": {
+        "localId": "8eaa74d2e3ad"
+      },
+      "content": [
+        {
+          "text": "D unknown shortName: ",
+          "type": "text"
+        },
+        {
+          "type": "emoji",
+          "attrs": {
+            "shortName": ":not_an_emoji:",
+            "localId": "8bdc07f54606"
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "attrs": {
+        "localId": "e4f739a16bfe"
+      },
+      "content": [
+        {
+          "text": "E ZWJ all attrs: ",
+          "type": "text"
+        },
+        {
+          "type": "emoji",
+          "attrs": {
+            "id": "1f62e-200d-1f4a8",
+            "text": "😮‍💨",
+            "shortName": ":face_exhaling:",
+            "localId": "aed8ae1fc818"
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "attrs": {
+        "localId": "e935fcc9c312"
+      },
+      "content": [
+        {
+          "text": "F unicode in text: ✅ and shortcode in text: :tada:",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "attrs": {
+        "localId": "f4f84c4ec63b"
+      },
+      "content": [
+        {
+          "text": "XXX",
+          "type": "text"
+        }
+      ]
+    }
+  ],
+  "version": 1
+}

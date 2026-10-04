@@ -1,0 +1,78 @@
+{
+  "authorId": "712020:05eb3148-b0e1-450d-a60d-67073e3cc131",
+  "parentType": "page",
+  "parentId": "295011",
+  "spaceId": "294914",
+  "ownerId": "712020:05eb3148-b0e1-450d-a60d-67073e3cc131",
+  "lastOwnerId": null,
+  "createdAt": "2026-10-04T02:46:43.152Z",
+  "position": 4160,
+  "version": {
+    "number": 1,
+    "message": "",
+    "minorEdit": false,
+    "authorId": "712020:05eb3148-b0e1-450d-a60d-67073e3cc131",
+    "createdAt": "2026-10-04T02:46:43.152Z",
+    "ncsStepVersion": "1"
+  },
+  "labels": {
+    "results": [
+      {
+        "prefix": "global",
+        "name": "two",
+        "id": "131113"
+      },
+      {
+        "prefix": "global",
+        "name": "words",
+        "id": "131115"
+      },
+      {
+        "prefix": "global",
+        "name": "ünïcode",
+        "id": "131117"
+      },
+      {
+        "prefix": "global",
+        "name": "dash-ok",
+        "id": "295400"
+      },
+      {
+        "prefix": "global",
+        "name": "under_score",
+        "id": "360477"
+      },
+      {
+        "prefix": "global",
+        "name": "upper",
+        "id": "458779"
+      },
+      {
+        "prefix": "global",
+        "name": "comma",
+        "id": "458781"
+      },
+      {
+        "prefix": "global",
+        "name": "label",
+        "id": "458783"
+      }
+    ],
+    "meta": {
+      "hasMore": false
+    },
+    "_links": {
+      "self": "/api/v2/pages/524309/labels"
+    }
+  },
+  "id": "524309",
+  "status": "current",
+  "title": "rfluence label API test",
+  "_links": {
+    "editui": "/pages/resumedraft.action?draftId=524309",
+    "webui": "/spaces/~71202005eb3148b0e1450da60d67073e3cc131/pages/524309/rfluence+label+API+test",
+    "edituiv2": "/spaces/~71202005eb3148b0e1450da60d67073e3cc131/pages/edit-v2/524309",
+    "tinyui": "/x/FQAI",
+    "base": "https://tech-accounts11.atlassian.net/wiki"
+  }
+}

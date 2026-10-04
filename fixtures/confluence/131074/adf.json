@@ -1,0 +1,216 @@
+{
+  "type": "doc",
+  "content": [
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "text": "rfluence test page: checks images uploaded via the API. Kept as a reference.",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "attrs": {
+        "level": 2
+      },
+      "content": [
+        {
+          "text": "A: green.png, minimal node (no size or layout)",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "text": "Expected: wide green rectangle",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "mediaSingle",
+      "attrs": {
+        "layout": "align-start",
+        "width": 600,
+        "widthType": "pixel"
+      },
+      "content": [
+        {
+          "type": "media",
+          "attrs": {
+            "width": 600,
+            "id": "b9e35bcf-7773-4ae5-a0af-0bc4d58060fe",
+            "collection": "contentId-131074",
+            "type": "file",
+            "height": 300
+          }
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "attrs": {
+        "level": 2
+      },
+      "content": [
+        {
+          "text": "B: green.png with layout=center width=150 widthType=pixel",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "text": "Expected: small green rectangle, about 150px wide",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "mediaSingle",
+      "attrs": {
+        "layout": "center",
+        "width": 150,
+        "widthType": "pixel"
+      },
+      "content": [
+        {
+          "type": "media",
+          "attrs": {
+            "width": 600,
+            "id": "b9e35bcf-7773-4ae5-a0af-0bc4d58060fe",
+            "collection": "contentId-131074",
+            "type": "file",
+            "height": 300
+          }
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "attrs": {
+        "level": 2
+      },
+      "content": [
+        {
+          "text": "C: square.svg, fileId of version 2",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "text": "Expected: blue, VERSION 2",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "mediaSingle",
+      "attrs": {
+        "layout": "align-start",
+        "width": 400,
+        "widthType": "pixel"
+      },
+      "content": [
+        {
+          "type": "media",
+          "attrs": {
+            "width": 400,
+            "id": "c6f31dee-aa49-4c8e-97d8-bd0d7050a48b",
+            "collection": "contentId-131074",
+            "type": "file",
+            "height": 200
+          }
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "attrs": {
+        "level": 2
+      },
+      "content": [
+        {
+          "text": "D: square.svg, fileId of version 1 (old)",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "text": "Shows red (VERSION 1) or blue (VERSION 2)?",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "mediaSingle",
+      "attrs": {
+        "layout": "align-start",
+        "width": 400,
+        "widthType": "pixel"
+      },
+      "content": [
+        {
+          "type": "media",
+          "attrs": {
+            "width": 400,
+            "id": "c6f31dee-aa49-4c8e-97d8-bd0d7050a48b",
+            "collection": "contentId-131074",
+            "type": "file",
+            "height": 200
+          }
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "attrs": {
+        "level": 2
+      },
+      "content": [
+        {
+          "text": "E: external image",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "text": "Expected: Wikimedia PNG transparency demo (dice)",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "mediaSingle",
+      "attrs": {
+        "layout": "align-start"
+      },
+      "content": [
+        {
+          "type": "media",
+          "attrs": {
+            "alt": "dice",
+            "type": "external",
+            "url": "https://upload.wikimedia.org/wikipedia/commons/4/47/PNG_transparency_demonstration_1.png"
+          }
+        }
+      ]
+    }
+  ],
+  "version": 1
+}
