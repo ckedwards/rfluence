@@ -18,7 +18,7 @@ A: text link (space + id URL): [merfluence page](https://tech-accounts11.atlassi
 
 B: text link (URL with title slug): [image test page](https://tech-accounts11.atlassian.net/wiki/spaces/rfluencete/pages/131074)
 
-C: smart link (inlineCard): <https://tech-accounts11.atlassian.net/wiki/spaces/rfluencete/pages/458755>
+C: smart link (inlineCard): [rfluence merfluence API test](https://tech-accounts11.atlassian.net/wiki/spaces/rfluencete/pages/458755)<!-- rf: card=inline -->
 
 ## Anchor links
 

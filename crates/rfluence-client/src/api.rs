@@ -230,6 +230,29 @@ impl Client {
         }
     }
 
+    /// The titles of pages, by ID: one request per 250 pages. Pages that don't exist or
+    /// aren't visible are missing from the result.
+    pub fn page_titles(&self, ids: &[String]) -> Result<HashMap<String, String>> {
+        #[derive(Deserialize)]
+        struct Title {
+            id: String,
+            title: String,
+        }
+        let mut titles = HashMap::new();
+        for chunk in ids.chunks(250) {
+            let mut path = format!("/wiki/api/v2/pages?limit=250&id={}", chunk.join(","));
+            loop {
+                let page: Paged<Title> = self.get(&path)?;
+                titles.extend(page.results.into_iter().map(|t| (t.id, t.title)));
+                match page.links.and_then(|l| l.next) {
+                    Some(next) => path = format!("/wiki{next}"),
+                    None => break,
+                }
+            }
+        }
+        Ok(titles)
+    }
+
     /// An attachment's content.
     pub fn download(&self, attachment: &Attachment) -> Result<Vec<u8>> {
         let link = attachment

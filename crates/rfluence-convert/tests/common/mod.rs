@@ -49,8 +49,24 @@ pub fn attachments(name: &str) -> HashMap<String, String> {
 }
 
 /// Images point at the fixture's `attachments/` folder, so its page.md previews with them.
+/// Smart links get the titles of the other captured pages, as if looked up on the site.
 pub fn fetch_ctx(name: &str) -> FetchContext {
-    FetchContext { page_id: Some(page_id(name)), assets_dir: "attachments".into(), attachments: attachments(name), ..Default::default() }
+    FetchContext {
+        page_id: Some(page_id(name)),
+        assets_dir: "attachments".into(),
+        attachments: attachments(name),
+        site_host: Some("tech-accounts11.atlassian.net".into()),
+        titles: titles(),
+        ..Default::default()
+    }
+}
+
+/// Every captured page's title, by page ID.
+pub fn titles() -> HashMap<String, String> {
+    pages()
+        .into_iter()
+        .map(|name| (page_id(&name), page_meta(&name).title))
+        .collect()
 }
 
 /// The page metadata a client would read from the page response (page.json).

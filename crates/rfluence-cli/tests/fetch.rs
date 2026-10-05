@@ -11,8 +11,15 @@ fn fixture(name: &str, file: &str) -> String {
     std::fs::read_to_string(path).unwrap()
 }
 
-/// A mock site serving one captured page (and its attachments).
+/// A mock site serving one captured page (and its attachments), and page titles.
 fn site(name: &str) -> mockito::ServerGuard {
+    let mut server = site_without_titles(name);
+    serve_titles(&mut server);
+    server
+}
+
+/// A mock site serving one captured page, whose title lookup fails.
+fn site_without_titles(name: &str) -> mockito::ServerGuard {
     let mut server = mockito::Server::new();
     let mut page: serde_json::Value = serde_json::from_str(&fixture(name, "page.json")).unwrap();
     let id = page["id"].as_str().unwrap().to_string();
@@ -29,6 +36,23 @@ fn site(name: &str) -> mockito::ServerGuard {
         .with_body(attachments)
         .create();
     server
+}
+
+/// The titles of all captured pages, as `GET /wiki/api/v2/pages?id=...` returns them.
+fn serve_titles(server: &mut mockito::ServerGuard) {
+    let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/confluence");
+    let mut results = Vec::new();
+    for entry in std::fs::read_dir(dir).unwrap().flatten() {
+        if let Ok(text) = std::fs::read_to_string(entry.path().join("page.json")) {
+            let page: serde_json::Value = serde_json::from_str(&text).unwrap();
+            results.push(serde_json::json!({ "id": page["id"], "title": page["title"] }));
+        }
+    }
+    server
+        .mock("GET", "/wiki/api/v2/pages")
+        .match_query(Matcher::Any)
+        .with_body(serde_json::json!({ "results": results, "_links": {} }).to_string())
+        .create();
 }
 
 fn rf(server: &mockito::ServerGuard, args: &[&str]) -> Output {
@@ -65,6 +89,16 @@ fn prints_the_simplified_form() {
     let out = rf(&server, &["fetch", "--simplified", "458790"]);
     assert!(out.status.success());
     similar_asserts::assert_eq!(stdout(&out), expected("adf-reference", "page.simplified.md", "rfluence-adf-reference.assets"));
+}
+
+#[test]
+fn smart_links_keep_their_urls_without_titles() {
+    let server = site_without_titles("adf-reference");
+    let out = rf(&server, &["fetch", "458790"]);
+    assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+    let md = stdout(&out);
+    assert!(md.contains("Inline card: <https://tech-accounts11.atlassian.net/wiki/spaces/rfluencete/pages/295349>\n"), "{md}");
+    assert!(md.contains("<https://tech-accounts11.atlassian.net/wiki/spaces/rfluencete/pages/131074><!-- rf: card=block -->"));
 }
 
 #[test]

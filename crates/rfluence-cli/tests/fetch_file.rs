@@ -25,8 +25,27 @@ fn page_json(name: &str, adf_file: &str, version: Option<u64>) -> String {
     page.to_string()
 }
 
-/// Serve a captured page: its current version, and its attachments with their files.
+/// The titles of all captured pages, as `GET /wiki/api/v2/pages?id=...` returns them.
+fn serve_titles(server: &mut mockito::ServerGuard) {
+    let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/confluence");
+    let mut results = Vec::new();
+    for entry in std::fs::read_dir(dir).unwrap().flatten() {
+        if let Ok(text) = std::fs::read_to_string(entry.path().join("page.json")) {
+            let page: serde_json::Value = serde_json::from_str(&text).unwrap();
+            results.push(serde_json::json!({ "id": page["id"], "title": page["title"] }));
+        }
+    }
+    server
+        .mock("GET", "/wiki/api/v2/pages")
+        .match_query(Matcher::Any)
+        .with_body(serde_json::json!({ "results": results, "_links": {} }).to_string())
+        .create();
+}
+
+/// Serve a captured page: its current version, its attachments with their files, and page
+/// titles.
 fn serve(server: &mut mockito::ServerGuard, name: &str) {
+    serve_titles(server);
     let page: serde_json::Value = serde_json::from_str(&fixture(name, "page.json")).unwrap();
     let id = page["id"].as_str().unwrap();
     server
@@ -202,10 +221,12 @@ fn links_to_project_files_are_relative() {
     assert!(p.fetch(&server, "426008", "emoji.md", &[]).status.success());
     assert!(p.fetch(&server, "458790", "docs/ref.md", &[]).status.success());
     let reference = p.read("docs/ref.md");
-    // The resized image on the reference page links to the emoji page, now ../emoji.md;
-    // smart links keep their URLs.
+    // The resized image on the reference page links to the emoji page, now ../emoji.md, and
+    // so does its smart link (still marked as one).
     assert!(reference.contains("](../emoji.md)<!-- rf: layout=align-end"), "{reference}");
-    assert!(reference.contains("<https://tech-accounts11.atlassian.net/wiki/spaces/rfluencete/pages/426008>"));
+    assert!(reference.contains("An inline confluence link [rfluence emoji API test](../emoji.md)<!-- rf: card=inline -->"), "{reference}");
+    // Smart links to pages outside the project keep their URLs.
+    assert!(reference.contains("[rfluence link API test](https://tech-accounts11.atlassian.net/wiki/spaces/rfluencete/pages/295349)<!-- rf: card=inline -->"));
 }
 
 #[test]

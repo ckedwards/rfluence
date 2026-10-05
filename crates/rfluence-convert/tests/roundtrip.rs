@@ -156,3 +156,18 @@ fn fixtures_round_trip() {
     }
     assert!(failures.is_empty(), "{}", failures.join("\n\n"));
 }
+
+/// `[Title](url)<!-- rf: card=inline -->` uploads as a smart link; its text isn't kept.
+#[test]
+fn marked_links_upload_as_smart_links() {
+    let md = "See [Setup guide](https://x.atlassian.net/wiki/spaces/ENG/pages/22)<!-- rf: card=inline --> and [a text link](https://example.com).\n\nAt the end: [Setup guide](https://x.atlassian.net/wiki/spaces/ENG/pages/22)<!-- rf: card=inline -->\n";
+    let doc = markdown_to_adf(md, &UploadContext::default()).unwrap().doc;
+    let p = &doc.content[0].content;
+    assert_eq!(p[1].kind, "inlineCard");
+    assert_eq!(p[1].attr_str("url"), Some("https://x.atlassian.net/wiki/spaces/ENG/pages/22"));
+    assert!(p.iter().any(|n| n.text.as_deref() == Some("a text link") && n.mark("link").is_some()));
+    assert!(!p.iter().any(|n| n.text.as_deref() == Some("Setup guide")));
+    // At the end of a paragraph too (not read as the paragraph's settings).
+    assert_eq!(doc.content[1].content.last().unwrap().kind, "inlineCard");
+    assert!(doc.content[1].marks.is_empty());
+}

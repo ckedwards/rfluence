@@ -40,6 +40,22 @@ pub fn page_link(url: &str, host: &str) -> Option<PageLink> {
     Some(PageLink { id, anchor })
 }
 
+/// The IDs of pages on `host` that a page's smart links (inline, block and embed cards) point
+/// at, to look up their titles.
+pub fn card_page_ids(doc: &crate::adf::Node, host: &str) -> Vec<String> {
+    let mut ids = Vec::new();
+    doc.walk(&mut |n| {
+        if matches!(n.kind.as_str(), "inlineCard" | "blockCard" | "embedCard") {
+            if let Some(link) = n.attr_str("url").and_then(|u| page_link(u, host)) {
+                if !ids.contains(&link.id) {
+                    ids.push(link.id);
+                }
+            }
+        }
+    });
+    ids
+}
+
 /// The page ID in a tiny link code (`/x/tYEE` -> 295349): the ID's little-endian bytes in
 /// base64, with `/` and `+` written as `-` and `_`, and trailing zero bytes dropped.
 pub fn tiny_link_id(code: &str) -> Option<u64> {

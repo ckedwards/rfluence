@@ -38,6 +38,9 @@ pub struct FetchContext {
     /// Pages in the local project, by page ID: text links to them are written as relative
     /// paths (`rfluence fetch -o`; design.md, "Links").
     pub links: HashMap<String, LinkTarget>,
+    /// Titles of pages on this site, by page ID: smart links to them are written as
+    /// `[Title](url)` (design.md, "Links" > "Smart links").
+    pub titles: HashMap<String, String>,
 }
 
 /// A local markdown file for a page.
@@ -562,12 +565,21 @@ impl<'a> Writer<'a, '_> {
         }
     }
 
+    /// A smart link to a page on this site whose title was looked up: the title, and where
+    /// to link (a project file's relative path, or the URL). `None` to write `<url>`.
+    fn card_link(&self, url: &str) -> Option<(String, String)> {
+        let link = crate::links::page_link(url, self.ctx.site_host.as_deref()?)?;
+        let title = self.ctx.titles.get(&link.id)?.clone();
+        Some((title, self.local_link(url).unwrap_or_else(|| url.to_string())))
+    }
+
     fn card(&self, parent: &'a AstNode<'a>, node: &Node) -> bool {
         let Some(url) = node.attr_str("url") else { return false };
+        let (text, dest) = self.card_link(url).unwrap_or_else(|| (url.to_string(), url.to_string()));
         if self.simple() {
             let p = append(self.arena, parent, NodeValue::Paragraph);
-            let link = append(self.arena, p, NodeValue::Link(Box::new(NodeLink { url: url.into(), title: String::new() })));
-            append(self.arena, link, NodeValue::Text(url.to_string().into()));
+            let link = append(self.arena, p, NodeValue::Link(Box::new(NodeLink { url: dest, title: String::new() })));
+            append(self.arena, link, NodeValue::Text(text.into()));
             return true;
         }
         let embed = node.is("embedCard");
@@ -584,8 +596,8 @@ impl<'a> Writer<'a, '_> {
             settings.set("width", fmt_num(width));
         }
         let p = append(self.arena, parent, NodeValue::Paragraph);
-        let link = append(self.arena, p, NodeValue::Link(Box::new(NodeLink { url: url.into(), title: String::new() })));
-        append(self.arena, link, NodeValue::Text(url.to_string().into()));
+        let link = append(self.arena, p, NodeValue::Link(Box::new(NodeLink { url: dest, title: String::new() })));
+        append(self.arena, link, NodeValue::Text(text.into()));
         append(self.arena, p, NodeValue::HtmlInline(settings.to_comment()));
         true
     }
@@ -803,8 +815,23 @@ impl<'a> Writer<'a, '_> {
                 "inlineCard" if node.attr_str("url").is_some() => {
                     let url = node.attr_str("url").expect("checked").to_string();
                     let mut marks = marks;
-                    marks.push(MdMark::Link { url: url.clone(), title: String::new() });
-                    items.push(Item::new(marks, Leaf::Text(url)));
+                    match self.card_link(&url) {
+                        // `[Title](url)`, marked as a smart link so upload keeps it one.
+                        Some((title, dest)) => {
+                            marks.push(MdMark::Link { url: dest, title: String::new() });
+                            items.push(Item::new(marks, Leaf::Text(title)));
+                            if !self.simple() {
+                                let mut card = Settings::new();
+                                card.set("card", "inline");
+                                items.push(Item::new(vec![], Leaf::Html(card.to_comment())));
+                            }
+                        }
+                        // `<url>`: an autolink is a smart link.
+                        None => {
+                            marks.push(MdMark::Link { url: url.clone(), title: String::new() });
+                            items.push(Item::new(marks, Leaf::Text(url)));
+                        }
+                    }
                 }
                 _ if self.simple() => items.extend(simplified_inline(node)),
                 _ => items.extend(span(node)),
@@ -1117,5 +1144,41 @@ mod tests {
         // Pages outside the project, and smart links, keep their URLs.
         assert!(md.contains("[other](https://x.atlassian.net/wiki/spaces/ENG/pages/33)"), "{md}");
         assert!(md.contains("<https://x.atlassian.net/wiki/spaces/ENG/pages/22>"), "{md}");
+    }
+
+    #[test]
+    fn writes_smart_links_with_their_titles() {
+        let doc: Node = serde_json::from_str(
+            r##"{"type":"doc","content":[
+                {"type":"paragraph","content":[
+                    {"type":"text","text":"See "},
+                    {"type":"inlineCard","attrs":{"url":"https://x.atlassian.net/wiki/spaces/ENG/pages/22"}},
+                    {"type":"text","text":" and "},
+                    {"type":"inlineCard","attrs":{"url":"https://x.atlassian.net/wiki/spaces/ENG/pages/99"}}
+                ]},
+                {"type":"blockCard","attrs":{"url":"https://x.atlassian.net/wiki/spaces/ENG/pages/22"}}
+            ]}"##,
+        )
+        .unwrap();
+        let ctx = FetchContext {
+            page_id: Some("11".into()),
+            site_host: Some("x.atlassian.net".into()),
+            titles: HashMap::from([("22".to_string(), "Setup guide".to_string())]),
+            ..Default::default()
+        };
+        // Round trip: marked as smart links; unknown titles keep the URL.
+        assert_eq!(
+            adf_to_markdown(&doc, &ctx),
+            "See [Setup guide](https://x.atlassian.net/wiki/spaces/ENG/pages/22)<!-- rf: card=inline --> and <https://x.atlassian.net/wiki/spaces/ENG/pages/99>\n\n[Setup guide](https://x.atlassian.net/wiki/spaces/ENG/pages/22)<!-- rf: card=block -->\n"
+        );
+        // Simplified: just the link.
+        let simplified = adf_to_markdown(&doc, &FetchContext { simplified: true, ..ctx.clone() });
+        assert!(simplified.starts_with("See [Setup guide](https://x.atlassian.net/wiki/spaces/ENG/pages/22) and <https://"), "{simplified}");
+        // -o: a project page's smart link is a relative path, still marked.
+        let local = FetchContext {
+            links: HashMap::from([("22".to_string(), LinkTarget { path: "./setup.md".into(), headings: vec![] })]),
+            ..ctx
+        };
+        assert!(adf_to_markdown(&doc, &local).starts_with("See [Setup guide](./setup.md)<!-- rf: card=inline -->"));
     }
 }

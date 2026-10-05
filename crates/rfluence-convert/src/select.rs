@@ -121,6 +121,33 @@ pub fn same_content(a: &str, b: &str) -> bool {
 fn comparable(md: &str) -> String {
     let arena = Arena::new();
     let root = parse_document(&arena, md, &options());
+    // Smart links' text is display-only (the target's current title, or the URL when it
+    // couldn't be looked up), so `[Title](url)<!-- rf: card=... -->` and `<url>` compare equal.
+    let links: Vec<_> = root.descendants().filter(|n| matches!(n.data().value, NodeValue::Link(_))).collect();
+    for link in links {
+        let url = match &link.data().value {
+            NodeValue::Link(l) => l.url.clone(),
+            _ => unreachable!(),
+        };
+        let card_comment = link.next_sibling().filter(|s| {
+            matches!(&s.data().value, NodeValue::HtmlInline(h) if crate::settings::Settings::parse_comment(h).is_some_and(|c| c.has("card")))
+        });
+        if card_comment.is_some() || inline_text(link) == url {
+            for child in link.children().collect::<Vec<_>>() {
+                child.detach();
+            }
+            if let Some(c) = card_comment {
+                if let NodeValue::HtmlInline(h) = &mut c.data_mut().value {
+                    // Keep the kind of card (block, embed), drop its text-dependent form.
+                    let mut settings = crate::settings::Settings::parse_comment(h).unwrap_or_default();
+                    if settings.get("card") == Some("inline") {
+                        settings = crate::settings::Settings::new();
+                    }
+                    *h = if settings.is_empty() { String::new() } else { settings.to_comment() };
+                }
+            }
+        }
+    }
     for n in root.descendants() {
         match &mut n.data_mut().value {
             NodeValue::Link(l) => l.url.clear(),
@@ -162,6 +189,14 @@ mod tests {
         assert!(same_content(fetched, "# T\n\nSee [setup](./setup.md).\n\n![a](renamed.assets/a.png)\n"));
         assert!(same_content(fetched, "T\n=\n\nSee [setup](./setup.md).\n\n![a](page.assets/a.png)\n\n\n"));
         assert!(!same_content(fetched, "# T\n\nSee [setup](./setup.md) now.\n\n![a](page.assets/a.png)\n"));
+    }
+
+    #[test]
+    fn smart_link_text_is_display_only() {
+        let a = "Inline <https://x/wiki/spaces/E/pages/2> here.\n\n<https://x/wiki/spaces/E/pages/3><!-- rf: card=block -->\n";
+        let b = "Inline [Old name](https://x/wiki/spaces/E/pages/2)<!-- rf: card=inline --> here.\n\n[Setup](./setup.md)<!-- rf: card=block -->\n";
+        assert!(same_content(a, b));
+        assert!(!same_content(a, &b.replace("card=block", "card=embed")));
     }
 
     #[test]

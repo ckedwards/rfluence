@@ -268,9 +268,9 @@ Same-page heading link: [back to Install & Setup](#install--setup-v20). Cross-pa
 
 ## Smart links
 
-Inline card: <https://tech-accounts11.atlassian.net/wiki/spaces/rfluencete/pages/295349>
+Inline card: [rfluence link API test](https://tech-accounts11.atlassian.net/wiki/spaces/rfluencete/pages/295349)<!-- rf: card=inline -->
 
-<https://tech-accounts11.atlassian.net/wiki/spaces/rfluencete/pages/131074><!-- rf: card=block -->
+[rfluence image API test](https://tech-accounts11.atlassian.net/wiki/spaces/rfluencete/pages/131074)<!-- rf: card=block -->
 
 <https://www.youtube.com/watch?v=dQw4w9WgXcQ><!-- rf: card=embed layout=center width=100 -->
 
@@ -372,7 +372,7 @@ resized image to 653x653, boarder outline, alt text and link
 
 [![alt text for screen readers](attachments/rfluence-emoji.png)](https://tech-accounts11.atlassian.net/wiki/spaces/rfluencete/pages/426008)<!-- rf: layout=align-end width=653 border=2 border-color=#172b4d -->
 
-An inline confluence link <https://tech-accounts11.atlassian.net/wiki/spaces/rfluencete/pages/426008>  copy and pasted
+An inline confluence link [rfluence emoji API test](https://tech-accounts11.atlassian.net/wiki/spaces/rfluencete/pages/426008)<!-- rf: card=inline -->  copy and pasted
 
 ```python
 def build_request(base_url: str, page_id: str, include_labels: bool = True, include_properties: bool = True, body_format: str = "atlas_doc_format") -> str:

@@ -687,6 +687,13 @@ impl<'a> Reader<'a, '_> {
         while i < items.len() {
             let item = &items[i];
             let marks = self.adf_marks(&item.marks);
+            // `[Title](url)<!-- rf: card=inline -->`: a smart link; Confluence shows the
+            // target's title, so the text isn't kept.
+            if let Some((url, end)) = marked_card(&items, i) {
+                out.push(Node::new("inlineCard").with_attr("url", url));
+                i = end + 1;
+                continue;
+            }
             match &item.leaf {
                 Leaf::Text(text) => {
                     if let Some(card) = autolink(&items, i) {
@@ -857,6 +864,28 @@ fn layout_end(nodes: &[&AstNode], start: usize) -> (usize, bool) {
     (nodes.len(), false)
 }
 
+/// A link starting at `i` followed by `<!-- rf: card=inline -->`: its URL and the comment's
+/// index.
+fn marked_card(items: &[Item], i: usize) -> Option<(String, usize)> {
+    let url = items[i].marks.iter().find_map(|m| match m {
+        MdMark::Link { url, .. } => Some(url.clone()),
+        _ => None,
+    })?;
+    // Only at the start of the link.
+    let same_link = |it: &Item| it.marks.iter().any(|m| matches!(m, MdMark::Link { url: u, .. } if *u == url));
+    if i > 0 && same_link(&items[i - 1]) {
+        return None;
+    }
+    let mut end = i;
+    while end + 1 < items.len() && same_link(&items[end + 1]) {
+        end += 1;
+    }
+    match &items.get(end + 1)?.leaf {
+        Leaf::Html(h) if Settings::parse_comment(h).is_some_and(|s| s.get("card") == Some("inline")) => Some((url, end + 1)),
+        _ => None,
+    }
+}
+
 /// An autolink (`<url>`, or a link whose text is its URL) is an `inlineCard`: the item's
 /// text equals the URL of a link mark that no neighbouring item shares.
 fn autolink(items: &[Item], i: usize) -> Option<String> {
@@ -882,7 +911,8 @@ fn trailing_comment<'a>(node: &'a AstNode<'a>) -> (Settings, Vec<&'a AstNode<'a>
     let mut kids = children(node);
     if let Some(last) = kids.last() {
         if let NodeValue::HtmlInline(h) = &last.data().value {
-            if let Some(settings) = Settings::parse_comment(h) {
+            // `card=inline` belongs to the link before it, even at the end of a paragraph.
+            if let Some(settings) = Settings::parse_comment(h).filter(|s| s.get("card") != Some("inline")) {
                 kids.pop();
                 return (settings, kids);
             }

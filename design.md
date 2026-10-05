@@ -120,7 +120,7 @@ Decided while implementing `rfluence-convert`; settings follow "Confluence-only 
   * **HTML tables as LLMs write them** are accepted and normalized to the canonical form: everything on one line (`<table><tr><td>text</td>...`), `<thead>` / `<tbody>` / `<tfoot>`, omitted closing tags, and HTML lists (`<ul><li>`) or `<p>` in cells, which become markdown. An HTML table GFM can express is normalized to a GFM table, as fetch would write it. A GFM table with an HTML list in a cell becomes an HTML table (warning).
   * **Paragraph / heading settings**: an `rf:` comment at the end of the line: `align=center|end`, `indent=<level>`.
   * **Images**: `rf:` keys `layout` (not `align-start`), `width` (when not the natural width), `width-type` (when not `pixel`), `border`, `border-color`, `caption` (plain-text captions; others make the image an ```` ```adf ```` fence). A linked image is `[![alt](src)](href)`. An image from another page's collection stays ```` ```adf ````.
-  * **Cards**: `<url>` alone in a paragraph with `<!-- rf: card=block -->` or `<!-- rf: card=embed layout=center width=100 -->`.
+  * **Cards**: `<url>` alone in a paragraph with `<!-- rf: card=block -->` or `<!-- rf: card=embed layout=center width=100 -->`; with the target page's title, `[Title](url)<!-- rf: card=block -->` (see "Smart links" under "Links").
   * **Mermaid** fence settings: `theme`, `mermaidVersion`, `useMaxWidth=false` (non-default values only).
   * **Task lists**: a nested task list follows its parent `taskItem` in ADF and goes inside the item in markdown. Task and decision `localId`s are generated deterministically on upload (`000000000001`, ...), so the same markdown gives the same ADF.
   * **Links**: a link whose text is its URL is written as `<url>` by comrak, so it uploads as an `inlineCard`. A plain text link in Confluence whose text equals its URL therefore becomes a smart link after a round trip.
@@ -379,7 +379,7 @@ How links appear in ADF (observed on the test site):
 Markdown <-> ADF mapping:
 
   * `[text](url)` <-> `link` mark
-  * `<url>` (autolink) <-> `inlineCard`
+  * `<url>` (autolink), or `[Title](url)<!-- rf: card=inline -->` <-> `inlineCard` (see "Smart links" below)
   * `<url>` alone on a line plus an `rf:` comment <-> `embedCard` / `blockCard`, e.g. `<https://youtube.com/...><!-- rf: card=embed width=100 -->`
 
 Upload:
@@ -419,8 +419,14 @@ Heading anchors:
   * `fetch` percent-decodes anchors before matching them to headings, so links written either way (e.g. pasted from "copy link") are recognised.
   * Same-page links use the current document's headings. Cross-page links (`./setup.md#install`) need the target's headings: from the local file on upload, and from the project scan on fetch.
 
-Out of scope for now: links to non-markdown local files (`./spec.pdf`); see Future considerations.
+Smart links:
 
+  * Confluence stores only a smart link's URL and shows the target's current title, so fetch looks the titles up: after the page, one request (`GET /wiki/api/v2/pages?id=<id>,<id>,...`, up to 250 IDs) for the pages on the same site that the page's smart links (inline, block and embed cards) point at. It's only made when there are such links (measured: 0.9 s instead of 0.6 s for the reference page), and it's best effort: if it fails, the links keep their URLs.
+  * Written as `[Title](url)<!-- rf: card=inline -->` (or `card=block` / `card=embed` for cards on their own line). The comment marks the link as a smart link, so upload makes it an `inlineCard` again rather than a text link. Links whose title isn't known (other sites, non-page URLs, deleted pages) stay `<url>`, which is also a smart link. Simplified output writes `[Title](url)` without the comment.
+  * The text is display-only: upload ignores it (Confluence keeps no text for a smart link), and so do round-trip comparisons and `fetch -o`'s check for local edits, since it changes when the target page is renamed or when the lookup fails. `<url>` and `[Any text](url)<!-- rf: card=inline -->` are the same content.
+  * With `fetch -o`, a smart link to a page held by a project file gets that file's relative path (`[Setup](./setup.md)<!-- rf: card=inline -->`); the comment keeps it a smart link on upload.
+
+Out of scope for now: links to non-markdown local files
 ## Decisions
 
 ### Confluence Cloud only, ADF as the page body format
@@ -556,7 +562,7 @@ Storage: sites, emails and the default site in `~/.config/rfluence/auth.json`; e
     * Output is always the round-trip form by default, whether to stdout or a file (choosing by destination would confuse people). `--simplified` gives the reduced form for reading (see "Simplified output"); the rfluence skill tells LLMs to use it when they only need to read a page.
     * `-o <path>` writes to a file and downloads images to `<name>.assets/` next to it (see "Images and attachments"):
       * Only images (attachments shown by `mediaSingle` nodes) are downloaded, in parallel; a file already there with the same size is skipped, so fetching again downloads only what changed. Other attachments stay on Confluence. Measured on the test site: 1.9 s for a page with 3 new images (each download is two round trips: Confluence, then the media service it redirects to), 0.6 s when they're up to date.
-      * Text links (and image links) to pages held by markdown files in the project become relative paths, with anchors translated to the target file's GitHub-style anchors (see "Links"); smart links keep their URLs, since a relative path can't be a smart link. The project scan skips files ignored by `.gitignore`.
+      * Links (text links, image links, and titled smart links) to pages held by markdown files in the project become relative paths, with anchors translated to the target file's GitHub-style anchors (see "Links"). Smart links without a looked-up title keep their URLs, since `<./setup.md>` isn't a link. The project scan skips files ignored by `.gitignore`.
       * An existing file keeps its non-`rfluence` frontmatter keys, byte for byte, and its `weight`.
       * Local changes aren't overwritten: if the file is for the same page, its body is compared with what the version in its frontmatter converts to (fetching that version only if Confluence has a newer one). The comparison is in normalized form and ignores link destinations and image folders, which change when project files are added or the file is renamed; so a change to only a link's target isn't detected. With local changes, or a file holding another page, `fetch -o` refuses (exit 6) unless `--force`.
       * Can't be combined with `--section` or `--max-chars` (it would replace the file with part of the page). `--simplified -o` writes the simplified form and downloads nothing.
@@ -589,6 +595,7 @@ Storage: sites, emails and the default site in `~/.config/rfluence/auth.json`; e
 | Colours, underline, sub/superscript as inline HTML | plain text |
 | `![alt](page.assets/x.png)` with settings | `[image: alt]` (or the file name), since the file isn't there; external images keep their URL |
 | `<details><summary>Title</summary>` ... `</details>` | **Title** as a bold line, then the content |
+| `[Title](url)<!-- rf: card=inline -->` (smart links) | `[Title](url)` |
 | `rfluence:` frontmatter for round trips | `title`, `url`, `space`, `labels`, last updated, and `simplified: true` |
 
 Kept as they are: headings, lists, tables (GFM or HTML), code blocks, Mermaid source, links, emoji.

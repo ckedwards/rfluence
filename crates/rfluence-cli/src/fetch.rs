@@ -1,6 +1,6 @@
 //! `rfluence fetch`: a page as markdown. See design.md, "Commands".
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
@@ -56,8 +56,9 @@ pub fn run(opts: &Options) -> ExitCode {
         Ok(r) => r,
         Err(e) => return fail(&e),
     };
+    let titles = card_titles(&client, &page);
     if let Some(path) = &opts.output {
-        return write_file(opts, &client, &page, &attachments, path);
+        return write_file(opts, &client, &page, &attachments, titles, path);
     }
 
     let ctx = FetchContext {
@@ -67,6 +68,8 @@ pub fn run(opts: &Options) -> ExitCode {
         assets_dir: format!("{}.assets", slug(&page.meta.title, &page.meta.id)),
         attachments: rfluence_client::file_names(&attachments),
         simplified: opts.simplified,
+        site_host: Some(auth::host(&page.meta.url)),
+        titles,
         ..Default::default()
     };
     let markdown = page_markdown(&page.adf, &page.meta, &ctx);
@@ -124,7 +127,14 @@ struct FileJson<'a> {
 
 /// `rfluence fetch -o <path>`: write the page to a file, links to other project files as
 /// relative paths, and its images to `<name>.assets/` next to it.
-fn write_file(opts: &Options, client: &Client, page: &Page, attachments: &[Attachment], path: &Path) -> ExitCode {
+fn write_file(
+    opts: &Options,
+    client: &Client,
+    page: &Page,
+    attachments: &[Attachment],
+    titles: HashMap<String, String>,
+    path: &Path,
+) -> ExitCode {
     let dir = path.parent().filter(|d| !d.as_os_str().is_empty()).unwrap_or(Path::new("."));
     if let Err(e) = std::fs::create_dir_all(dir) {
         eprintln!("rfluence: {}: {e}", dir.display());
@@ -140,6 +150,7 @@ fn write_file(opts: &Options, client: &Client, page: &Page, attachments: &[Attac
         simplified: opts.simplified,
         site_host: Some(auth::host(&page.meta.url)),
         links: project::pages(&root, dir, path),
+        titles,
     };
     let fetched = page_markdown(&page.adf, &page.meta, &ctx);
     let fetched_doc = frontmatter::split(&fetched);
@@ -208,6 +219,22 @@ fn write_file(opts: &Options, client: &Client, page: &Page, attachments: &[Attac
         eprintln!("{} {what} (version {}{imgs})", path.display(), page.meta.version);
     }
     ExitCode::SUCCESS
+}
+
+/// The titles of the pages the page's smart links point at, so they can be written as
+/// `[Title](url)`. One request, after the page (the links are in its body), and only when it
+/// has smart links to pages on its site. Best effort: without titles they stay `<url>`.
+fn card_titles(client: &Client, page: &Page) -> HashMap<String, String> {
+    let mut ids = rfluence_convert::links::card_page_ids(&page.adf, &auth::host(&page.meta.url));
+    let mut titles = HashMap::new();
+    if let Some(pos) = ids.iter().position(|id| *id == page.meta.id) {
+        ids.remove(pos);
+        titles.insert(page.meta.id.clone(), page.meta.title.clone());
+    }
+    if !ids.is_empty() {
+        titles.extend(client.page_titles(&ids).unwrap_or_default());
+    }
+    titles
 }
 
 /// Would writing the fetched page lose changes made to the file? Compares the file's body
