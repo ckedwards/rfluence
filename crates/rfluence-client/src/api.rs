@@ -49,6 +49,91 @@ struct AttachmentLinks {
 /// The largest attachment `download` reads (Confluence Cloud's own limit is far below this).
 const MAX_DOWNLOAD: u64 = 2 * 1024 * 1024 * 1024;
 
+/// A search result. See design.md, "Commands" > `rfluence search`.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct SearchResult {
+    pub id: String,
+    pub title: String,
+    pub space_key: String,
+    pub space_name: String,
+    pub url: String,
+    /// `YYYY-MM-DD`.
+    pub updated: Option<String>,
+    pub labels: Vec<String>,
+    /// Plain text, one line.
+    pub excerpt: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct SearchResults {
+    /// How many results match in all (may be more than returned).
+    pub total: u64,
+    pub results: Vec<SearchResult>,
+}
+
+/// The CQL for a search: free text, restricted to pages, in any of `spaces` and with all of
+/// `labels`.
+pub fn search_cql(text: &str, spaces: &[String], labels: &[String]) -> String {
+    let quote = |s: &str| format!("\"{}\"", s.replace('\\', "\\\\").replace('"', "\\\""));
+    let mut parts = vec![format!("text ~ {}", quote(text)), "type = page".to_string()];
+    match spaces {
+        [] => {}
+        [one] => parts.push(format!("space = {}", quote(one))),
+        many => parts.push(format!("space in ({})", many.iter().map(|s| quote(s)).collect::<Vec<_>>().join(", "))),
+    }
+    parts.extend(labels.iter().map(|l| format!("label = {}", quote(l))));
+    parts.join(" and ")
+}
+
+/// A search excerpt as one line of plain text: highlight markers removed, HTML entities
+/// decoded, whitespace collapsed, and cut to about `max` characters at a word.
+pub fn clean_excerpt(excerpt: &str, max: usize) -> String {
+    let text = excerpt.replace("@@@hl@@@", "").replace("@@@endhl@@@", "");
+    let text = decode_entities(&text);
+    let one_line = text.split_whitespace().collect::<Vec<_>>().join(" ");
+    if one_line.chars().count() <= max {
+        return one_line;
+    }
+    let cut: String = one_line.chars().take(max).collect();
+    let at_word = cut.rsplit_once(' ').map_or(cut.as_str(), |(head, _)| head);
+    format!("{}…", at_word.trim_end_matches([',', '.', ';', ':']))
+}
+
+fn decode_entities(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut rest = s;
+    while let Some(i) = rest.find('&') {
+        out.push_str(&rest[..i]);
+        rest = &rest[i..];
+        let decoded = rest.find(';').filter(|&e| e <= 10).and_then(|e| {
+            let c = match &rest[1..e] {
+                "amp" => Some('&'),
+                "lt" => Some('<'),
+                "gt" => Some('>'),
+                "quot" => Some('"'),
+                "apos" => Some('\''),
+                "nbsp" => Some(' '),
+                n if n.starts_with("#x") || n.starts_with("#X") => u32::from_str_radix(&n[2..], 16).ok().and_then(char::from_u32),
+                n if n.starts_with('#') => n[1..].parse().ok().and_then(char::from_u32),
+                _ => None,
+            }?;
+            Some((c, e))
+        });
+        match decoded {
+            Some((c, e)) => {
+                out.push(c);
+                rest = &rest[e + 1..];
+            }
+            None => {
+                out.push('&');
+                rest = &rest[1..];
+            }
+        }
+    }
+    out.push_str(rest);
+    out
+}
+
 /// How a page was named on the command line.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PageRef {
@@ -253,6 +338,86 @@ impl Client {
         Ok(titles)
     }
 
+    /// Search with CQL (v1 search: v2 has none). One request, labels included.
+    pub fn search(&self, cql: &str, limit: usize) -> Result<SearchResults> {
+        #[derive(Deserialize)]
+        struct Raw {
+            #[serde(rename = "totalSize", default)]
+            total_size: u64,
+            results: Vec<RawResult>,
+            #[serde(rename = "_links")]
+            links: RawSearchLinks,
+        }
+        #[derive(Deserialize)]
+        struct RawSearchLinks {
+            base: String,
+        }
+        #[derive(Deserialize)]
+        struct RawResult {
+            content: Option<RawContent>,
+            #[serde(default)]
+            excerpt: String,
+            #[serde(rename = "lastModified")]
+            last_modified: Option<String>,
+            #[serde(rename = "resultGlobalContainer")]
+            container: Option<RawContainer>,
+        }
+        #[derive(Deserialize)]
+        struct RawContent {
+            id: String,
+            title: String,
+            metadata: Option<RawMetadata>,
+        }
+        #[derive(Deserialize)]
+        struct RawMetadata {
+            labels: Option<RawLabels>,
+        }
+        #[derive(Deserialize)]
+        struct RawContainer {
+            title: String,
+            #[serde(rename = "displayUrl", default)]
+            display_url: String,
+        }
+        let query = format!("cql={}&limit={limit}&expand=content.metadata.labels", encode(cql));
+        let raw: Raw = self.get(&format!("/wiki/rest/api/search?{query}")).map_err(|e| match e {
+            Error::Api { status: 400, message } => {
+                // "com.atlassian...BadRequestException: Could not parse cql : ..." -> the reason.
+                let reason = message.split_once("Exception: ").map_or(message.as_str(), |(_, r)| r).trim();
+                Error::Invalid(format!("invalid CQL query: {reason} (query: {cql})"))
+            }
+            e => e,
+        })?;
+        let results = raw
+            .results
+            .into_iter()
+            .filter_map(|r| {
+                let content = r.content?;
+                let container = r.container;
+                let space_key = container
+                    .as_ref()
+                    .and_then(|c| c.display_url.strip_prefix("/spaces/"))
+                    .unwrap_or_default()
+                    .to_string();
+                let labels = content
+                    .metadata
+                    .and_then(|m| m.labels)
+                    .map(|l| l.results.into_iter().filter(|l| l.prefix == "global").map(|l| l.name).collect())
+                    .unwrap_or_default();
+                Some(SearchResult {
+                    url: format!("{}/spaces/{space_key}/pages/{}", raw.links.base, content.id),
+                    id: content.id,
+                    title: content.title,
+                    space_name: container.map(|c| c.title).unwrap_or_default(),
+                    space_key,
+                    updated: r.last_modified.map(|d| d.chars().take(10).collect()),
+                    labels,
+                    excerpt: clean_excerpt(&r.excerpt, 220),
+                })
+            })
+            .collect();
+        Ok(SearchResults { total: raw.total_size, results })
+    }
+
     /// An attachment's content.
     pub fn download(&self, attachment: &Attachment) -> Result<Vec<u8>> {
         let link = attachment
@@ -440,6 +605,22 @@ mod tests {
             Some("https://other.atlassian.net")
         );
         assert_eq!(page_ref_site("123"), None);
+    }
+
+    #[test]
+    fn builds_search_cql() {
+        assert_eq!(search_cql("rate limit", &[], &[]), r#"text ~ "rate limit" and type = page"#);
+        assert_eq!(
+            search_cql(r#"say "hi""#, &["ENG".into(), "OPS".into()], &["api".into()]),
+            r#"text ~ "say \"hi\"" and type = page and space in ("ENG", "OPS") and label = "api""#
+        );
+    }
+
+    #[test]
+    fn cleans_excerpts() {
+        assert_eq!(clean_excerpt("We&#39;ve @@@hl@@@added@@@endhl@@@\n  some -&gt; things", 200), "We've added some -> things");
+        assert_eq!(clean_excerpt("one two three four", 12), "one two…");
+        assert_eq!(clean_excerpt("a & b", 200), "a & b");
     }
 
     #[test]

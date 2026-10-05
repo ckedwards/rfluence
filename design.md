@@ -553,9 +553,20 @@ Storage: sites, emails and the default site in `~/.config/rfluence/auth.json`; e
 ### Commands
 
   * `rfluence search <query>` used to search Confluence. Returns a list of matches with a description for the LLM to evaluate.
-    * Free text maps to CQL `text ~ "<query>"`. Flags: `--space`, `--label`, `--limit`, and `--cql` for a raw CQL query.
-    * Uses the v1 `/wiki/rest/api/search` endpoint (v2 has no search). Strip the `@@@hl@@@` highlight markers from excerpts.
-    * Each result includes page ID, title, space, URL, last modified, labels, and excerpt (labels via `expand=content.metadata.labels`, no extra call).
+    * Free text maps to CQL `text ~ "<query>" and type = page`. Flags: `--space` (repeatable: any of them), `--label` (repeatable: all of them), `--limit` (default 10), `--site`, and `--cql` for a raw CQL query instead of a query and filters.
+    * Uses the v1 `/wiki/rest/api/search` endpoint (v2 has no search), one request. Highlight markers (`@@@hl@@@`) are stripped from excerpts, HTML entities decoded, and each excerpt put on one line, cut to about 220 characters. Measured: about 0.8 s.
+    * Each result includes page ID, title, space, URL, last modified, labels, and excerpt (labels via `expand=content.metadata.labels`, no extra call). Text output, compact for LLMs:
+
+      ```
+      458790  rfluence ADF reference
+        rfluencete · updated 2026-10-04 · labels: two, words
+        https://example.atlassian.net/wiki/spaces/rfluencete/pages/458790
+        API-created reference page for rfluence. Each section exercises...
+
+      3 results. Read one with `rfluence fetch <id>`.
+      ```
+
+      `--json` gives `{total, results: [...]}`. No matches prints "No results." and exits 0; invalid CQL exits 2 with Confluence's reason.
   * `rfluence fetch <identifier>` used to fetch a specific page. Returns the page in markdown form. This could be used by an LLM, or by a user to download, modify, and re-upload. Includes frontmatter for where the page came from so that the upload command can easily upload this file back to Confluence.
     * Accepts a page ID, a full page URL, or `SPACE:Title` (titles are only unique within a space).
     * `--max-chars` and `--section <heading>` to avoid flooding an LLM's context with large pages.

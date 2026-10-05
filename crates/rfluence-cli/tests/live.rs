@@ -69,3 +69,16 @@ fn times_fetch_to_stdout() {
         );
     }
 }
+
+#[test]
+fn searches_the_test_space() {
+    if !live() {
+        return;
+    }
+    let (out, took) = rf(&["search", "emoji", "--space", "rfluencete"]);
+    assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+    let text = String::from_utf8(out.stdout).unwrap();
+    assert!(text.contains("426008  rfluence emoji API test\n"), "{text}");
+    assert!(text.contains("720904  rfluence emoji names API test\n"), "{text}");
+    eprintln!("rfluence search emoji: {took:?}");
+}

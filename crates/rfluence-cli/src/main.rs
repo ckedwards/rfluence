@@ -4,6 +4,7 @@ mod auth;
 mod check;
 mod fetch;
 mod project;
+mod search;
 
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -49,6 +50,32 @@ enum Command {
         /// With -o: overwrite the file even if it has local changes or holds another page.
         #[arg(long)]
         force: bool,
+    },
+    /// Search for pages: free text, optionally in spaces and with labels, or a raw CQL query.
+    ///
+    /// Lists each page's ID, title, space, last update, labels, URL and an excerpt.
+    Search {
+        /// Text to search for (CQL `text ~ "<query>"`, pages only).
+        #[arg(required_unless_present = "cql", conflicts_with = "cql")]
+        query: Option<String>,
+        /// Only in this space (repeat for several).
+        #[arg(long, value_name = "KEY")]
+        space: Vec<String>,
+        /// Only pages with this label (repeat to require several).
+        #[arg(long)]
+        label: Vec<String>,
+        /// A raw CQL query, instead of a query and --space / --label.
+        #[arg(long, conflicts_with_all = ["space", "label"])]
+        cql: Option<String>,
+        /// The most results to show.
+        #[arg(long, default_value_t = 10)]
+        limit: usize,
+        /// The site to search (default: the default site).
+        #[arg(long, value_name = "SITE")]
+        site: Option<String>,
+        /// Print the results as JSON.
+        #[arg(long)]
+        json: bool,
     },
     /// Check markdown files for content Confluence can't store exactly.
     ///
@@ -136,6 +163,9 @@ fn main() -> ExitCode {
     match Cli::parse().command {
         Command::Fetch { page, simplified, section, max_chars, json, site, output, force } => {
             fetch::run(&fetch::Options { page, simplified, section, max_chars, json, site, output, force })
+        }
+        Command::Search { query, space, label, cql, limit, site, json } => {
+            search::run(&search::Options { query, space, label, cql, limit, site, json })
         }
         Command::Check { paths, json } => check::run(&paths, json),
         Command::Auth { action } => match action {

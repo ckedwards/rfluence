@@ -1,0 +1,287 @@
+{
+  "_links": {
+    "base": "https://tech-accounts11.atlassian.net/wiki",
+    "context": "/wiki",
+    "self": "https://tech-accounts11.atlassian.net/wiki/rest/api/search?expand=content.metadata.labels&cql=text+~+%22panel%22+and+type+%3D+page"
+  },
+  "archivedResultCount": 0,
+  "cqlQuery": "text ~ \"panel\" and type = page",
+  "limit": 3,
+  "results": [
+    {
+      "breadcrumbs": [],
+      "content": {
+        "_expandable": {
+          "ancestors": "",
+          "body": "",
+          "childTypes": "",
+          "children": "/rest/api/content/458790/child",
+          "container": "/rest/api/space/rfluencete",
+          "descendants": "/rest/api/content/458790/descendant",
+          "draftVersion": "",
+          "history": "/rest/api/content/458790/history",
+          "operations": "",
+          "restrictions": "/rest/api/content/458790/restriction/byOperation",
+          "schedulePublishDate": "",
+          "schedulePublishInfo": "",
+          "space": "/rest/api/space/rfluencete",
+          "version": ""
+        },
+        "_links": {
+          "editui": "/pages/resumedraft.action?draftId=458790",
+          "edituiv2": "/spaces/rfluencete/pages/edit-v2/458790",
+          "self": "https://tech-accounts11.atlassian.net/wiki/rest/api/content/458790",
+          "tinyui": "/x/JgAH",
+          "webui": "/spaces/rfluencete/pages/458790/rfluence+ADF+reference"
+        },
+        "ari": "ari:cloud:confluence:148c5f37-a54d-48b2-bc8c-15a51bbd0f0d:page/458790",
+        "base64EncodedAri": "YXJpOmNsb3VkOmNvbmZsdWVuY2U6MTQ4YzVmMzctYTU0ZC00OGIyLWJjOGMtMTVhNTFiYmQwZjBkOmNvbnRlbnQvNDU4Nzkw",
+        "extensions": {
+          "position": 54796672
+        },
+        "id": "458790",
+        "macroRenderedOutput": {},
+        "metadata": {
+          "_expandable": {
+            "comments": "",
+            "createdBySpaceBlueprint": "",
+            "currentuser": "",
+            "frontend": "",
+            "isActiveLiveEditSession": "",
+            "lastEditedTime": "",
+            "likes": "",
+            "properties": "",
+            "simple": "",
+            "sourceTemplateEntityId": ""
+          },
+          "labels": {
+            "_links": {
+              "next": "/rest/api/content/458790/label?next=true&limit=200&start=200",
+              "self": "https://tech-accounts11.atlassian.net/wiki/rest/api/content/458790/label"
+            },
+            "limit": 200,
+            "results": [
+              {
+                "id": "131113",
+                "label": "two",
+                "name": "two",
+                "prefix": "global"
+              },
+              {
+                "id": "131115",
+                "label": "words",
+                "name": "words",
+                "prefix": "global"
+              },
+              {
+                "id": "131117",
+                "label": "ünïcode",
+                "name": "ünïcode",
+                "prefix": "global"
+              },
+              {
+                "id": "295400",
+                "label": "dash-ok",
+                "name": "dash-ok",
+                "prefix": "global"
+              },
+              {
+                "id": "360477",
+                "label": "under_score",
+                "name": "under_score",
+                "prefix": "global"
+              },
+              {
+                "id": "458779",
+                "label": "upper",
+                "name": "upper",
+                "prefix": "global"
+              },
+              {
+                "id": "458781",
+                "label": "comma",
+                "name": "comma",
+                "prefix": "global"
+              },
+              {
+                "id": "458783",
+                "label": "label",
+                "name": "label",
+                "prefix": "global"
+              }
+            ],
+            "size": 8,
+            "start": 0
+          }
+        },
+        "status": "current",
+        "title": "rfluence ADF reference",
+        "type": "page"
+      },
+      "entityType": "content",
+      "excerpt": "API-created reference page for rfluence. Each section exercises one group of ADF nodes. Sections marked (editor) are for content added by hand in the Confluence editor.\nCode blocks\ndef greet(name: str) -&gt; str:\n    return f&quot;Hello, {name}!&quot;\nno language set\nsecond line\ncontains ``` backticks and `inline` ticks\n\nline after a blank line\ntrailing spaces  \nStep wit",
+      "friendlyLastModified": "yesterday at 4:52 AM",
+      "iconCssClass": "aui-icon content-type-page",
+      "lastModified": "2026-10-04T04:52:53.000Z",
+      "resultGlobalContainer": {
+        "displayUrl": "/spaces/rfluencete",
+        "title": "rfluence-test-fixtures"
+      },
+      "score": 0.0,
+      "title": "rfluence ADF reference",
+      "url": "/spaces/rfluencete/pages/458790/rfluence+ADF+reference"
+    },
+    {
+      "breadcrumbs": [],
+      "content": {
+        "_expandable": {
+          "ancestors": "",
+          "body": "",
+          "childTypes": "",
+          "children": "/rest/api/content/295257/child",
+          "container": "/rest/api/space/rfluencete",
+          "descendants": "/rest/api/content/295257/descendant",
+          "draftVersion": "",
+          "history": "/rest/api/content/295257/history",
+          "operations": "",
+          "restrictions": "/rest/api/content/295257/restriction/byOperation",
+          "schedulePublishDate": "",
+          "schedulePublishInfo": "",
+          "space": "/rest/api/space/rfluencete",
+          "version": ""
+        },
+        "_links": {
+          "editui": "/pages/resumedraft.action?draftId=295257",
+          "edituiv2": "/spaces/rfluencete/pages/edit-v2/295257",
+          "self": "https://tech-accounts11.atlassian.net/wiki/rest/api/content/295257",
+          "tinyui": "/x/WYEE",
+          "webui": "/spaces/rfluencete/pages/295257/Software+development"
+        },
+        "ari": "ari:cloud:confluence:148c5f37-a54d-48b2-bc8c-15a51bbd0f0d:page/295257",
+        "base64EncodedAri": "YXJpOmNsb3VkOmNvbmZsdWVuY2U6MTQ4YzVmMzctYTU0ZC00OGIyLWJjOGMtMTVhNTFiYmQwZjBkOmNvbnRlbnQvMjk1MjU3",
+        "extensions": {
+          "position": 54800663
+        },
+        "id": "295257",
+        "macroRenderedOutput": {},
+        "metadata": {
+          "_expandable": {
+            "comments": "",
+            "createdBySpaceBlueprint": "",
+            "currentuser": "",
+            "frontend": "",
+            "isActiveLiveEditSession": "",
+            "lastEditedTime": "",
+            "likes": "",
+            "properties": "",
+            "simple": "",
+            "sourceTemplateEntityId": ""
+          },
+          "labels": {
+            "_links": {
+              "next": "/rest/api/content/295257/label?next=true&limit=200&start=200",
+              "self": "https://tech-accounts11.atlassian.net/wiki/rest/api/content/295257/label"
+            },
+            "limit": 200,
+            "results": [],
+            "size": 0,
+            "start": 0
+          }
+        },
+        "status": "current",
+        "title": "Software development",
+        "type": "page"
+      },
+      "entityType": "content",
+      "excerpt": "Welcome to your software project space!\nWe&#39;ve added some suggestions and placeholders. Everything is customizable.\nGet started with templates:\nStatus\nWrite an update\nJira issues\nRecently updated\nTo add the Recently updated element:\nWhen editing type /\nFind Recently updated in the dropdown\nSelect Insert\nTo edit the Recently updated element:\nSelect the placeho",
+      "friendlyLastModified": "yesterday at 12:02 AM",
+      "iconCssClass": "aui-icon content-type-page",
+      "lastModified": "2026-10-04T00:02:48.000Z",
+      "resultGlobalContainer": {
+        "displayUrl": "/spaces/rfluencete",
+        "title": "rfluence-test-fixtures"
+      },
+      "score": 0.0,
+      "title": "Software development",
+      "url": "/spaces/rfluencete/pages/295257/Software+development"
+    },
+    {
+      "breadcrumbs": [],
+      "content": {
+        "_expandable": {
+          "ancestors": "",
+          "body": "",
+          "childTypes": "",
+          "children": "/rest/api/content/295013/child",
+          "container": "/rest/api/space/~71202005eb3148b0e1450da60d67073e3cc131",
+          "descendants": "/rest/api/content/295013/descendant",
+          "draftVersion": "",
+          "history": "/rest/api/content/295013/history",
+          "operations": "",
+          "restrictions": "/rest/api/content/295013/restriction/byOperation",
+          "schedulePublishDate": "",
+          "schedulePublishInfo": "",
+          "space": "/rest/api/space/~71202005eb3148b0e1450da60d67073e3cc131",
+          "version": ""
+        },
+        "_links": {
+          "editui": "/pages/resumedraft.action?draftId=295013",
+          "edituiv2": "/spaces/~71202005eb3148b0e1450da60d67073e3cc131/pages/edit-v2/295013",
+          "self": "https://tech-accounts11.atlassian.net/wiki/rest/api/content/295013",
+          "tinyui": "/x/ZYAE",
+          "webui": "/spaces/~71202005eb3148b0e1450da60d67073e3cc131/pages/295013/Getting+started+in+Confluence"
+        },
+        "ari": "ari:cloud:confluence:148c5f37-a54d-48b2-bc8c-15a51bbd0f0d:page/295013",
+        "base64EncodedAri": "YXJpOmNsb3VkOmNvbmZsdWVuY2U6MTQ4YzVmMzctYTU0ZC00OGIyLWJjOGMtMTVhNTFiYmQwZjBkOmNvbnRlbnQvMjk1MDEz",
+        "extensions": {
+          "position": 326
+        },
+        "id": "295013",
+        "macroRenderedOutput": {},
+        "metadata": {
+          "_expandable": {
+            "comments": "",
+            "createdBySpaceBlueprint": "",
+            "currentuser": "",
+            "frontend": "",
+            "isActiveLiveEditSession": "",
+            "lastEditedTime": "",
+            "likes": "",
+            "properties": "",
+            "simple": "",
+            "sourceTemplateEntityId": ""
+          },
+          "labels": {
+            "_links": {
+              "next": "/rest/api/content/295013/label?next=true&limit=200&start=200",
+              "self": "https://tech-accounts11.atlassian.net/wiki/rest/api/content/295013/label"
+            },
+            "limit": 200,
+            "results": [],
+            "size": 0,
+            "start": 0
+          }
+        },
+        "status": "current",
+        "title": "Getting started in Confluence",
+        "type": "page"
+      },
+      "entityType": "content",
+      "excerpt": "Welcome to Confluence!\nYou can use Confluence to create a rich knowledge base or to collaborate with others using words, videos, images, graphics, charts, and graphs.\nThis page walks you through some Confluence basics like spaces, pages, and elements that allow you to create and manage impactful content for your teams.\nConfluence 101\n🗃️ Spaces\nSpaces are wh",
+      "friendlyLastModified": "yesterday at 12:02 AM",
+      "iconCssClass": "aui-icon content-type-page",
+      "lastModified": "2026-10-04T00:02:16.000Z",
+      "resultGlobalContainer": {
+        "displayUrl": "/spaces/~71202005eb3148b0e1450da60d67073e3cc131",
+        "title": "Chris Edwards"
+      },
+      "score": 0.0,
+      "title": "Getting started in Confluence",
+      "url": "/spaces/~71202005eb3148b0e1450da60d67073e3cc131/pages/295013/Getting+started+in+Confluence"
+    }
+  ],
+  "searchDuration": 131,
+  "size": 3,
+  "start": 0,
+  "totalSize": 3
+}
