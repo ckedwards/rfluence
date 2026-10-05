@@ -209,24 +209,51 @@ impl Client {
     /// GET a JSON resource under the site (`path` starts with `/wiki/...`).
     fn get<T: DeserializeOwned>(&self, path: &str) -> Result<T> {
         let url = format!("{}{path}", self.base_url);
-        let mut resp = self
+        let resp = self
             .agent
             .get(&url)
             .header("Authorization", &self.authorization)
             .header("Accept", "application/json")
-            .call()
-            .map_err(|e| Error::Network(format!("{url}: {e}")))?;
-        let status = resp.status().as_u16();
-        if (200..300).contains(&status) {
-            return resp.body_mut().read_json().map_err(|e| Error::Network(format!("{url}: reading the response: {e}")));
-        }
-        let body = resp.body_mut().read_to_string().unwrap_or_default();
-        let message = error_message(&body).unwrap_or_else(|| body.chars().take(300).collect());
-        Err(match status {
-            401 | 403 => Error::Auth(format!("HTTP {status} from {url}: {message}")),
-            404 => Error::NotFound(format!("not found: {path} ({message})")),
-            _ => Error::Api { status, message },
-        })
+            .call();
+        read_json(resp, &url, path)
+    }
+
+    /// POST or PUT JSON, and read the JSON response.
+    fn send_json<T: DeserializeOwned>(&self, method: &str, path: &str, body: &serde_json::Value) -> Result<T> {
+        let url = format!("{}{path}", self.base_url);
+        let req = match method {
+            "PUT" => self.agent.put(&url),
+            _ => self.agent.post(&url),
+        };
+        let resp = req.header("Authorization", &self.authorization).header("Accept", "application/json").send_json(body);
+        read_json(resp, &url, path)
+    }
+
+    /// POST a file as `multipart/form-data` (v1 attachment uploads), and read the JSON response.
+    fn send_file<T: DeserializeOwned>(&self, path: &str, file_name: &str, data: &[u8]) -> Result<T> {
+        let url = format!("{}{path}", self.base_url);
+        let boundary = format!("rfluence-{:016x}", data.len() as u64 ^ 0x9e37_79b9_7f4a_7c15);
+        let name = file_name.replace(['"', '\r', '\n'], "_");
+        let mut body = Vec::with_capacity(data.len() + 512);
+        body.extend(format!("--{boundary}\r\nContent-Disposition: form-data; name=\"minorEdit\"\r\n\r\ntrue\r\n").bytes());
+        body.extend(
+            format!(
+                "--{boundary}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"{name}\"\r\nContent-Type: {}\r\n\r\n",
+                media_type(file_name)
+            )
+            .bytes(),
+        );
+        body.extend(data);
+        body.extend(format!("\r\n--{boundary}--\r\n").bytes());
+        let resp = self
+            .agent
+            .post(&url)
+            .header("Authorization", &self.authorization)
+            .header("Accept", "application/json")
+            .header("X-Atlassian-Token", "no-check")
+            .header("Content-Type", &format!("multipart/form-data; boundary={boundary}"))
+            .send(&body[..]);
+        read_json(resp, &url, path)
     }
 
     /// The signed-in user's display name (to check credentials).
@@ -480,6 +507,177 @@ impl Client {
             let attachments = attachments.join().expect("attachments thread doesn't panic")?;
             Ok((page, attachments))
         })
+    }
+}
+
+/// What a page update sent back.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Updated {
+    pub version: u64,
+    pub title: String,
+    pub parent: Option<String>,
+}
+
+/// A content property (`rfluence` on managed pages; design.md, "Renames and deletions").
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+pub struct Property {
+    pub id: String,
+    pub key: String,
+    pub value: serde_json::Value,
+    pub version: PropertyVersion,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+pub struct PropertyVersion {
+    pub number: u64,
+}
+
+impl Client {
+    /// Replace a page's title and body: the new version is `version`, which must be one more
+    /// than the current one (Confluence answers 409 otherwise, reported as a conflict).
+    pub fn update_page(&self, id: &str, title: &str, adf: &Node, version: u64) -> Result<Updated> {
+        #[derive(Deserialize)]
+        struct Raw {
+            title: String,
+            #[serde(rename = "parentId")]
+            parent_id: Option<String>,
+            version: RawVersion,
+        }
+        let body = serde_json::json!({
+            "id": id,
+            "status": "current",
+            "title": title,
+            "body": { "representation": "atlas_doc_format", "value": serde_json::to_string(adf).expect("ADF serializes") },
+            "version": { "number": version, "message": "Uploaded with rfluence" },
+        });
+        let raw: Raw = self.send_json("PUT", &format!("/wiki/api/v2/pages/{id}"), &body).map_err(|e| match e {
+            Error::Api { status: 409, message } => Error::Conflict(format!("page {id} was changed while uploading: {message}")),
+            e => page_not_found(e, id),
+        })?;
+        Ok(Updated { version: raw.version.number, title: raw.title, parent: raw.parent_id })
+    }
+
+    /// Attach a new file to a page (v1: v2 can't upload). Doesn't create a page version.
+    pub fn upload_attachment(&self, page_id: &str, file_name: &str, data: &[u8]) -> Result<Attachment> {
+        #[derive(Deserialize)]
+        struct Created {
+            results: Vec<V1Attachment>,
+        }
+        let created: Created = self.send_file(&format!("/wiki/rest/api/content/{page_id}/child/attachment"), file_name, data)?;
+        created
+            .results
+            .into_iter()
+            .next()
+            .map(V1Attachment::into_attachment)
+            .ok_or_else(|| Error::Api { status: 200, message: format!("uploading {file_name}: no attachment in the response") })
+    }
+
+    /// Upload a new version of an attachment. The new version gets a new `fileId`.
+    pub fn update_attachment(&self, page_id: &str, attachment: &Attachment, data: &[u8]) -> Result<Attachment> {
+        let path = format!("/wiki/rest/api/content/{page_id}/child/attachment/{}/data", attachment.id);
+        let updated: V1Attachment = self.send_file(&path, &attachment.title, data)?;
+        Ok(updated.into_attachment())
+    }
+
+    /// Add global labels to a page (v1: v2 can only read labels). Labels must be normalized
+    /// (see `rfluence_convert::labels`).
+    pub fn add_labels(&self, page_id: &str, labels: &[String]) -> Result<()> {
+        if labels.is_empty() {
+            return Ok(());
+        }
+        let body: Vec<_> = labels.iter().map(|l| serde_json::json!({ "prefix": "global", "name": l })).collect();
+        let _: serde_json::Value = self.send_json("POST", &format!("/wiki/rest/api/content/{page_id}/label"), &body.into())?;
+        Ok(())
+    }
+
+    /// A page's content property, if set.
+    pub fn property(&self, page_id: &str, key: &str) -> Result<Option<Property>> {
+        let found: Paged<Property> = self.get(&format!("/wiki/api/v2/pages/{page_id}/properties?key={}", encode(key)))?;
+        Ok(found.results.into_iter().find(|p| p.key == key))
+    }
+
+    /// Create or update a page's content property (`existing` from [`Client::property`]).
+    pub fn set_property(&self, page_id: &str, key: &str, value: serde_json::Value, existing: Option<&Property>) -> Result<()> {
+        let _: serde_json::Value = match existing {
+            Some(p) => self.send_json(
+                "PUT",
+                &format!("/wiki/api/v2/pages/{page_id}/properties/{}", p.id),
+                &serde_json::json!({ "key": key, "value": value, "version": { "number": p.version.number + 1 } }),
+            )?,
+            None => self.send_json(
+                "POST",
+                &format!("/wiki/api/v2/pages/{page_id}/properties"),
+                &serde_json::json!({ "key": key, "value": value }),
+            )?,
+        };
+        Ok(())
+    }
+}
+
+/// An attachment in a v1 response.
+#[derive(Deserialize)]
+struct V1Attachment {
+    id: String,
+    title: String,
+    extensions: V1Extensions,
+    #[serde(rename = "_links", default)]
+    links: AttachmentLinks,
+}
+
+#[derive(Deserialize)]
+struct V1Extensions {
+    #[serde(rename = "fileId")]
+    file_id: String,
+    #[serde(rename = "mediaType", default)]
+    media_type: String,
+    #[serde(rename = "fileSize")]
+    file_size: Option<u64>,
+}
+
+impl V1Attachment {
+    fn into_attachment(self) -> Attachment {
+        Attachment {
+            id: self.id,
+            title: self.title,
+            file_id: self.extensions.file_id,
+            media_type: self.extensions.media_type,
+            file_size: self.extensions.file_size,
+            links: self.links,
+        }
+    }
+}
+
+/// A response as JSON, or the error it reports.
+fn read_json<T: DeserializeOwned>(resp: std::result::Result<ureq::http::Response<ureq::Body>, ureq::Error>, url: &str, path: &str) -> Result<T> {
+    let mut resp = resp.map_err(|e| Error::Network(format!("{url}: {e}")))?;
+    let status = resp.status().as_u16();
+    if (200..300).contains(&status) {
+        return resp.body_mut().read_json().map_err(|e| Error::Network(format!("{url}: reading the response: {e}")));
+    }
+    let body = resp.body_mut().read_to_string().unwrap_or_default();
+    let message = error_message(&body).unwrap_or_else(|| body.chars().take(300).collect());
+    Err(match status {
+        401 | 403 => Error::Auth(format!("HTTP {status} from {url}: {message}")),
+        404 => Error::NotFound(format!("not found: {path} ({message})")),
+        _ => Error::Api { status, message },
+    })
+}
+
+/// The media type for an attachment, by file extension.
+fn media_type(file_name: &str) -> &'static str {
+    let ext = file_name.rsplit_once('.').map(|(_, e)| e.to_ascii_lowercase()).unwrap_or_default();
+    match ext.as_str() {
+        "png" => "image/png",
+        "jpg" | "jpeg" => "image/jpeg",
+        "gif" => "image/gif",
+        "svg" => "image/svg+xml",
+        "webp" => "image/webp",
+        "bmp" => "image/bmp",
+        "ico" => "image/x-icon",
+        "tif" | "tiff" => "image/tiff",
+        "avif" => "image/avif",
+        "pdf" => "application/pdf",
+        _ => "application/octet-stream",
     }
 }
 

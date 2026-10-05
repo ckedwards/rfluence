@@ -5,6 +5,7 @@ mod check;
 mod fetch;
 mod project;
 mod search;
+mod upload;
 
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -50,6 +51,29 @@ enum Command {
         /// With -o: overwrite the file even if it has local changes or holds another page.
         #[arg(long)]
         force: bool,
+    },
+    /// Upload a markdown file to its page (the page ID is in its frontmatter).
+    ///
+    /// Refuses if the page changed in Confluence since the file was fetched, or if the file has
+    /// content Confluence can't store (see `rfluence check`); --force overrides both. Local
+    /// images are attached, links to other markdown files become page links, and inline
+    /// comments stay on their text. Afterwards the file's frontmatter has the new version.
+    Upload {
+        /// The markdown file.
+        path: PathBuf,
+        /// Show what would change, without changing anything.
+        #[arg(long)]
+        dry_run: bool,
+        /// Upload even if the page changed in Confluence (overwriting those changes), or the
+        /// file has content Confluence can't store (uploading the approximations).
+        #[arg(long)]
+        force: bool,
+        /// The site to use (default: the site in the file's `url`, or the default site).
+        #[arg(long, value_name = "SITE")]
+        site: Option<String>,
+        /// Print the result as JSON.
+        #[arg(long)]
+        json: bool,
     },
     /// Search for pages: free text, optionally in spaces and with labels, or a raw CQL query.
     ///
@@ -155,6 +179,7 @@ pub fn fail(e: &rfluence_client::Error) -> ExitCode {
         Error::NotConfigured | Error::NotLoggedIn(_) | Error::PartialEnv(_) | Error::Invalid(_) | Error::Io(_) => EXIT_USAGE,
         Error::NotFound(_) => EXIT_NOT_FOUND,
         Error::Auth(_) => EXIT_AUTH,
+        Error::Conflict(_) => EXIT_CONFLICT,
         Error::Api { .. } | Error::Network(_) => EXIT_API,
     })
 }
@@ -164,6 +189,7 @@ fn main() -> ExitCode {
         Command::Fetch { page, simplified, section, max_chars, json, site, output, force } => {
             fetch::run(&fetch::Options { page, simplified, section, max_chars, json, site, output, force })
         }
+        Command::Upload { path, dry_run, force, site, json } => upload::run(&upload::Options { path, dry_run, force, site, json }),
         Command::Search { query, space, label, cql, limit, site, json } => {
             search::run(&search::Options { query, space, label, cql, limit, site, json })
         }

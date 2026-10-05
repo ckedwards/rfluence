@@ -313,7 +313,7 @@ fn download_images(client: &Client, page: &Page, attachments: &[Attachment], dir
 }
 
 /// Write via a temporary file and rename, so an interrupted write never leaves half a file.
-fn write_atomically(path: &Path, contents: &str) -> std::io::Result<()> {
+pub(crate) fn write_atomically(path: &Path, contents: &str) -> std::io::Result<()> {
     let tmp = path.with_extension("md.rfluence-tmp");
     std::fs::write(&tmp, contents)?;
     std::fs::rename(&tmp, path)

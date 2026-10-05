@@ -182,6 +182,8 @@ Inline comments are kept out of the markdown and re-anchored on upload:
   * Upload already GETs the remote page for the version check; that call also returns the body. A pure function in `rfluence-convert` takes the remote ADF and the new ADF and puts each annotation back on the same text in the new ADF, matching by the annotated text and its occurrence index (the nth match in the document), then by surrounding text if the occurrence index no longer matches. This mirrors Confluence's own anchoring: the v2 inline comments API locates a comment by `textSelection` + `textSelectionMatchIndex`.
   * An annotation whose text was changed or deleted can't be re-anchored, and its comment is detached, the same as when someone deletes commented text in the Confluence editor. Ambiguous matches are not guessed. Upload and `--dry-run` report both, e.g. `2 inline comments will be detached: "…"`.
   * An annotation can cover part of a text node, several text nodes with different marks, or text in several paragraphs (one mark per text node, same `id`). The re-anchoring works on the plain text of each block, then splits text nodes as needed.
+  * Implemented in `rfluence_convert::annotations::reanchor`: each comment's annotated runs (adjacent text nodes joined) are matched in the new body's text, where blocks are separated and other inline nodes (emoji, mentions, ...) are placeholders, so a match can't span them. The nth occurrence is used if it still exists, else the only occurrence; anything else is reported, not guessed.
+  * Verified on a temporary test page (since trashed): comments added with the v2 inline comments API (`textSelection`, `textSelectionMatchIndex`) are `annotation` marks in the body, and adding them doesn't create a page version. After an upload that changed the text around one comment and deleted another's text, the first comment's mark was on its text in the new version; the second was reported as detached, and the comments API still lists it as `open` (only the anchor is gone).
 
 ### Mermaid diagrams (merfluence)
 
@@ -589,6 +591,13 @@ Storage: sites, emails and the default site in `~/.config/rfluence/auth.json`; e
     * Frontmatter is stripped before upload. After a successful upload, the `rfluence:` block is written back (see "Frontmatter" > "Reading and writing").
     * `--dry-run` shows what would be created/updated without changing anything.
     * Runs the same checks as `rfluence check`: warnings are printed and the upload goes ahead; errors stop the upload before anything is sent, unless `--force` (which uploads the approximations listed in "Checking markdown").
+    * Everything that can fail locally fails before anything is sent: `rfluence:` keys (unknown keys, `simplified` or `partial` files), labels, check errors, links to files without a page, and image files that are missing with no attachment of that name. The body is converted once with stand-in IDs for images not uploaded yet, then again with the real `fileId`s.
+    * Requests: the page (body, labels), its attachments and its `rfluence` property, in parallel; then new attachments and attachment versions; the body (`PUT /wiki/api/v2/pages/{id}` with version + 1); new labels; the property, if the page has one.
+    * Nothing is sent for the body if it hasn't changed. The page and the upload are both converted to markdown with the same settings (so what Confluence adds on save doesn't count) and compared, with page links compared by page ID and anchor (Confluence adds or removes the title in stored page URLs). Verified: a PUT whose body only differs in a link URL's title part doesn't create a version either; the response has the old version number, and upload reports the page as up to date.
+    * Images: a local file is compared with the page's attachment of the same name by size, then (same size) by downloading it. Changed images get a new attachment version, new ones are attached, unchanged ones and ones whose file is missing reuse the attachment.
+    * Output: what was (or with `--dry-run`, would be) changed: the version, title, images uploaded and updated, labels added, and inline comments that are detached. `--json` gives the same as an object. Exit 6 when the page changed in Confluence since the file was fetched.
+    * Measured on the test site: 0.6 s for `--dry-run` or an unchanged page without images, 1.4 s for an unchanged page with an image (the download to compare it), 2.4–3 s when a body, an image and labels are sent.
+    * Moving a page (a `parent` that differs from the page's) isn't done by single-file upload yet: it warns.
   * `rfluence upload --config <path>` uploads multiple pages using a config file. The config file (`.rfluence.yaml` in the project root) is a YAML list of entries, each mapping files (exact paths or globs) to a Confluence space and ancestor page, with optional labels. See "Upload config".
   * `rfluence diff <path>` shows the differences between a local file and the current remote page.
   * `rfluence check <path>...` reports, without network access, what upload would approximate (warnings) or can't represent (errors); see "Checking markdown". Output is `path:line: severity: message` lines and a summary (`--json` for structured output). Exits 1 if there are errors. It also warns about local images whose file is missing.
@@ -658,7 +667,7 @@ Confluence titles are separate from the page body, but LLM-written markdown usua
 
   * Upload: if `title` is not set and the body starts with an H1, that H1 is the page title and is removed from the body (so Confluence doesn't show the title twice). If `title` is set, it is the page title and the body is uploaded as-is, including any leading H1.
   * Fetch: if the page body doesn't start with an H1, write `# <page title>` at the top and no `title` key. If the body does start with an H1 (e.g. a different heading added in Confluence), write the `title` key so the next upload doesn't mistake that H1 for the title.
-  * A file with neither `title` nor a leading H1 is an error for new pages.
+  * A file with neither `title` nor a leading H1 is an error for new pages. For an existing page, upload keeps its current title.
 
 #### Reading and writing
 
@@ -863,7 +872,7 @@ Deleting files:
     * have child pages that aren't `rfluence`-managed, because deleting a page moves its children up a level (verified), which would silently reorganize pages people added.
   * Folders are only pruned once empty.
 
-Content property (`rfluence`), written on every page and folder `rfluence` creates or updates:
+Content property (`rfluence`), written on every page and folder `rfluence` creates, and updated (`version`, `path`) whenever it uploads a new version of one. Pages `rfluence` didn't create never get it, even when it uploads to them (e.g. a fetched page sent back with `rfluence upload`), so they can never be pruned:
 
 ```json
 { "managed": true, "version": 7, "path": "docs/api/auth.md", "config_labels": ["github", "ai-generated"] }
@@ -903,7 +912,7 @@ None currently.
 
   1. Build `rfluence-convert` and its test corpus.
   2. `rfluence fetch` and `rfluence search`.
-  3. `rfluence upload` with version checks, then `rfluence upload --config`.
+  3. `rfluence upload` with version checks (done for existing pages), then creating pages, then `rfluence upload --config`.
 
 ## Future considerations
 

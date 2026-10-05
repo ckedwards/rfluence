@@ -25,14 +25,44 @@ pub struct PageMeta {
 /// the body already starts with one (then the title goes in the frontmatter).
 pub fn page_markdown(doc: &Node, meta: &PageMeta, ctx: &FetchContext) -> String {
     let body = adf_to_markdown(doc, ctx);
-    let starts_with_h1 = doc
-        .content
-        .iter()
-        .find(|n| !(n.is("paragraph") && n.content.is_empty()))
-        .is_some_and(|n| n.is("heading") && n.attr_f64("level") == Some(1.0));
+    let starts_with_h1 = starts_with_h1(doc);
     let frontmatter = if ctx.simplified { simplified_frontmatter(meta) } else { frontmatter(meta, starts_with_h1) };
     let title = if starts_with_h1 { String::new() } else { format!("{}\n", markdown::heading(1, &meta.title)) };
     format!("{frontmatter}\n{title}{body}")
+}
+
+/// Does the body start with an H1 (ignoring empty paragraphs)? Then fetch writes the title
+/// in the frontmatter, since a leading H1 in the markdown would be taken as the title.
+pub fn starts_with_h1(doc: &Node) -> bool {
+    doc.content
+        .iter()
+        .find(|n| !(n.is("paragraph") && n.content.is_empty()))
+        .is_some_and(|n| n.is("heading") && n.attr_f64("level") == Some(1.0))
+}
+
+/// The page title for upload, and the body to upload: the frontmatter `title` if set (the
+/// body as is), else the body's leading H1, which is removed (so Confluence doesn't show the
+/// title twice). `None` if neither. See design.md, "Frontmatter" > "Title".
+pub fn upload_title<'a>(body: &'a str, frontmatter_title: Option<&str>) -> (Option<String>, &'a str) {
+    if let Some(t) = frontmatter_title.filter(|t| !t.trim().is_empty()) {
+        return (Some(t.trim().to_string()), body);
+    }
+    let arena = comrak::Arena::new();
+    let root = comrak::parse_document(&arena, body, &markdown::options());
+    let Some(first) = root.children().find(|n| !matches!(n.data().value, comrak::nodes::NodeValue::FrontMatter(_))) else {
+        return (None, body);
+    };
+    let level = match first.data().value {
+        comrak::nodes::NodeValue::Heading(h) => h.level,
+        _ => 0,
+    };
+    if level != 1 {
+        return (None, body);
+    }
+    let title = markdown::inline_text(first).trim().to_string();
+    let end_line = first.data().sourcepos.end.line;
+    let offset: usize = body.split_inclusive('\n').take(end_line).map(str::len).sum();
+    (Some(title), body[offset.min(body.len())..].trim_start_matches('\n'))
 }
 
 /// The `rfluence:` frontmatter block, in the key order of design.md, "Frontmatter".
@@ -135,6 +165,15 @@ mod tests {
                 assert!(v.starts_with('"'), "{s} -> {v}");
             }
         }
+    }
+
+    #[test]
+    fn takes_the_upload_title() {
+        assert_eq!(upload_title("# The Title\n\nBody\n", None), (Some("The Title".into()), "Body\n"));
+        assert_eq!(upload_title("The Title\n=========\n\nBody\n", None), (Some("The Title".into()), "Body\n"));
+        assert_eq!(upload_title("# H1\n\nBody\n", Some("Set")), (Some("Set".into()), "# H1\n\nBody\n"));
+        assert_eq!(upload_title("Intro\n\n# Later H1\n", None), (None, "Intro\n\n# Later H1\n"));
+        assert_eq!(upload_title("## H2\n", None), (None, "## H2\n"));
     }
 
     #[test]

@@ -15,6 +15,8 @@ pub enum Error {
     Auth(String),
     /// The page (or space, attachment, ...) doesn't exist, or isn't visible.
     NotFound(String),
+    /// The page changed in Confluence (a newer version than expected).
+    Conflict(String),
     /// Any other HTTP error from Confluence.
     Api { status: u16, message: String },
     /// The request didn't get a response.
@@ -40,6 +42,7 @@ impl fmt::Display for Error {
             Error::Invalid(m) => f.write_str(m),
             Error::Auth(m) => write!(f, "authentication failed: {m}"),
             Error::NotFound(m) => f.write_str(m),
+            Error::Conflict(m) => f.write_str(m),
             Error::Api { status, message } => write!(f, "Confluence returned HTTP {status}: {message}"),
             Error::Network(m) => write!(f, "network error: {m}"),
             Error::Io(m) => f.write_str(m),

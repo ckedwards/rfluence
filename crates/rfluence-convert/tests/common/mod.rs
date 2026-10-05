@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use rfluence_convert::adf::Node;
-use rfluence_convert::{FetchContext, MermaidApp, UploadContext, emoji, is_merfluence};
+use rfluence_convert::{FetchContext, UploadContext};
 
 pub fn fixtures() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures")
@@ -92,21 +92,9 @@ pub fn page_meta(name: &str) -> rfluence_convert::PageMeta {
 /// the merfluence app from its diagrams, and its custom emoji.
 pub fn upload_ctx(name: &str, doc: &Node) -> UploadContext {
     let media = attachments(name).into_iter().map(|(file_id, name)| (format!("attachments/{name}"), file_id)).collect();
-    let mut mermaid = None;
-    let mut custom_emoji = HashMap::new();
-    doc.walk(&mut |n| {
-        if is_merfluence(n) {
-            mermaid = n.attr_str("extensionKey").and_then(MermaidApp::from_extension_key);
-        }
-        if n.is("emoji") {
-            if let (Some(short), Some(id), Some(text)) = (n.attr_str("shortName"), n.attr_str("id"), n.attr_str("text")) {
-                if !emoji::is_emoji(text) && emoji::lookup(short).is_none() && emoji::from_id(id).is_none() {
-                    custom_emoji.insert(short.trim_matches(':').to_string(), id.to_string());
-                }
-            }
-        }
-    });
-    UploadContext { page_id: Some(page_id(name)), media, custom_emoji, mermaid }
+    let mut ctx = UploadContext { page_id: Some(page_id(name)), media, ..Default::default() };
+    ctx.learn_from(doc);
+    ctx
 }
 
 /// The corpus of LLM-style markdown.

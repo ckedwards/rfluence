@@ -83,7 +83,7 @@ expression: "format!(\"{json}\\n\\ndiagnostics: {:#?}\", upload.diagnostics)"
                 {
                   "type": "link",
                   "attrs": {
-                    "href": "./current-state.md"
+                    "href": "https://example.atlassian.net/wiki/spaces/ENG/pages/100"
                   }
                 }
               ],
@@ -761,7 +761,7 @@ expression: "format!(\"{json}\\n\\ndiagnostics: {:#?}\", upload.diagnostics)"
             {
               "type": "link",
               "attrs": {
-                "href": "./deployment.md#rollout-strategy"
+                "href": "https://example.atlassian.net/wiki/spaces/ENG/pages/101#Rollout-strategy"
               }
             }
           ],

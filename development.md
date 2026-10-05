@@ -37,6 +37,14 @@ cargo build --release
 ./target/release/rfluence fetch 458790
 ```
 
+To try upload, fetch a page to a file, edit it, and send it back (`--dry-run` first shows what would change). Use a page in the test space (`rfluencete`) that isn't one of the reference pages, since those are fixtures:
+
+```shell
+./target/release/rfluence fetch <id> -o scratch/page.md
+./target/release/rfluence upload scratch/page.md --dry-run
+./target/release/rfluence upload scratch/page.md
+```
+
 Or install it, so `rfluence` works anywhere:
 
 ```shell
@@ -90,7 +98,7 @@ Most tests run offline against captured Confluence responses (`fixtures/confluen
 | `rfluence-convert/tests/roundtrip.rs` | `normalize(md) == fetch(upload(md))` on the corpus; fetch -> upload -> fetch on every captured page; `check` diagnostics |
 | `rfluence-convert/tests/upload.rs` | Snapshots of the ADF upload produces for the corpus |
 | `rfluence-client/tests/api.rs` | The client against recorded responses on a mock server |
-| `rfluence-cli/tests/*.rs` | The `rfluence` binary: `fetch`, `check` and `auth` (two mock sites) output and exit codes |
+| `rfluence-cli/tests/*.rs` | The `rfluence` binary: `fetch`, `search`, `upload`, `check` and `auth` (two mock sites) output and exit codes; `upload.rs` checks the requests upload sends |
 
 ### Updating expected output
 

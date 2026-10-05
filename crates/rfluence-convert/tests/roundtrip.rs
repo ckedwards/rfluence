@@ -7,7 +7,8 @@ use std::collections::HashMap;
 
 use common::*;
 use rfluence_convert::{
-    Diagnostic, FetchContext, MermaidApp, Severity, UploadContext, adf_to_markdown, check, markdown_to_adf, normalize,
+    Diagnostic, FetchContext, LinkTarget, MermaidApp, PageRef, Severity, UploadContext, adf_to_markdown, check, local_links,
+    markdown_to_adf, normalize,
 };
 
 /// Upload and fetch contexts for a corpus file: its images get made-up attachment IDs.
@@ -22,13 +23,31 @@ fn corpus_ctx(name: &str, md: &str) -> (UploadContext, FetchContext) {
         media.insert(format!("{assets}/{file}"), id.clone());
         attachments.insert(id, file);
     }
+    // Links to other markdown files get made-up pages.
+    let mut pages = HashMap::new();
+    let mut links = HashMap::new();
+    for (_, path) in local_links(md) {
+        let id = (1000 + pages.len()).to_string();
+        if !pages.contains_key(&path) {
+            pages.insert(path.clone(), PageRef { url: format!("https://corpus.atlassian.net/wiki/spaces/C/pages/{id}"), headings: vec![] });
+            links.insert(id, LinkTarget { path, headings: vec![] });
+        }
+    }
     let upload = UploadContext {
         page_id: Some("1".into()),
         media,
         custom_emoji: HashMap::new(),
         mermaid: MermaidApp::from_extension_key(MERMAID),
+        pages,
     };
-    let fetch = FetchContext { page_id: Some("1".into()), assets_dir: assets, attachments, simplified: false, ..Default::default() };
+    let fetch = FetchContext {
+        page_id: Some("1".into()),
+        assets_dir: assets,
+        attachments,
+        site_host: Some("corpus.atlassian.net".into()),
+        links,
+        ..Default::default()
+    };
     (upload, fetch)
 }
 
@@ -170,4 +189,43 @@ fn marked_links_upload_as_smart_links() {
     // At the end of a paragraph too (not read as the paragraph's settings).
     assert_eq!(doc.content[1].content.last().unwrap().kind, "inlineCard");
     assert!(doc.content[1].marks.is_empty());
+}
+
+/// Links to local markdown files upload as page URLs, with GitHub-style anchors translated
+/// to the target page's Confluence anchors, and fetch -o turns them back into the same links.
+#[test]
+fn relative_links_upload_as_page_urls() {
+    let url = "https://x.atlassian.net/wiki/spaces/ENG/pages/22";
+    let md = "See [setup](./setup.md), [install](./setup.md#install--setup-v20), [a space](./my%20notes.md) and [Setup](./setup.md)<!-- rf: card=inline -->.\n";
+    let headings = vec!["Overview".to_string(), "Install & Setup (v2.0)".to_string()];
+    let mut ctx = UploadContext::default();
+    ctx.pages.insert("./setup.md".into(), PageRef { url: url.into(), headings: headings.clone() });
+    ctx.pages.insert("./my notes.md".into(), PageRef { url: "https://x.atlassian.net/wiki/spaces/ENG/pages/23".into(), headings: vec![] });
+    assert_eq!(local_links(md).iter().map(|(_, p)| p.as_str()).collect::<Vec<_>>(), ["./setup.md", "./setup.md", "./my notes.md", "./setup.md"]);
+
+    let doc = markdown_to_adf(md, &ctx).unwrap().doc;
+    let p = &doc.content[0].content;
+    let href = |text: &str| p.iter().find(|n| n.text.as_deref() == Some(text)).and_then(|n| n.mark("link")).and_then(|m| m.attr_str("href"));
+    assert_eq!(href("setup"), Some(url));
+    assert_eq!(href("install"), Some(format!("{url}#Install-&-Setup-(v2.0)").as_str()));
+    assert_eq!(href("a space"), Some("https://x.atlassian.net/wiki/spaces/ENG/pages/23"));
+    assert_eq!(p.iter().find(|n| n.is("inlineCard")).and_then(|n| n.attr_str("url")), Some(url));
+
+    let fetch = FetchContext {
+        site_host: Some("x.atlassian.net".into()),
+        links: [
+            ("22".to_string(), LinkTarget { path: "./setup.md".into(), headings }),
+            ("23".to_string(), LinkTarget { path: "./my notes.md".into(), headings: vec![] }),
+        ]
+        .into(),
+        titles: [("22".to_string(), "Setup".to_string())].into(),
+        ..Default::default()
+    };
+    assert_eq!(adf_to_markdown(&doc, &fetch), normalize(md));
+
+    // Files without a page, and same-page or external links, are left alone.
+    let err = markdown_to_adf("[a](./missing.md) [b](../x/missing.md#top) [c](#here) [d](https://e.com/x.md)\n", &UploadContext::default()).unwrap_err();
+    assert_eq!(err.links, ["./missing.md", "../x/missing.md"]);
+    assert!(err.to_string().contains("links to files without a page: ./missing.md, ../x/missing.md"), "{err}");
+    assert!(check("[a](./missing.md)\n").is_empty());
 }

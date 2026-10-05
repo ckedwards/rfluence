@@ -5,7 +5,12 @@
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct RfluenceFields {
     pub id: Option<String>,
+    pub space_key: Option<String>,
+    pub parent: Option<String>,
+    pub title: Option<String>,
     pub version: Option<u64>,
+    pub url: Option<String>,
+    pub labels: Vec<String>,
     pub weight: Option<i64>,
     pub simplified: bool,
     pub partial: bool,
@@ -42,13 +47,42 @@ pub fn rfluence_fields(yaml: &str) -> RfluenceFields {
         Some(serde_norway::Value::Number(n)) => Some(n.to_string()),
         _ => None,
     };
+    let labels = match rf.get("labels") {
+        Some(serde_norway::Value::Sequence(items)) => items
+            .iter()
+            .filter_map(|v| match v {
+                serde_norway::Value::String(s) => Some(s.clone()),
+                serde_norway::Value::Number(n) => Some(n.to_string()),
+                serde_norway::Value::Bool(b) => Some(b.to_string()),
+                _ => None,
+            })
+            .collect(),
+        _ => Vec::new(),
+    };
     RfluenceFields {
         id: string("id"),
+        space_key: string("space_key"),
+        parent: string("parent"),
+        title: string("title"),
+        url: string("url"),
+        labels,
         version: rf.get("version").and_then(serde_norway::Value::as_u64),
         weight: rf.get("weight").and_then(serde_norway::Value::as_i64),
         simplified: rf.get("simplified").and_then(serde_norway::Value::as_bool).unwrap_or(false),
         partial: rf.get("partial").and_then(serde_norway::Value::as_bool).unwrap_or(false),
     }
+}
+
+/// Keys under `rfluence:` that rfluence doesn't know (typos), which upload refuses.
+pub fn unknown_keys(yaml: &str) -> Vec<String> {
+    const KNOWN: [&str; 11] =
+        ["id", "space_key", "parent", "title", "version", "url", "labels", "weight", "updated", "simplified", "partial"];
+    let Ok(value) = serde_norway::from_str::<serde_norway::Value>(yaml) else { return Vec::new() };
+    let Some(serde_norway::Value::Mapping(rf)) = value.get("rfluence") else { return Vec::new() };
+    rf.keys()
+        .map(|k| k.as_str().map_or_else(|| format!("{k:?}"), str::to_string))
+        .filter(|k| !KNOWN.contains(&k.as_str()))
+        .collect()
 }
 
 /// Merge a freshly fetched frontmatter (`---\nrfluence:\n...\n---\n`) into an existing file's
@@ -105,11 +139,22 @@ mod tests {
 
     #[test]
     fn reads_rfluence_fields() {
-        let f = rfluence_fields("title: x\nrfluence:\n  id: \"123\"\n  version: 7\n  weight: -2\n");
-        assert_eq!(f, RfluenceFields { id: Some("123".into()), version: Some(7), weight: Some(-2), ..Default::default() });
+        let f = rfluence_fields("title: x\nrfluence:\n  id: \"123\"\n  version: 7\n  weight: -2\n  labels: [a, b-c]\n  title: \"T: x\"\n");
+        assert_eq!(
+            f,
+            RfluenceFields {
+                id: Some("123".into()),
+                version: Some(7),
+                weight: Some(-2),
+                labels: vec!["a".into(), "b-c".into()],
+                title: Some("T: x".into()),
+                ..Default::default()
+            }
+        );
         assert_eq!(rfluence_fields("rfluence:\n  id: 123\n").id.as_deref(), Some("123"));
         assert!(rfluence_fields("rfluence:\n  simplified: true\n").simplified);
         assert_eq!(rfluence_fields(": not yaml ["), RfluenceFields::default());
+        assert_eq!(unknown_keys("rfluence:\n  id: \"1\"\n  lables: [a]\nother: 1\n"), ["lables"]);
     }
 
     #[test]

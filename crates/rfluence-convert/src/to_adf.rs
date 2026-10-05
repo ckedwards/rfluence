@@ -26,6 +26,37 @@ pub struct UploadContext {
     /// The merfluence app, for turning ```` ```mermaid ```` fences into diagrams. Without
     /// it, Mermaid fences are uploaded as code blocks.
     pub mermaid: Option<MermaidApp>,
+    /// Pages that relative links point at, by path as written in the markdown and
+    /// percent-decoded (`./setup.md`), see [`local_links`].
+    pub pages: HashMap<String, PageRef>,
+}
+
+impl UploadContext {
+    /// Learn what a page in Confluence knows: the merfluence app (from its diagrams) and its
+    /// custom emoji, so that a fetched page uploads back the same.
+    pub fn learn_from(&mut self, doc: &Node) {
+        doc.walk(&mut |n| {
+            if crate::to_md::is_merfluence(n) && self.mermaid.is_none() {
+                self.mermaid = n.attr_str("extensionKey").and_then(MermaidApp::from_extension_key);
+            }
+            if n.is("emoji") {
+                if let (Some(short), Some(id), Some(text)) = (n.attr_str("shortName"), n.attr_str("id"), n.attr_str("text")) {
+                    if !emoji::is_emoji(text) && emoji::lookup(short).is_none() && emoji::from_id(id).is_none() {
+                        self.custom_emoji.insert(short.trim_matches(':').to_string(), id.to_string());
+                    }
+                }
+            }
+        });
+    }
+}
+
+/// A page a relative link points at.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct PageRef {
+    /// `https://<site>/wiki/spaces/<KEY>/pages/<id>`.
+    pub url: String,
+    /// The headings of the file's body (without the title H1), to translate anchors.
+    pub headings: Vec<String>,
 }
 
 /// The merfluence Forge app's IDs (design.md, "Mermaid diagrams (merfluence)").
@@ -59,17 +90,25 @@ impl Upload {
     }
 }
 
+/// What upload couldn't resolve.
 #[derive(Debug, Clone, PartialEq)]
-pub enum Error {
+pub struct Error {
     /// Local images with no attachment in [`UploadContext::media`].
-    UnresolvedImages(Vec<String>),
+    pub images: Vec<String>,
+    /// Links to markdown files with no page in [`UploadContext::pages`].
+    pub links: Vec<String>,
 }
 
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Error::UnresolvedImages(paths) => write!(f, "images without an attachment: {}", paths.join(", ")),
+        let mut parts = Vec::new();
+        if !self.images.is_empty() {
+            parts.push(format!("images without an attachment: {}", self.images.join(", ")));
         }
+        if !self.links.is_empty() {
+            parts.push(format!("links to files without a page: {}", self.links.join(", ")));
+        }
+        write!(f, "{}", parts.join("; "))
     }
 }
 
@@ -77,9 +116,9 @@ impl std::error::Error for Error {}
 
 /// Convert markdown (frontmatter is ignored) to a page body.
 pub fn markdown_to_adf(md: &str, ctx: &UploadContext) -> Result<Upload, Error> {
-    let (doc, diagnostics, unresolved) = convert(md, ctx, false);
-    if !unresolved.is_empty() {
-        return Err(Error::UnresolvedImages(unresolved));
+    let (doc, diagnostics, error) = convert(md, ctx, false);
+    if !error.images.is_empty() || !error.links.is_empty() {
+        return Err(error);
     }
     Ok(Upload { doc, diagnostics })
 }
@@ -106,7 +145,34 @@ pub fn local_images(md: &str) -> Vec<(usize, String)> {
         .collect()
 }
 
-fn convert(md: &str, ctx: &UploadContext, check_only: bool) -> (Node, Vec<Diagnostic>, Vec<String>) {
+/// Links to local markdown files (`./setup.md#install`), with their lines: the path,
+/// percent-decoded and without the anchor, as [`UploadContext::pages`] is keyed.
+pub fn local_links(md: &str) -> Vec<(usize, String)> {
+    let arena = Arena::new();
+    let root = parse_document(&arena, md, &options());
+    root.descendants()
+        .filter_map(|n| match &n.data().value {
+            NodeValue::Link(l) => local_md_link(&l.url).map(|(path, _)| (line(n), path)),
+            _ => None,
+        })
+        .collect()
+}
+
+/// A link to a local markdown file: its path (percent-decoded) and anchor.
+fn local_md_link(url: &str) -> Option<(String, Option<&str>)> {
+    if url.starts_with('#') || url.contains(':') && url.split(':').next().is_some_and(|s| !s.contains('/')) {
+        return None;
+    }
+    let (path, anchor) = match url.split_once('#') {
+        Some((p, a)) => (p, Some(a).filter(|a| !a.is_empty())),
+        None => (url, None),
+    };
+    let path = path.split('?').next().unwrap_or(path);
+    let decoded = percent_encoding::percent_decode_str(path).decode_utf8_lossy().into_owned();
+    decoded.to_ascii_lowercase().ends_with(".md").then_some((decoded, anchor))
+}
+
+fn convert(md: &str, ctx: &UploadContext, check_only: bool) -> (Node, Vec<Diagnostic>, Error) {
     let arena = Arena::new();
     let root = parse_document(&arena, md, &options());
     let mut diags = Vec::new();
@@ -122,7 +188,7 @@ fn convert(md: &str, ctx: &UploadContext, check_only: bool) -> (Node, Vec<Diagno
         check_only,
         anchors: Anchors::new(headings.iter().map(String::as_str)),
         diags,
-        unresolved: Vec::new(),
+        unresolved: Error { images: Vec::new(), links: Vec::new() },
         place: Place::Top,
     };
     let content = r.blocks_of(&children(root));
@@ -152,7 +218,7 @@ struct Reader<'a, 'c> {
     check_only: bool,
     anchors: Anchors,
     diags: Vec<Diagnostic>,
-    unresolved: Vec<String>,
+    unresolved: Error,
     place: Place,
 }
 
@@ -431,7 +497,7 @@ impl<'a> Reader<'a, '_> {
                 if let NodeValue::Link(l) = &link.data().value {
                     let card = match settings.get("card") {
                         Some("embed") => {
-                            let mut c = Node::new("embedCard").with_attr("url", l.url.clone());
+                            let mut c = Node::new("embedCard").with_attr("url", self.href(&l.url));
                             if let Some(layout) = settings.get("layout") {
                                 c = c.with_attr("layout", layout);
                             }
@@ -440,7 +506,7 @@ impl<'a> Reader<'a, '_> {
                             }
                             c
                         }
-                        _ => Node::new("blockCard").with_attr("url", l.url.clone()),
+                        _ => Node::new("blockCard").with_attr("url", self.href(&l.url)),
                     };
                     return card;
                 }
@@ -478,7 +544,7 @@ impl<'a> Reader<'a, '_> {
                 id.get_or_insert_with(String::new);
             }
             if id.is_none() {
-                self.unresolved.push(link.url.clone());
+                self.unresolved.images.push(link.url.clone());
             }
             let collection = self.ctx.page_id.as_ref().map(|p| format!("contentId-{p}")).unwrap_or_default();
             Node::new("media")
@@ -497,7 +563,7 @@ impl<'a> Reader<'a, '_> {
             media.marks.push(border);
         }
         if let Some(href) = href {
-            media.marks.push(Mark::new("link").with_attr("href", href));
+            media.marks.push(Mark::new("link").with_attr("href", self.href(&href)));
         }
         let mut single = Node::new("mediaSingle");
         if let Some(layout) = settings.get("layout") {
@@ -690,7 +756,7 @@ impl<'a> Reader<'a, '_> {
             // `[Title](url)<!-- rf: card=inline -->`: a smart link; Confluence shows the
             // target's title, so the text isn't kept.
             if let Some((url, end)) = marked_card(&items, i) {
-                out.push(Node::new("inlineCard").with_attr("url", url));
+                out.push(Node::new("inlineCard").with_attr("url", self.href(&url)));
                 i = end + 1;
                 continue;
             }
@@ -747,7 +813,7 @@ impl<'a> Reader<'a, '_> {
             NodeValue::Image(l) => {
                 self.error(node, "inline images can't be represented in Confluence (uploaded as a link)");
                 let mut marks = marks;
-                marks.push(Mark::new("link").with_attr("href", l.url.clone()));
+                marks.push(Mark::new("link").with_attr("href", self.href(&l.url)));
                 let alt = markdown::inline_text(node);
                 vec![Node::text(if alt.is_empty() { l.url.clone() } else { alt }).with_marks(sorted(marks))]
             }
@@ -804,16 +870,35 @@ impl<'a> Reader<'a, '_> {
         out
     }
 
-    fn adf_marks(&self, marks: &[MdMark]) -> Vec<Mark> {
+    /// A link destination as uploaded: same-page anchors in Confluence style, links to local
+    /// markdown files as page URLs (design.md, "Links" > "Upload").
+    fn href(&mut self, url: &str) -> String {
+        if let Some(anchor) = url.strip_prefix('#') {
+            return self.anchors.to_confluence(anchor).map(|c| format!("#{c}")).unwrap_or_else(|| url.to_string());
+        }
+        let Some((path, anchor)) = local_md_link(url) else { return url.to_string() };
+        let Some(page) = self.ctx.pages.get(&path) else {
+            if !self.check_only && !self.unresolved.links.contains(&path) {
+                self.unresolved.links.push(path);
+            }
+            return url.to_string();
+        };
+        match anchor {
+            Some(a) => {
+                let anchors = Anchors::new(page.headings.iter().map(String::as_str));
+                let decoded = percent_encoding::percent_decode_str(a).decode_utf8_lossy();
+                format!("{}#{}", page.url, anchors.to_confluence(a).unwrap_or(&decoded))
+            }
+            None => page.url.clone(),
+        }
+    }
+
+    fn adf_marks(&mut self, marks: &[MdMark]) -> Vec<Mark> {
         let out = marks
             .iter()
             .map(|m| match m {
                 MdMark::Link { url, title } => {
-                    let href = match url.strip_prefix('#') {
-                        Some(anchor) => self.anchors.to_confluence(anchor).map(|c| format!("#{c}")).unwrap_or_else(|| url.clone()),
-                        None => url.clone(),
-                    };
-                    let mut mark = Mark::new("link").with_attr("href", href);
+                    let mut mark = Mark::new("link").with_attr("href", self.href(url));
                     if !title.is_empty() {
                         mark = mark.with_attr("title", title.clone());
                     }

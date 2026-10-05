@@ -56,6 +56,21 @@ pub fn card_page_ids(doc: &crate::adf::Node, host: &str) -> Vec<String> {
     ids
 }
 
+/// The IDs of pages on `host` that a page links to: text and image links, and smart links.
+pub fn linked_page_ids(doc: &crate::adf::Node, host: &str) -> Vec<String> {
+    let mut ids = card_page_ids(doc, host);
+    doc.walk(&mut |n| {
+        for mark in n.marks.iter().filter(|m| m.kind == "link") {
+            if let Some(link) = mark.attr_str("href").and_then(|u| page_link(u, host)) {
+                if !ids.contains(&link.id) {
+                    ids.push(link.id);
+                }
+            }
+        }
+    });
+    ids
+}
+
 /// The page ID in a tiny link code (`/x/tYEE` -> 295349): the ID's little-endian bytes in
 /// base64, with `/` and `+` written as `-` and `_`, and trailing zero bytes dropped.
 pub fn tiny_link_id(code: &str) -> Option<u64> {
@@ -106,6 +121,17 @@ mod tests {
         assert!(link("https://other.atlassian.net/wiki/spaces/ENG/pages/123").is_none());
         assert!(link("https://x.atlassian.net/wiki/spaces/ENG/overview").is_none());
         assert!(link("#anchor").is_none());
+    }
+
+    #[test]
+    fn finds_linked_pages() {
+        let doc: crate::adf::Node = serde_json::from_str(r#"{"type":"doc","content":[{"type":"paragraph","content":[
+            {"type":"text","text":"a","marks":[{"type":"link","attrs":{"href":"https://x.atlassian.net/wiki/spaces/E/pages/1/T#A"}}]},
+            {"type":"text","text":"b","marks":[{"type":"link","attrs":{"href":"https://other.net/wiki/spaces/E/pages/2"}}]},
+            {"type":"inlineCard","attrs":{"url":"https://x.atlassian.net/wiki/x/tYEE"}},
+            {"type":"text","text":"c","marks":[{"type":"link","attrs":{"href":"https://x.atlassian.net/wiki/spaces/E/pages/1"}}]}
+        ]}]}"#).unwrap();
+        assert_eq!(linked_page_ids(&doc, HOST), ["295349", "1"]);
     }
 
     #[test]
