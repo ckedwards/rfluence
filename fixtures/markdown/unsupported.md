@@ -1,6 +1,6 @@
 # Unsupported markdown
 
-Markdown with no Confluence equivalent. `rf check` reports each as an error, and upload refuses it (design.md, "Checking markdown").
+Markdown with no Confluence equivalent. `rfluence check` reports each as an error, and upload refuses it (design.md, "Checking markdown").
 
 ## Footnotes
 

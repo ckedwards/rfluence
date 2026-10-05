@@ -1,11 +1,10 @@
 ---
 rfluence:
-  id: "295349"
-  space_key: rfluencete
-  parent: "753877"
-  version: 3
+  title: rfluence link API test
   url: https://tech-accounts11.atlassian.net/wiki/spaces/rfluencete/pages/295349
-  labels: []
+  space_key: rfluencete
+  updated: 2026-10-04T02:37:40.026Z
+  simplified: true
 ---
 
 # rfluence link API test
@@ -132,7 +131,7 @@ Click each link. It works if the page jumps to that heading (or opens the other 
 
 ### Duplicate
 
-### Extra   spaces
+###   Extra   spaces
 
 ### under\_score and \`code\`
 

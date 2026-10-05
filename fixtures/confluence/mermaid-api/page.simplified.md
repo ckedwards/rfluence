@@ -1,11 +1,10 @@
 ---
 rfluence:
-  id: "458755"
-  space_key: rfluencete
-  parent: "753877"
-  version: 1
+  title: rfluence merfluence API test
   url: https://tech-accounts11.atlassian.net/wiki/spaces/rfluencete/pages/458755
-  labels: []
+  space_key: rfluencete
+  updated: 2026-10-04T02:06:35.847Z
+  simplified: true
 ---
 
 # rfluence merfluence API test

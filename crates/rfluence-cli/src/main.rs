@@ -1,14 +1,16 @@
-//! The `rf` command. See design.md, "Commands".
+//! The `rfluence` command. See design.md, "Commands".
 
-use std::path::{Path, PathBuf};
+mod auth;
+mod check;
+mod fetch;
+
+use std::path::PathBuf;
 use std::process::ExitCode;
 
 use clap::{Parser, Subcommand};
-use rfluence_convert::{Diagnostic, Severity};
-use serde::Serialize;
 
 #[derive(Parser)]
-#[command(name = "rf", version, about = "Fetch, search and upload Confluence pages as markdown")]
+#[command(name = "rfluence", version, about = "Fetch, search and upload Confluence pages as markdown")]
 struct Cli {
     #[command(subcommand)]
     command: Command,
@@ -16,6 +18,30 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Fetch a page as markdown.
+    ///
+    /// Prints the round-trip form (frontmatter, title, body), which `rfluence upload` can send back.
+    /// Use --simplified for a shorter form to read (it can't be uploaded).
+    Fetch {
+        /// Page ID, page URL (including tiny links), or SPACE:Title.
+        page: String,
+        /// Shorter markdown for reading: drops settings, macros' markup, and attachments'
+        /// paths. Can't be uploaded.
+        #[arg(long)]
+        simplified: bool,
+        /// Only the section under this heading (its text, or its #anchor).
+        #[arg(long, value_name = "HEADING")]
+        section: Option<String>,
+        /// Cut the body to about this many characters, listing the sections to read the rest.
+        #[arg(long, value_name = "N")]
+        max_chars: Option<usize>,
+        /// Print the page's metadata and markdown as JSON.
+        #[arg(long)]
+        json: bool,
+        /// The site to use (default: the page URL's site, or the default site).
+        #[arg(long, value_name = "SITE")]
+        site: Option<String>,
+    },
     /// Check markdown files for content Confluence can't store exactly.
     ///
     /// Warnings are uploaded as the closest Confluence equivalent (e.g. `<kbd>` as inline
@@ -29,76 +55,85 @@ enum Command {
         #[arg(long)]
         json: bool,
     },
+    /// Log in to Confluence sites: one account per site.
+    ///
+    /// Tokens are kept in the system keyring, or a file readable only by you if there is none.
+    /// CONFLUENCE_BASE_URL, CONFLUENCE_EMAIL and CONFLUENCE_API_KEY, if all set, are used for
+    /// their own site.
+    Auth {
+        #[command(subcommand)]
+        action: AuthAction,
+    },
+}
+
+#[derive(Subcommand)]
+enum AuthAction {
+    /// Log in to a site (and make it the default). Prompts for anything not given.
+    Login {
+        /// The site: a name (`example`), a host, or a URL.
+        #[arg(long, value_name = "SITE")]
+        site: Option<String>,
+        /// The Atlassian account email.
+        #[arg(long)]
+        email: Option<String>,
+        /// Read the API token from standard input.
+        #[arg(long)]
+        with_token: bool,
+    },
+    /// Log out of a site (default: the default site).
+    Logout {
+        #[arg(long, value_name = "SITE")]
+        site: Option<String>,
+    },
+    /// Show the saved accounts and check them against Confluence.
+    Status {
+        /// Only this site.
+        #[arg(long, value_name = "SITE")]
+        site: Option<String>,
+    },
+    /// Print the API token for a site (default: the site rfluence would use).
+    Token {
+        #[arg(long, value_name = "SITE")]
+        site: Option<String>,
+    },
+    /// Change the default site. Without --site, switches between two saved sites.
+    Switch {
+        #[arg(long, value_name = "SITE")]
+        site: Option<String>,
+    },
 }
 
 /// Exit codes (design.md, "Output and errors").
-const EXIT_ERRORS_FOUND: u8 = 1;
-const EXIT_USAGE: u8 = 2;
+pub const EXIT_ERRORS_FOUND: u8 = 1;
+pub const EXIT_USAGE: u8 = 2;
+pub const EXIT_NOT_FOUND: u8 = 3;
+pub const EXIT_AUTH: u8 = 4;
+pub const EXIT_API: u8 = 5;
+
+/// Print a client error and return its exit code.
+pub fn fail(e: &rfluence_client::Error) -> ExitCode {
+    use rfluence_client::Error;
+    eprintln!("rfluence: {e}");
+    ExitCode::from(match e {
+        Error::NotConfigured | Error::NotLoggedIn(_) | Error::PartialEnv(_) | Error::Invalid(_) | Error::Io(_) => EXIT_USAGE,
+        Error::NotFound(_) => EXIT_NOT_FOUND,
+        Error::Auth(_) => EXIT_AUTH,
+        Error::Api { .. } | Error::Network(_) => EXIT_API,
+    })
+}
 
 fn main() -> ExitCode {
     match Cli::parse().command {
-        Command::Check { paths, json } => check(&paths, json),
-    }
-}
-
-#[derive(Serialize)]
-struct FileDiagnostic {
-    path: String,
-    #[serde(flatten)]
-    diagnostic: Diagnostic,
-}
-
-fn check(paths: &[PathBuf], json: bool) -> ExitCode {
-    let mut all = Vec::new();
-    for path in paths {
-        let md = match std::fs::read_to_string(path) {
-            Ok(md) => md,
-            Err(e) => {
-                eprintln!("rf: {}: {e}", path.display());
-                return ExitCode::from(EXIT_USAGE);
-            }
-        };
-        let mut diags = rfluence_convert::check(&md);
-        diags.extend(missing_images(path, &md));
-        diags.sort_by_key(|d| d.line);
-        all.extend(diags.into_iter().map(|diagnostic| FileDiagnostic { path: path.display().to_string(), diagnostic }));
-    }
-
-    let errors = all.iter().filter(|d| d.diagnostic.severity == Severity::Error).count();
-    if json {
-        println!("{}", serde_json::to_string_pretty(&all).expect("diagnostics serialize"));
-    } else {
-        for d in &all {
-            println!("{}:{}: {}: {}", d.path, d.diagnostic.line, d.diagnostic.severity, d.diagnostic.message);
+        Command::Fetch { page, simplified, section, max_chars, json, site } => {
+            fetch::run(&fetch::Options { page, simplified, section, max_chars, json, site })
         }
-        let warnings = all.len() - errors;
-        let files = paths.len();
-        match (errors, warnings) {
-            (0, 0) => println!("ok: {files} file{} checked", plural(files)),
-            _ => println!("{errors} error{}, {warnings} warning{}", plural(errors), plural(warnings)),
-        }
+        Command::Check { paths, json } => check::run(&paths, json),
+        Command::Auth { action } => match action {
+            AuthAction::Login { site, email, with_token } => auth::login(site, email, with_token),
+            AuthAction::Logout { site } => auth::logout(site),
+            AuthAction::Status { site } => auth::status(site),
+            AuthAction::Token { site } => auth::token(site),
+            AuthAction::Switch { site } => auth::switch(site),
+        },
     }
-    if errors > 0 { ExitCode::from(EXIT_ERRORS_FOUND) } else { ExitCode::SUCCESS }
-}
-
-/// Local images whose file doesn't exist next to the markdown file.
-fn missing_images(path: &Path, md: &str) -> Vec<Diagnostic> {
-    let dir = path.parent().unwrap_or(Path::new("."));
-    rfluence_convert::local_images(md)
-        .into_iter()
-        .filter(|(_, src)| {
-            let decoded = percent_encoding::percent_decode_str(src).decode_utf8_lossy();
-            !dir.join(decoded.as_ref()).exists()
-        })
-        .map(|(line, src)| {
-            Diagnostic::warning(
-                line,
-                format!("image file not found: {src} (upload reuses an attachment with that name if the page has one)"),
-            )
-        })
-        .collect()
-}
-
-fn plural(n: usize) -> &'static str {
-    if n == 1 { "" } else { "s" }
 }

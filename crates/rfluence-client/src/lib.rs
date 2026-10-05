@@ -1,1 +1,8 @@
-//! Confluence API client, auth and config. Not implemented yet; see design.md.
+//! Confluence API client and credentials for rfluence. See design.md, "rfluence (the command)".
+
+mod api;
+pub mod auth;
+mod error;
+
+pub use api::{Attachment, Client, Page, PageRef, file_names, page_ref_site, parse_page_ref, tiny_link_id};
+pub use error::{Error, Result};

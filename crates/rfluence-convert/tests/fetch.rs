@@ -5,15 +5,26 @@ mod common;
 use common::*;
 use rfluence_convert::adf_to_markdown;
 
-/// Every captured page as markdown matches the fixture's page.md. Run with
-/// `RF_UPDATE_FIXTURES=1` to rewrite page.md after an intended change, then review the diff.
+/// Every captured page, as `rfluence fetch` prints it, matches the fixture's page.md (and with
+/// `--simplified`, page.simplified.md). Run with `RFLUENCE_UPDATE_FIXTURES=1` to rewrite them after
+/// an intended change, then review the diff.
 #[test]
 fn fixtures_as_markdown() {
-    let update = std::env::var_os("RF_UPDATE_FIXTURES").is_some();
+    check_reference_output("page.md", false);
+}
+
+#[test]
+fn fixtures_as_simplified_markdown() {
+    check_reference_output("page.simplified.md", true);
+}
+
+fn check_reference_output(file: &str, simplified: bool) {
+    let update = std::env::var_os("RFLUENCE_UPDATE_FIXTURES").is_some();
     let mut changed = Vec::new();
     for name in pages() {
-        let md = adf_to_markdown(&page_adf(&name, "adf.json"), &fetch_ctx(&name));
-        let path = fixtures().join("confluence").join(&name).join("page.md");
+        let ctx = rfluence_convert::FetchContext { simplified, ..fetch_ctx(&name) };
+        let md = rfluence_convert::page_markdown(&page_adf(&name, "adf.json"), &page_meta(&name), &ctx);
+        let path = fixtures().join("confluence").join(&name).join(file);
         let expected = std::fs::read_to_string(&path).unwrap_or_default();
         if md != expected {
             if update {
@@ -21,12 +32,12 @@ fn fixtures_as_markdown() {
             } else {
                 changed.push(format!(
                     "{name}:\n{}",
-                    similar_asserts::SimpleDiff::from_str(&expected, &md, "page.md", "adf_to_markdown(adf.json)")
+                    similar_asserts::SimpleDiff::from_str(&expected, &md, file, "rfluence fetch")
                 ));
             }
         }
     }
-    assert!(changed.is_empty(), "{}\n\nRun with RF_UPDATE_FIXTURES=1 to update page.md.", changed.join("\n\n"));
+    assert!(changed.is_empty(), "{}\n\nRun with RFLUENCE_UPDATE_FIXTURES=1 to update {file}.", changed.join("\n\n"));
 }
 
 /// An editor save rewrites the whole page (localIds, default widths, mark order, ...).

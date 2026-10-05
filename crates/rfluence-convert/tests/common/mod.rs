@@ -50,7 +50,26 @@ pub fn attachments(name: &str) -> HashMap<String, String> {
 
 /// Images point at the fixture's `attachments/` folder, so its page.md previews with them.
 pub fn fetch_ctx(name: &str) -> FetchContext {
-    FetchContext { page_id: Some(page_id(name)), assets_dir: "attachments".into(), attachments: attachments(name) }
+    FetchContext { page_id: Some(page_id(name)), assets_dir: "attachments".into(), attachments: attachments(name), simplified: false }
+}
+
+/// The page metadata a client would read from the page response (page.json).
+pub fn page_meta(name: &str) -> rfluence_convert::PageMeta {
+    let path = fixtures().join("confluence").join(name).join("page.json");
+    let v: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
+    let webui = v["_links"]["webui"].as_str().unwrap();
+    let space_key = webui.trim_start_matches("/spaces/").split('/').next().unwrap().to_string();
+    let id = v["id"].as_str().unwrap().to_string();
+    rfluence_convert::PageMeta {
+        url: format!("{}/spaces/{space_key}/pages/{id}", v["_links"]["base"].as_str().unwrap()),
+        id,
+        title: v["title"].as_str().unwrap().to_string(),
+        space_key,
+        parent: v["parentId"].as_str().map(str::to_string),
+        version: v["version"]["number"].as_u64().unwrap(),
+        updated: v["version"]["createdAt"].as_str().map(str::to_string),
+        labels: v["labels"]["results"].as_array().unwrap().iter().map(|l| l["name"].as_str().unwrap().to_string()).collect(),
+    }
 }
 
 /// The upload context a client would build for a fetched page: its attachments by path,

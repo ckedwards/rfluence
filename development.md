@@ -1,0 +1,133 @@
+# Developing rfluence
+
+How to build, run and test rfluence. What it does and why is in [design.md](design.md).
+
+## Prerequisites
+
+  * Rust (stable), via `rustup`. On Arch / Omarchy: `sudo pacman -S rustup && rustup default stable`.
+  * For the fixture scripts: `curl`, `jq`, `python3`.
+
+No system libraries are needed: HTTPS uses rustls, and the Linux keyring store is pure Rust.
+
+## Workspace
+
+```
+crates/
+  rfluence-convert   pure markdown <-> ADF conversion (no network or files); most tests live here
+  rfluence-client    Confluence API client and credentials
+  rfluence-cli       the `rfluence` command
+fixtures/
+  confluence/        captured Confluence pages: ADF, metadata, attachments, reference markdown
+  markdown/          LLM-style markdown corpus for round-trip tests
+scripts/             capture and restore the reference pages
+```
+
+## Build and run
+
+From the repo, rebuilding as needed (everything after `--` goes to `rfluence`):
+
+```shell
+cargo run -q -p rfluence-cli -- fetch 458790
+```
+
+Or build once and run the binary:
+
+```shell
+cargo build --release
+./target/release/rfluence fetch 458790
+```
+
+Or install it, so `rfluence` works anywhere:
+
+```shell
+cargo install --path crates/rfluence-cli
+```
+
+This installs to `~/.cargo/bin`; if that isn't on your `PATH`, add `export PATH="$HOME/.cargo/bin:$PATH"` to your shell profile. Re-run the install after changing the code.
+
+## Credentials
+
+rfluence keeps one account per Confluence site, like `gh auth`:
+
+```shell
+rfluence auth login                     # prompts for the site, email and API token
+rfluence auth login --site other        # another site (https://other.atlassian.net)
+rfluence auth status                    # every account, the default site, and whether each works
+rfluence auth switch --site other       # change the default site
+rfluence auth token                     # print the token in use
+rfluence auth logout --site other
+```
+
+The last site logged in to is the default. A command uses a page URL's own site, else `--site`, else `RFLUENCE_SITE`, else the default. For scripts, `--with-token` reads the token from standard input:
+
+```shell
+printf '%s' "$TOKEN" | rfluence auth login --site example --email me@example.com --with-token
+```
+
+Or set all three `CONFLUENCE_*` variables, which are used for their site. The repo's `.env` (gitignored) has them for the test site:
+
+```shell
+set -a; . ./.env; set +a
+```
+
+Create API tokens at <https://id.atlassian.com/manage-profile/security/api-tokens>.
+
+`RFLUENCE_CONFIG_DIR=<dir>` keeps accounts somewhere other than `~/.config/rfluence`, and `RFLUENCE_NO_KEYRING=1` stores tokens in files instead of the system keyring; the tests use both so they never touch your real accounts.
+
+## Tests
+
+```shell
+cargo test --workspace
+cargo clippy --workspace --all-targets
+```
+
+Most tests run offline against captured Confluence responses (`fixtures/confluence`) and the markdown corpus (`fixtures/markdown`):
+
+| Tests | What they check |
+| --- | --- |
+| `rfluence-convert` unit tests | The building blocks; the normalizer on the corpus (fixed point, unchanged structure) |
+| `rfluence-convert/tests/fetch.rs` | Each captured page's markdown matches its `page.md` / `page.simplified.md`; editor saves don't change the markdown |
+| `rfluence-convert/tests/roundtrip.rs` | `normalize(md) == fetch(upload(md))` on the corpus; fetch -> upload -> fetch on every captured page; `check` diagnostics |
+| `rfluence-convert/tests/upload.rs` | Snapshots of the ADF upload produces for the corpus |
+| `rfluence-client/tests/api.rs` | The client against recorded responses on a mock server |
+| `rfluence-cli/tests/*.rs` | The `rfluence` binary: `fetch`, `check` and `auth` (two mock sites) output and exit codes |
+
+### Updating expected output
+
+After an intended change to what fetch writes, rewrite the reference markdown and review the diff:
+
+```shell
+RFLUENCE_UPDATE_FIXTURES=1 cargo test --workspace
+git diff fixtures/confluence/*/page*.md
+```
+
+The upload snapshots (`crates/rfluence-convert/tests/snapshots/`) use [insta](https://insta.rs): review changes with `cargo insta review` (`cargo install cargo-insta`), or accept them all with `INSTA_UPDATE=always cargo test --workspace` and review the diff.
+
+### Live tests
+
+`rfluence-cli/tests/live.rs` fetches the reference pages from the real test site, checks the output still matches the fixtures, and times `rfluence fetch`. They're skipped unless `RFLUENCE_LIVE` is set; credentials come from the environment or `.env`:
+
+```shell
+RFLUENCE_LIVE=1 cargo test -p rfluence-cli --test live -- --nocapture
+```
+
+## Looking at conversions
+
+Each captured page has its markdown next to it: `fixtures/confluence/<page>/page.md` (round-trip form) and `page.simplified.md` (`--simplified`). Images point at the folder's `attachments/`, so they preview with images.
+
+Two examples in `rfluence-convert` help when working on the converter:
+
+```shell
+# A captured page as markdown
+cargo run -q -p rfluence-convert --example fetch -- fixtures/confluence/emoji
+
+# The normalized form of a markdown file (or stdin)
+cargo run -q -p rfluence-convert --example norm -- fixtures/markdown/tables.md
+```
+
+## Reference pages and fixtures
+
+The captured pages, how they were made, and what each covers are described in [fixtures/confluence/README.md](fixtures/confluence/README.md), along with:
+
+  * `scripts/capture-fixtures.sh`: re-capture a page, or add one (`--new <name> <page id>`)
+  * `scripts/restore-reference-pages.py`: recreate the pages in another space or site

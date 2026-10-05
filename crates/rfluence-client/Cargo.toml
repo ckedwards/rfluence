@@ -7,3 +7,21 @@ rust-version.workspace = true
 publish.workspace = true
 
 [dependencies]
+base64.workspace = true
+dirs.workspace = true
+keyring-core.workspace = true
+rfluence-convert.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+ureq.workspace = true
+
+# The system keyring, per platform (design.md, "Auth").
+[target.'cfg(target_os = "linux")'.dependencies]
+zbus-secret-service-keyring-store = { version = "1", features = ["rt-async-io-crypto-rust"] }
+[target.'cfg(target_os = "macos")'.dependencies]
+apple-native-keyring-store = { version = "1", features = ["keychain"] }
+[target.'cfg(windows)'.dependencies]
+windows-native-keyring-store = "1"
+
+[dev-dependencies]
+mockito.workspace = true

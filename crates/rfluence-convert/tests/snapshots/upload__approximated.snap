@@ -31,7 +31,7 @@ expression: "format!(\"{json}\\n\\ndiagnostics: {:#?}\", upload.diagnostics)"
               "type": "code"
             }
           ],
-          "text": "rf check"
+          "text": "rfluence check"
         },
         {
           "type": "text",
@@ -295,7 +295,7 @@ expression: "format!(\"{json}\\n\\ndiagnostics: {:#?}\", upload.diagnostics)"
                           "type": "code"
                         }
                       ],
-                      "text": "rf check"
+                      "text": "rfluence check"
                     }
                   ]
                 }

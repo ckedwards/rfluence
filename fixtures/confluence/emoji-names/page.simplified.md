@@ -1,18 +1,17 @@
 ---
 rfluence:
-  id: "720904"
-  space_key: rfluencete
-  parent: "753877"
-  version: 1
+  title: rfluence emoji names API test
   url: https://tech-accounts11.atlassian.net/wiki/spaces/rfluencete/pages/720904
-  labels: []
+  space_key: rfluencete
+  updated: 2026-10-05T00:19:32.246Z
+  simplified: true
 ---
 
 # rfluence emoji names API test
 
 1 baseline, Atlassian name: 🎉
 
-2 GitHub name (Atlassian calls it 📝): 📝
+2 GitHub name (Atlassian calls it :pencil:): 📝
 
 3 id with fe0f (Atlassian's id has none): ❤️
 

@@ -145,7 +145,7 @@ Decided while implementing `rfluence-convert`; settings follow "Confluence-only 
 
 ### Checking markdown
 
-Markdown that Confluence can't store exactly is reported by `rf check` and by upload (`rfluence_convert::check`, `Upload::diagnostics`), with a line number.
+Markdown that Confluence can't store exactly is reported by `rfluence check` and by upload (`rfluence_convert::check`, `Upload::diagnostics`), with a line number.
 
 **Warnings**: there is a close Confluence equivalent, and upload uses it. Normalize makes the same change, so `normalize(md) == fetch(upload(md))` still holds (`fixtures/markdown/approximated.md`):
 
@@ -159,7 +159,7 @@ Markdown that Confluence can't store exactly is reported by `rf check` and by up
   * A GFM table with an HTML list in a cell: written as an HTML table
   * HTML table cell attributes and styles other than `colspan`, `rowspan`, `background-color` and `data-colwidth`; table captions: dropped
   * Unknown `rf:` settings, and `rf:` comments not attached to anything: ignored
-  * Local images whose file is missing (`rf check` only; upload reuses an attachment with that name if the page has one)
+  * Local images whose file is missing (`rfluence check` only; upload reuses an attachment with that name if the page has one)
 
 **Errors**: can't be represented in Confluence. Upload refuses unless forced, and then uploads an approximation (`fixtures/markdown/unsupported.md`):
 
@@ -293,7 +293,7 @@ What Confluence does on save (verified on test page 131074; all variants render 
 Fetch:
 
   * Images are always written as relative paths next to the markdown file: `![roadmap](page.assets/roadmap.svg)`.
-  * Files are only downloaded when output goes to a file (`rf fetch -o page.md` creates `page.assets/`). Printing to stdout doesn't download anything.
+  * Files are only downloaded when output goes to a file (`rfluence fetch -o page.md` creates `page.assets/`). Printing to stdout doesn't download anything.
   * Filenames come from `__fileName` when present. Otherwise one extra call to the attachments API maps `fileId` -> filename (only for pages that have images).
 
 Upload:
@@ -326,7 +326,7 @@ Widths (`breakout` mark on code blocks, expands and layouts; `width` / `layout` 
   * An editor save fills in a width for each mode on blocks nobody touched (page 98404 re-saved in the editor):
     * code block / expand with no `breakout` mark -> `{mode: "wide", width: 760}`; it looks the same as no mark (checked in the browser);
     * `breakout` `{mode: "full-width"}` without a width -> `width: 1800` (code blocks and layouts);
-    * `breakout` `{mode: "wide"}` without a width -> `width: 1011` (possibly depends on the editor's window size, so `rf` never sends this form);
+    * `breakout` `{mode: "wide"}` without a width -> `width: 1011` (possibly depends on the editor's window size, so `rfluence` never sends this form);
     * table with no `width` -> `760` for `layout: "default"`, `960` for `"wide"`, `1800` for `"full-width"`; a table without `layout` gets `"default"`.
   * So defaults are per mode: `wide` -> 760, `full-width` -> 1800 for `breakout`; `default` -> 760, `wide` -> 960, `full-width` -> 1800 for tables. A missing width and the mode's default width are the same setting.
   * A width someone chose in the editor: `breakout` `{mode: "wide", width: 4000}` for a widened code block.
@@ -391,8 +391,8 @@ Upload:
 
 Fetch:
 
-  * Stdout output keeps absolute URLs. LLMs can follow them directly, since `rf fetch` accepts URLs.
-  * `rf fetch -o <path>` scans the project's markdown files for frontmatter page IDs and rewrites matching page URLs to relative paths. The project root is the directory containing `.rfluence.yaml`, or the output directory if there is none. The scan only happens for file output, so the stdout path stays fast.
+  * Stdout output keeps absolute URLs. LLMs can follow them directly, since `rfluence fetch` accepts URLs.
+  * `rfluence fetch -o <path>` scans the project's markdown files for frontmatter page IDs and rewrites matching page URLs to relative paths. The project root is the directory containing `.rfluence.yaml`, or the output directory if there is none. The scan only happens for file output, so the stdout path stays fast.
   * Recognised same-site URL forms: `/wiki/spaces/KEY/pages/ID` (with or without the trailing title) and tiny links (`/wiki/x/...`). Links are matched by page ID only; the title part is ignored (it changes when a page is renamed, and Confluence adds or removes it on save).
 
 What Confluence does with links (verified on test page 295349):
@@ -438,18 +438,18 @@ See "Mermaid diagrams (merfluence)" for how the Mermaid app's diagrams appear in
 
 ### Page links are tracked in frontmatter, with a title fallback
 
-After `rf upload` creates or updates a page, it writes the page's details (`id`, `version`, `url`, ...) back into the file's `rfluence:` frontmatter (see "Frontmatter"). No lock file is used.
+After `rfluence upload` creates or updates a page, it writes the page's details (`id`, `version`, `url`, ...) back into the file's `rfluence:` frontmatter (see "Frontmatter"). No lock file is used.
 
 Why:
 
   * `version` has to be updated after every upload for the conflict check to work, so the file is modified regardless. Keeping everything in frontmatter means one place that is always current.
-  * `rf fetch` already produces frontmatter, so fetched and uploaded files have the same shape, and single-file and `--config` uploads work the same way.
+  * `rfluence fetch` already produces frontmatter, so fetched and uploaded files have the same shape, and single-file and `--config` uploads work the same way.
   * Each file carries its own link to its page; nothing breaks if files are moved or copied without a side file.
 
 Fallback when the link is lost (e.g. an LLM rewrites a file and drops the frontmatter):
 
-  * Before creating a page, `rf upload` looks for an existing page with the same title in the target space. Confluence requires titles to be unique within a space, so this can't silently create a duplicate.
-  * If a page is found, `rf` refuses to upload and reports the matching page ID, because without a `version` there is no way to check for remote edits. `--force` overwrites that page and writes the frontmatter back.
+  * Before creating a page, `rfluence upload` looks for an existing page with the same title in the target space. Confluence requires titles to be unique within a space, so this can't silently create a duplicate.
+  * If a page is found, `rfluence` refuses to upload and reports the matching page ID, because without a `version` there is no way to check for remote edits. `--force` overwrites that page and writes the frontmatter back.
 
 ### `upload --config` mirrors the directory structure as the page tree
 
@@ -460,16 +460,16 @@ Why:
   * Doc folders (`docs/api/auth.md`, `docs/cli/auth.md`) keep their structure in Confluence instead of ending up side by side.
   * It needs nothing from the author. Explicit per-file parents are tedious and LLMs won't maintain them.
   * Directory nodes are found by title, consistent with the title fallback above, so no lock file is needed.
-  * Moves are opt-in (`--move`) so `rf` doesn't silently undo reorganizations done in Confluence.
+  * Moves are opt-in (`--move`) so `rfluence` doesn't silently undo reorganizations done in Confluence.
 
-### Remote pages are only deleted with `--prune`, and only if `rf` created them
+### Remote pages are only deleted with `--prune`, and only if `rfluence` created them
 
-Deleting a local file never deletes its Confluence page by default. `upload --config` reports orphans (remote pages with no local file), and `--prune` moves them to the trash. Only pages and folders `rf` created, marked with an invisible `rfluence` content property, can be pruned. See "Renames and deletions".
+Deleting a local file never deletes its Confluence page by default. `upload --config` reports orphans (remote pages with no local file), and `--prune` moves them to the trash. Only pages and folders `rfluence` created, marked with an invisible `rfluence` content property, can be pruned. See "Renames and deletions".
 
 Why:
 
   * Pages people added under an uploaded tree in Confluence must never be touched. A label could be removed by accident in the UI; a content property is invisible and can hold structured data.
-  * The property records the version `rf` last uploaded, so `--prune` can skip pages edited in Confluence since then. Deleting a local file can't silently trash someone's changes.
+  * The property records the version `rfluence` last uploaded, so `--prune` can skip pages edited in Confluence since then. Deleting a local file can't silently trash someone's changes.
   * Deleted pages go to the trash and can be restored.
 
 ## Design constraints
@@ -494,7 +494,9 @@ Use widely adopted Rust libraries where reasonable. Candidates:
   * `comrak` for markdown parsing and normalized CommonMark output
   * `serde_yaml_ng` or `serde_norway` for YAML (not `serde_yaml`, which has been unmaintained since 2024)
   * `globset` / `ignore` for upload globs
-  * `keyring` for token storage. With v3, enable the platform backend features explicitly (e.g. `sync-secret-service`, `apple-native`, `windows-native`); without them it silently uses an in-memory mock store.
+  * `keyring-core` for token storage, with one store crate per platform: `zbus-secret-service-keyring-store` on Linux (pure Rust D-Bus, so no libdbus at build time), `apple-native-keyring-store` on macOS, `windows-native-keyring-store` on Windows. (keyring 4 split the old `keyring` crate this way; without a registered store there is no keyring, and `rfluence` falls back to the token file.)
+  * `ureq` for HTTP: blocking, rustls, one connection pool shared across threads. `rfluence fetch` requests the page and its attachment list in parallel on two threads, so it costs one round trip. Measured on the test site: `rfluence fetch` takes 0.44–0.64 s end to end, the same as a bare `curl` of the page request alone (0.49–0.67 s); nearly all of it is Confluence's response time.
+  * `emojis` for emoji data (see "Emoji").
   * `insta` for snapshot tests, `wiremock` or `rvcr` for recorded HTTP responses
 
 ## Workspace layout
@@ -514,11 +516,13 @@ The .env file has `CONFLUENCE_API_KEY`, `CONFLUENCE_EMAIL` and `CONFLUENCE_BASE_
 
 The reference pages on the test site, captured as test fixtures, are described in `fixtures/confluence/README.md`: what each covers, how to re-capture them, and how to recreate them in another space or site if the test account goes away. Page IDs in this document (e.g. "verified on test page 98404") refer to that README's table.
 
-## rf / rfluence
+## rfluence (the command)
 
 The command for retrieving Confluence pages. The intended target is to use it in AI skills when searching for documents.
 
 ### Auth
+
+rfluence keeps one account per Confluence site, like `gh auth`. A site is identified by its host; it can be given as a name (`example`, meaning `https://example.atlassian.net`), a host, or a URL.
 
 Env-based auth requires all three variables:
 
@@ -526,28 +530,69 @@ Env-based auth requires all three variables:
   * `CONFLUENCE_EMAIL` the Atlassian account email (Cloud API tokens authenticate with email + token over HTTP Basic, so the token alone is not enough)
   * `CONFLUENCE_BASE_URL` the site URL (e.g. `https://example.atlassian.net`)
 
-Env-based auth takes precedence. If none of the variables are set, use the credentials stored by the `rf auth` command. If only some are set, exit with an error naming the missing variables rather than silently mixing env and stored credentials.
+If only some are set, exit with an error naming the missing variables rather than silently mixing env and stored credentials.
+
+Which site a command uses, first match wins:
+
+  1. the site of a page URL given to the command (`rfluence fetch https://other.atlassian.net/wiki/...`);
+  2. `--site <site>`;
+  3. `RFLUENCE_SITE`;
+  4. the `CONFLUENCE_*` variables' site, if they are set;
+  5. the default site (the last one logged in to, or chosen with `rfluence auth switch`).
+
+The `CONFLUENCE_*` variables are used for their own site only; any other site uses its saved account. A site with no account fails with "not logged in to <host>: run `rfluence auth login --site <host>`".
+
+Storage: sites, emails and the default site in `~/.config/rfluence/auth.json`; each token in the system keyring (service `rfluence`, user `<email> on <base URL>`), or, when no keyring is available, in `~/.config/rfluence/tokens/<host>` (mode 0600). `RFLUENCE_CONFIG_DIR` uses another directory, and `RFLUENCE_NO_KEYRING=1` skips the keyring (CI, sandboxes, tests). The earlier single-account `auth.json` (`{base_url, email}` with the token in `token`) is read and migrated on the next login or logout.
 
 ### Commands
 
-  * `rf search <query>` used to search Confluence. Returns a list of matches with a description for the LLM to evaluate.
+  * `rfluence search <query>` used to search Confluence. Returns a list of matches with a description for the LLM to evaluate.
     * Free text maps to CQL `text ~ "<query>"`. Flags: `--space`, `--label`, `--limit`, and `--cql` for a raw CQL query.
     * Uses the v1 `/wiki/rest/api/search` endpoint (v2 has no search). Strip the `@@@hl@@@` highlight markers from excerpts.
     * Each result includes page ID, title, space, URL, last modified, labels, and excerpt (labels via `expand=content.metadata.labels`, no extra call).
-  * `rf fetch <identifier>` used to fetch a specific page. Returns the page in markdown form. This could be used by an LLM, or by a user to download, modify, and re-upload. Includes frontmatter for where the page came from so that the upload command can easily upload this file back to Confluence.
+  * `rfluence fetch <identifier>` used to fetch a specific page. Returns the page in markdown form. This could be used by an LLM, or by a user to download, modify, and re-upload. Includes frontmatter for where the page came from so that the upload command can easily upload this file back to Confluence.
     * Accepts a page ID, a full page URL, or `SPACE:Title` (titles are only unique within a space).
     * `--max-chars` and `--section <heading>` to avoid flooding an LLM's context with large pages.
+    * Output is always the round-trip form by default, whether to stdout or a file (choosing by destination would confuse people). `--simplified` gives the reduced form for reading (see "Simplified output"); the rfluence skill tells LLMs to use it when they only need to read a page.
     * `-o <path>` writes to a file and downloads images to `<name>.assets/` (see "Images and attachments").
-  * `rf auth` walks a user through adding an auth token (base URL, email, token). The token should be saved to a keyring. If a keyring is not available, save it to `~/.config/rfluence/token` with restrictive permissions (0600). The token file is only used as a fallback when no keyring is available.
-  * `rf upload <path>` uploads an MD file to Confluence using the frontmatter data.
+  * `rfluence auth`, modelled on `gh auth` (see "Auth"):
+    * `rfluence auth login [--site S] [--email E] [--with-token]` logs in to a site and makes it the default. It prompts for anything not given (the token without echo); `--with-token` reads the token from standard input for scripts. The credentials are checked against Confluence before anything is saved.
+    * `rfluence auth logout [--site S]` removes a site's account and token (default: the default site); another saved site becomes the default.
+    * `rfluence auth status [--site S]` lists each account (and the `CONFLUENCE_*` site, if set), marks the default, shows where its token is, and checks it against Confluence. Exits 4 if any check fails.
+    * `rfluence auth token [--site S]` prints the token rfluence would use.
+    * `rfluence auth switch [--site S]` changes the default site; without `--site` it switches between two saved sites.
+  * `rfluence upload <path>` uploads an MD file to Confluence using the frontmatter data.
     * If the remote page version is newer than the `version` in the frontmatter, refuse to upload unless `--force` is passed. This prevents overwriting edits made in Confluence.
     * A file without a page ID creates a new page; see "Frontmatter" > "New pages" (`--space` / `--parent` fill in missing values). If a page with that title already exists in the space, refuse unless `--force` is passed (see Decisions).
     * Frontmatter is stripped before upload. After a successful upload, the `rfluence:` block is written back (see "Frontmatter" > "Reading and writing").
     * `--dry-run` shows what would be created/updated without changing anything.
-    * Runs the same checks as `rf check`: warnings are printed and the upload goes ahead; errors stop the upload before anything is sent, unless `--force` (which uploads the approximations listed in "Checking markdown").
-  * `rf upload --config <path>` uploads multiple pages using a config file. The config file (`.rfluence.yaml` in the project root) is a YAML list of entries, each mapping files (exact paths or globs) to a Confluence space and ancestor page, with optional labels. See "Upload config".
-  * `rf diff <path>` shows the differences between a local file and the current remote page.
-  * `rf check <path>...` reports, without network access, what upload would approximate (warnings) or can't represent (errors); see "Checking markdown". Output is `path:line: severity: message` lines and a summary (`--json` for structured output). Exits 1 if there are errors. It also warns about local images whose file is missing.
+    * Runs the same checks as `rfluence check`: warnings are printed and the upload goes ahead; errors stop the upload before anything is sent, unless `--force` (which uploads the approximations listed in "Checking markdown").
+  * `rfluence upload --config <path>` uploads multiple pages using a config file. The config file (`.rfluence.yaml` in the project root) is a YAML list of entries, each mapping files (exact paths or globs) to a Confluence space and ancestor page, with optional labels. See "Upload config".
+  * `rfluence diff <path>` shows the differences between a local file and the current remote page.
+  * `rfluence check <path>...` reports, without network access, what upload would approximate (warnings) or can't represent (errors); see "Checking markdown". Output is `path:line: severity: message` lines and a summary (`--json` for structured output). Exits 1 if there are errors. It also warns about local images whose file is missing.
+
+### Simplified output
+
+`rfluence fetch --simplified` writes markdown for reading, not for round trips: fewer characters, nothing an LLM has to skip past. Compared with the round-trip form:
+
+| Round-trip form | Simplified |
+| --- | --- |
+| `rf:` settings comments (widths, alignment, cards, ...) | dropped |
+| Layout column markers | dropped; columns read in order |
+| `<span data-adf='...'>IN PROGRESS</span>` (status, mention, date, ...) | the visible text: `[IN PROGRESS]`, `@Chris Edwards`, `2027-01-01` |
+| ```` ```adf ```` blocks | the text inside them (a decision list's decisions, a custom panel's content), or a one-line marker for macros without text (`[Table of contents]`, `[Child pages]`) |
+| Colours, underline, sub/superscript as inline HTML | plain text |
+| `![alt](page.assets/x.png)` with settings | `[image: alt]` (or the file name), since the file isn't there; external images keep their URL |
+| `<details><summary>Title</summary>` ... `</details>` | **Title** as a bold line, then the content |
+| `rfluence:` frontmatter for round trips | `title`, `url`, `space`, `labels`, last updated, and `simplified: true` |
+
+Kept as they are: headings, lists, tables (GFM or HTML), code blocks, Mermaid source, links, emoji.
+
+`rfluence fetch --section` and `--max-chars` give part of a page (`--max-chars` cuts at a block boundary and ends with a note listing the page's sections, so an LLM can ask for one). Their output has `partial: true` in its frontmatter and can't be uploaded either.
+
+On stdout there is no file name to put images next to, so `rfluence fetch` writes image paths into a folder named after the page title (`<title-slug>.assets/`). Uploading such a file without the images reuses the attachments with those names (see "Images and attachments").
+
+Simplified output can't be uploaded: it has dropped content the page still has, so uploading an edited copy would delete it. `rfluence upload` refuses a file whose frontmatter has `simplified: true`, with a message to fetch it again without `--simplified`.
 
 ### Frontmatter
 
@@ -571,13 +616,13 @@ rfluence:
 
 | Key | Type | Written by | Used by upload | Description |
 | --- | --- | --- | --- | --- |
-| `id` | string | `rf` | yes | Page ID. Absent means "create a new page" (subject to the title fallback in Decisions). |
-| `space_key` | string | `rf`; user for new pages | yes | Space key. For files in `.rfluence.yaml`, must match the entry's `space_key`; a mismatch is an error (moving pages between spaces isn't supported). |
-| `parent` | string | `rf`; user for new pages | single-file only | Parent page or folder ID. For files in `.rfluence.yaml`, the mirrored tree decides the parent and this is just a record. For single-file `rf upload`, a `parent` that differs from the page's current parent follows the `--move` rule (warn; `--move` moves it). |
-| `title` | string | user; `rf` when needed | yes | Page title override. See "Title". |
-| `version` | integer | `rf` | yes | Page version after the last fetch/upload. Upload refuses if the remote version is newer, unless `--force`. |
-| `url` | string | `rf` | no | Page URL, for people and LLMs to follow. Ignored on upload. |
-| `labels` | list of strings | `rf` and user | yes | Labels. Upload is additive (see "Labels"). |
+| `id` | string | `rfluence` | yes | Page ID. Absent means "create a new page" (subject to the title fallback in Decisions). |
+| `space_key` | string | `rfluence`; user for new pages | yes | Space key. For files in `.rfluence.yaml`, must match the entry's `space_key`; a mismatch is an error (moving pages between spaces isn't supported). |
+| `parent` | string | `rfluence`; user for new pages | single-file only | Parent page or folder ID. For files in `.rfluence.yaml`, the mirrored tree decides the parent and this is just a record. For single-file `rfluence upload`, a `parent` that differs from the page's current parent follows the `--move` rule (warn; `--move` moves it). |
+| `title` | string | user; `rfluence` when needed | yes | Page title override. See "Title". |
+| `version` | integer | `rfluence` | yes | Page version after the last fetch/upload. Upload refuses if the remote version is newer, unless `--force`. |
+| `url` | string | `rfluence` | no | Page URL, for people and LLMs to follow. Ignored on upload. |
+| `labels` | list of strings | `rfluence` and user | yes | Labels. Upload is additive (see "Labels"). |
 | `weight` | integer | user only | `--config` only | Sibling order (see "Child page order"). Confluence has no equivalent, so `fetch` never writes it. |
 
   * IDs are strings (quoted in YAML) so they aren't parsed as numbers.
@@ -594,17 +639,17 @@ Confluence titles are separate from the page body, but LLM-written markdown usua
 
 #### Reading and writing
 
-  * `rf fetch` (stdout and `-o`) writes `id`, `space_key`, `parent`, `version`, `url`, `labels`, and `title` when the Title rules require it.
-  * After a successful upload, the `rfluence:` block is rewritten to exactly what `rf fetch` would produce for the page (including the page's full label set and the new version), plus the user-only `weight`. This keeps `fetch(upload(md))` and the written-back file identical.
-  * `rf` only rewrites the `rfluence:` block. Other frontmatter keys, their order and comments are left byte-for-byte unchanged. Inside the block, keys are written in the order shown above, and comments in it are not preserved.
-  * `rf fetch -o` over an existing file keeps that file's non-`rfluence` frontmatter keys and its `weight`, since Confluence doesn't store them.
+  * `rfluence fetch` (stdout and `-o`) writes `id`, `space_key`, `parent`, `version`, `url`, `labels`, and `title` when the Title rules require it.
+  * After a successful upload, the `rfluence:` block is rewritten to exactly what `rfluence fetch` would produce for the page (including the page's full label set and the new version), plus the user-only `weight`. This keeps `fetch(upload(md))` and the written-back file identical.
+  * `rfluence` only rewrites the `rfluence:` block. Other frontmatter keys, their order and comments are left byte-for-byte unchanged. Inside the block, keys are written in the order shown above, and comments in it are not preserved.
+  * `rfluence fetch -o` over an existing file keeps that file's non-`rfluence` frontmatter keys and its `weight`, since Confluence doesn't store them.
   * Upload strips all frontmatter from the body. Non-`rfluence` keys are never sent to Confluence, so round-trip comparison covers the body and the `rfluence:` block only.
 
 #### New pages
 
 A file without `id` creates a page. It needs:
 
-  * a space: `space_key`, the `.rfluence.yaml` entry, or `rf upload <path> --space <KEY>`;
+  * a space: `space_key`, the `.rfluence.yaml` entry, or `rfluence upload <path> --space <KEY>`;
   * a parent: `parent`, the mirrored tree, or `--parent <id>` (defaults to the space homepage if none is given);
   * a title: see "Title".
 
@@ -612,7 +657,7 @@ Flags only fill in missing values; they don't override frontmatter.
 
 #### Relation to the content property
 
-The `rfluence` content property on the page (see "Renames and deletions") records the version `rf` last uploaded. Right after an upload it equals the frontmatter `version`. If the remote page version is later higher than both, the page was edited in Confluence.
+The `rfluence` content property on the page (see "Renames and deletions") records the version `rfluence` last uploaded. Right after an upload it equals the frontmatter `version`. If the remote page version is later higher than both, the page was edited in Confluence.
 
 ### Upload config
 
@@ -720,7 +765,7 @@ The file stays a top-level list (like md2c), so there's no place for project-wid
   * Before uploading anything, every title in the upload set is computed (files and directories) and checked for collisions, separately for pages and for folders. On a collision, fail with a list of the clashes; the fix is a `title` in one file's frontmatter (or an `index.md` with a different title for a directory).
   * New pages get the parent from the tree. For existing pages whose current parent differs from the tree (reorganized in Confluence, or the file moved locally), `upload` warns and leaves the page where it is. `--move` moves pages to match the local tree; `--dry-run` lists the moves first.
   * Moving a page bumps its version, so after a move the new `version` is written back to the frontmatter along with `parent`.
-  * Precedence: for files covered by a config, the config tree decides the parent. Single-file `rf upload <path>` uses `parent` from the frontmatter (see "Frontmatter").
+  * Precedence: for files covered by a config, the config tree decides the parent. Single-file `rfluence upload <path>` uses `parent` from the frontmatter (see "Frontmatter").
 
 Verified on the test site (folder 131110):
 
@@ -731,7 +776,7 @@ Verified on the test site (folder 131110):
 
 ### Child page order
 
-Confluence keeps an order for sibling pages and folders. `upload --config` makes the order of `rf`-managed siblings match the local order. This costs extra API calls, which is acceptable: performance matters for reads (`fetch`, `search`), not for `upload --config`.
+Confluence keeps an order for sibling pages and folders. `upload --config` makes the order of `rfluence`-managed siblings match the local order. This costs extra API calls, which is acceptable: performance matters for reads (`fetch`, `search`), not for `upload --config`.
 
 Local order:
 
@@ -742,9 +787,9 @@ Local order:
 
 Applying it:
 
-  * New pages and folders are placed in position when they're created: Confluence appends new children at the end, so `rf` creates the page and then moves it after its predecessor (one extra call).
-  * Existing pages that are out of order: `upload` warns and leaves them, and `--move` reorders them. This is the same rule as parent changes (see "Page hierarchy"), so `rf` doesn't silently undo reordering done in Confluence. `--dry-run` lists the moves.
-  * Only `rf`-managed siblings (those with the `rfluence` content property) are ordered among themselves. Pages people added are left where they are, so they may end up interleaved.
+  * New pages and folders are placed in position when they're created: Confluence appends new children at the end, so `rfluence` creates the page and then moves it after its predecessor (one extra call).
+  * Existing pages that are out of order: `upload` warns and leaves them, and `--move` reorders them. This is the same rule as parent changes (see "Page hierarchy"), so `rfluence` doesn't silently undo reordering done in Confluence. `--dry-run` lists the moves.
+  * Only `rfluence`-managed siblings (those with the `rfluence` content property) are ordered among themselves. Pages people added are left where they are, so they may end up interleaved.
   * Moves are minimized: read the parent's current child order, keep the longest run of managed siblings already in the right relative order, and move only the rest, each placed after its predecessor in the desired order.
   * API: read the order from `GET /wiki/api/v2/pages/{id}/direct-children` or `.../folders/{id}/direct-children`, which returns pages and folders together, sorted by `childPosition` (an opaque, sparse integer; use it only for comparing). Move with v1 `PUT /wiki/rest/api/content/{id}/move/{before|after}/{sibling id}` (no body; returns 200 `{"pageId": ...}`).
 
@@ -769,9 +814,9 @@ Labels live in frontmatter as `rfluence.labels` (see Frontmatter). Only global l
 Verified on test page 524309 (since trashed; the resulting labels are kept on the `adf-reference` fixture):
 
   * Uppercase is lowercased (`UPPER` -> `upper`).
-  * Spaces and commas silently **split** a label into several (`two words` -> `two` + `words`; `comma,label` -> `comma` + `label`). This is why `rf` must normalize spaces before sending.
+  * Spaces and commas silently **split** a label into several (`two words` -> `two` + `words`; `comma,label` -> `comma` + `label`). This is why `rfluence` must normalize spaces before sending.
   * Allowed: letters (including non-ASCII, e.g. `ünïcode`), digits, `-`, `_`, `/`.
-  * Rejected with a generic HTTP 400 (`Could not add labels to content`, no reason given): `.`, `:`, `&`, `#`, `(`, `!`. Since the error doesn't say why, `rf` validates locally and reports the bad character itself.
+  * Rejected with a generic HTTP 400 (`Could not add labels to content`, no reason given): `.`, `:`, `&`, `#`, `(`, `!`. Since the error doesn't say why, `rfluence` validates locally and reports the bad character itself.
   * Adding and removing labels leaves the page version unchanged.
   * New labels are searchable via CQL (`label = "dash-ok"`) immediately.
 
@@ -783,25 +828,25 @@ Renaming or moving files:
   * Moving a file to another directory changes its parent in the tree; handled by the `--move` rule in "Page hierarchy".
   * Changing a title (frontmatter `title` or H1) renames the page on upload, subject to the normal collision check. Links keep working because they use page IDs.
   * Links in other local files that point at a renamed file become unresolved, and `upload` fails with the list (see "Links").
-  * Renaming a directory without an `index.md` renames its folder. The API can't rename folders (verified), and folders are found by title, so `rf` detects the rename through the directory's pages: their IDs are known, and if they all currently sit in an `rf`-managed folder with a different title, that is the old folder. With `--move`: create the new folder, move the pages into it, then trash the old folder once it's empty. Without `--move`: warn.
+  * Renaming a directory without an `index.md` renames its folder. The API can't rename folders (verified), and folders are found by title, so `rfluence` detects the rename through the directory's pages: their IDs are known, and if they all currently sit in an `rfluence`-managed folder with a different title, that is the old folder. With `--move`: create the new folder, move the pages into it, then trash the old folder once it's empty. Without `--move`: warn.
 
 Deleting files:
 
-  * Single-file `rf upload` never deletes anything.
-  * `upload --config` lists the descendants of each entry's ancestor and reports orphans: `rf`-managed pages whose ID isn't in any local file's frontmatter, and `rf`-managed folders with no matching directory.
+  * Single-file `rfluence upload` never deletes anything.
+  * `upload --config` lists the descendants of each entry's ancestor and reports orphans: `rfluence`-managed pages whose ID isn't in any local file's frontmatter, and `rfluence`-managed folders with no matching directory.
   * `--prune` moves orphans to the trash. `--dry-run` lists them first.
   * `--prune` skips (and reports) orphans that:
-    * have been edited in Confluence since `rf` last uploaded them (page version != `version` in the `rfluence` property), unless `--force` is passed;
-    * have child pages that aren't `rf`-managed, because deleting a page moves its children up a level (verified), which would silently reorganize pages people added.
+    * have been edited in Confluence since `rfluence` last uploaded them (page version != `version` in the `rfluence` property), unless `--force` is passed;
+    * have child pages that aren't `rfluence`-managed, because deleting a page moves its children up a level (verified), which would silently reorganize pages people added.
   * Folders are only pruned once empty.
 
-Content property (`rfluence`), written on every page and folder `rf` creates or updates:
+Content property (`rfluence`), written on every page and folder `rfluence` creates or updates:
 
 ```json
 { "managed": true, "version": 7, "path": "docs/api/auth.md", "config_labels": ["github", "ai-generated"] }
 ```
 
-  * `version`: the page version after `rf`'s last upload. `path`: the local path relative to the project root (for reporting). `config_labels`: labels added from the `.rfluence.yaml` entry (see "Labels").
+  * `version`: the page version after `rfluence`'s last upload. `path`: the local path relative to the project root (for reporting). `config_labels`: labels added from the `.rfluence.yaml` entry (see "Labels").
   * API: `POST /wiki/api/v2/pages/{id}/properties` (or `/folders/{id}/properties`) with `{"key": "rfluence", "value": {...}}`; update with `PUT .../properties/{property id}` and the property's next version number (properties have their own version counter).
   * `GET /wiki/api/v2/pages/{id}?body-format=atlas_doc_format&include-labels=true&include-properties=true` returns body, labels and properties in one call. Confluence adds its own properties (e.g. `page-title-property-published`), so filter by key.
 
@@ -817,14 +862,14 @@ Verified on the test site (folder 262167):
 
   * Default output is compact text for LLMs; `--json` for structured output.
   * `upload --config --dry-run` prints the resolved plan as a tree: each entry's resolved ancestor (title and ID), then every file -> page title -> parent, with planned creates, updates, moves, reorders, label changes and prunes marked. This is the main way to check a config does what was intended.
-  * Results go to stdout, errors go to stderr, with distinct exit codes (e.g. not found, auth failure, version conflict).
+  * Results go to stdout, errors go to stderr, with distinct exit codes: 0 success; 1 `rfluence check` found errors; 2 usage or configuration (bad arguments or page reference, missing or partial credentials); 3 not found (page, title or `--section`); 4 authentication failed; 5 other Confluence API or network errors. Version conflicts (upload) will get their own code.
 
 ## Testing
 
 For testing, generate some MD pages that are indicative of what LLMs produce. Include Mermaid diagrams and the other features listed under "Markdown features LLMs commonly produce". For e2e testing these will need to be uploaded to a test space, then downloaded. Support recorded responses for faster testing with a way to enable live testing.
 
   * Most fidelity testing runs offline against `rfluence-convert`, using real ADF captured from Confluence as fixtures.
-  * Recorded HTTP responses via `wiremock` or `rvcr`; set `RF_LIVE=1` to hit the real API. Strip auth headers from recordings.
+  * Recorded HTTP responses via `wiremock` or `rvcr`; set `RFLUENCE_LIVE=1` to hit the real API. Strip auth headers from recordings.
   * Live e2e runs add a unique run ID to page titles (titles must be unique within a space) and clean up created pages afterwards. Be mindful of rate limits.
 
 ## Open questions
@@ -834,14 +879,14 @@ None currently.
 ## Suggested implementation order
 
   1. Build `rfluence-convert` and its test corpus.
-  2. `rf fetch` and `rf search`.
-  3. `rf upload` with version checks, then `rf upload --config`.
+  2. `rfluence fetch` and `rfluence search`.
+  3. `rfluence upload` with version checks, then `rfluence upload --config`.
 
 ## Future considerations
 
 Not required now; ideas to revisit later.
 
-### `rf pull`: fetch a page tree into a directory
+### `rfluence pull`: fetch a page tree into a directory
 
 The reverse of `upload --config`: fetch a page and all its descendants into a directory structure, following the same mirror rules (a page with children becomes a directory with an `index.md`, a folder becomes a directory). This would complete the round trip for whole projects, not just single pages. Could also write a matching `.rfluence.yaml` entry.
 
@@ -861,11 +906,11 @@ Links to non-markdown local files (`[spec](./spec.pdf)`) and non-image attachmen
   * Fetch: attachment links and file cards (`mediaGroup`) would become relative links to `<name>.assets/<file>`, downloaded only with `-o`.
   * Decide whether file cards (`mediaGroup` / `mediaSingle` with non-image files) need their own markdown form, e.g. a link plus an `rf: card=file` comment.
 
-### `rf fetch --comments`
+### `rfluence fetch --comments`
 
-Inline comments are left out of fetched markdown (see "Inline comments"), but their text can be useful context for an LLM reviewing a page. `rf fetch --comments` would add the comment threads as read-only output, e.g. as footnotes on the commented text, with author and date. Upload would ignore them; it re-anchors from the remote page as usual. Page (footer) comments could be included the same way. Costs one extra API call (`/wiki/api/v2/pages/{id}/inline-comments`), so it stays opt-in.
+Inline comments are left out of fetched markdown (see "Inline comments"), but their text can be useful context for an LLM reviewing a page. `rfluence fetch --comments` would add the comment threads as read-only output, e.g. as footnotes on the commented text, with author and date. Upload would ignore them; it re-anchors from the remote page as usual. Page (footer) comments could be included the same way. Costs one extra API call (`/wiki/api/v2/pages/{id}/inline-comments`), so it stays opt-in.
 
-### Representing what `rf check` reports as errors
+### Representing what `rfluence check` reports as errors
 
 Each error in "Checking markdown" could get a mapping if it turns out to be common in LLM-written pages. Footnotes are the likeliest: e.g. superscript reference numbers plus a "Footnotes" section, written back as markdown footnotes on fetch.
 
@@ -879,14 +924,14 @@ A testing application. The goal is to be able to fetch the Confluence page as ma
 
   * Rendering Mermaid natively is the hard part; there's no mature Rust Mermaid renderer, so this likely needs a webview or shelling out to `mmdc`.
   * Keep it out of the workspace `default-members` so gpui compile times don't slow down CLI work.
-  * `rf preview` (below) may cover the same need with much less effort.
+  * `rfluence preview` (below) may cover the same need with much less effort.
 
-### `rf preview`
+### `rfluence preview`
 
 Render markdown to an HTML page and open it in the browser. Mermaid diagrams are rendered by mermaid.js in the browser, so no Rust Mermaid renderer is needed. Could replace rfluence-desktop.
 
-  * `rf preview <path>` renders a local MD file (comrak -> HTML, Mermaid blocks -> `<pre class="mermaid">`), writes it to a temp file, and opens it.
-  * `rf preview <path> --roundtrip` runs the file through the converter offline (md -> ADF -> md) and shows the original and round-tripped output side by side with a text diff. Most useful for checking round-trip fidelity.
-  * `rf preview <page> --remote` compares against Confluence's rendered HTML (`body-format=view`). Mermaid app diagrams likely won't appear there since apps render client-side, and `view` uses an older renderer that differs from the browser (e.g. heading anchor IDs), so `rf open <page>` (open the page URL) may be more practical.
+  * `rfluence preview <path>` renders a local MD file (comrak -> HTML, Mermaid blocks -> `<pre class="mermaid">`), writes it to a temp file, and opens it.
+  * `rfluence preview <path> --roundtrip` runs the file through the converter offline (md -> ADF -> md) and shows the original and round-tripped output side by side with a text diff. Most useful for checking round-trip fidelity.
+  * `rfluence preview <page> --remote` compares against Confluence's rendered HTML (`body-format=view`). Mermaid app diagrams likely won't appear there since apps render client-side, and `view` uses an older renderer that differs from the browser (e.g. heading anchor IDs), so `rfluence open <page>` (open the page URL) may be more practical.
   * Load mermaid.js from a CDN by default (optional `--offline` to embed it). Put `preview` behind a cargo feature so it doesn't add weight to the fast fetch/search path.
   * A `--watch` mode with live reload (`notify` + a small local server) would help while authoring.

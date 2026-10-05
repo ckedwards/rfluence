@@ -1,18 +1,25 @@
 [package]
 name = "rfluence-cli"
 version = "0.1.0"
-description = "rf: fetch, search and upload Confluence pages as markdown"
+description = "rfluence: fetch, search and upload Confluence pages as markdown"
 edition.workspace = true
 rust-version.workspace = true
 publish.workspace = true
 
 [[bin]]
-name = "rf"
+name = "rfluence"
 path = "src/main.rs"
 
 [dependencies]
 clap.workspace = true
 percent-encoding.workspace = true
+rfluence-client.workspace = true
 rfluence-convert.workspace = true
+rpassword.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+
+[dev-dependencies]
+base64.workspace = true
+mockito.workspace = true
+similar-asserts.workspace = true

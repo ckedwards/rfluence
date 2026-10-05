@@ -28,7 +28,7 @@ fn corpus_ctx(name: &str, md: &str) -> (UploadContext, FetchContext) {
         custom_emoji: HashMap::new(),
         mermaid: MermaidApp::from_extension_key(MERMAID),
     };
-    let fetch = FetchContext { page_id: Some("1".into()), assets_dir: assets, attachments };
+    let fetch = FetchContext { page_id: Some("1".into()), assets_dir: assets, attachments, simplified: false };
     (upload, fetch)
 }
 

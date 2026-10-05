@@ -1,11 +1,10 @@
 ---
 rfluence:
-  id: "98404"
-  space_key: rfluencete
-  parent: "753877"
-  version: 3
+  title: rfluence code language and width API test
   url: https://tech-accounts11.atlassian.net/wiki/spaces/rfluencete/pages/98404
-  labels: []
+  space_key: rfluencete
+  updated: 2026-10-04T05:08:41.580Z
+  simplified: true
 ---
 
 # rfluence code language and width API test
@@ -828,35 +827,35 @@ B: wide 760 (editor default)
 
 C: wide 4000 (editor-widened)
 
-```plaintext width=4000
+```plaintext
 C: wide 4000 (editor-widened)
 | column 01 | column 02 | column 03 | column 04 | column 05 | column 06 | column 07 | column 08 | column 09 | column 10 | column 11 | column 12 | column 13 | column 14 | column 15 | column 16 | column 17 | column 18 | column 19 | column 20 | column 21 | column 22 | column 23 | column 24 |
 ```
 
 D: wide 1200
 
-```plaintext width=1200
+```plaintext
 D: wide 1200
 | column 01 | column 02 | column 03 | column 04 | column 05 | column 06 | column 07 | column 08 | column 09 | column 10 | column 11 | column 12 | column 13 | column 14 | column 15 | column 16 | column 17 | column 18 | column 19 | column 20 | column 21 | column 22 | column 23 | column 24 |
 ```
 
 E: wide, no width
 
-```plaintext width=1011
+```plaintext
 E: wide, no width
 | column 01 | column 02 | column 03 | column 04 | column 05 | column 06 | column 07 | column 08 | column 09 | column 10 | column 11 | column 12 | column 13 | column 14 | column 15 | column 16 | column 17 | column 18 | column 19 | column 20 | column 21 | column 22 | column 23 | column 24 |
 ```
 
 F: full-width, no width
 
-```plaintext breakout=full-width
+```plaintext
 F: full-width, no width
 | column 01 | column 02 | column 03 | column 04 | column 05 | column 06 | column 07 | column 08 | column 09 | column 10 | column 11 | column 12 | column 13 | column 14 | column 15 | column 16 | column 17 | column 18 | column 19 | column 20 | column 21 | column 22 | column 23 | column 24 |
 ```
 
 G: full-width 1800
 
-```plaintext breakout=full-width
+```plaintext
 G: full-width 1800
 | column 01 | column 02 | column 03 | column 04 | column 05 | column 06 | column 07 | column 08 | column 09 | column 10 | column 11 | column 12 | column 13 | column 14 | column 15 | column 16 | column 17 | column 18 | column 19 | column 20 | column 21 | column 22 | column 23 | column 24 |
 ```
@@ -865,29 +864,21 @@ G: full-width 1800
 
 H: expand, no breakout
 
-<details><summary>H expand</summary>
+**H expand**
 
 | column 01 | column 02 | column 03 | column 04 | column 05 | column 06 | column 07 | column 08 | column 09 | column 10 | column 11 | column 12 | column 13 | column 14 | column 15 | column 16 | column 17 | column 18 | column 19 | column 20 | column 21 | column 22 | column 23 | column 24 |
 
-</details>
-
 I: expand, wide 1200
 
-```adf
-{"type":"expand","attrs":{"title":"I expand"},"content":[{"type":"paragraph","content":[{"type":"text","text":"| column 01 | column 02 | column 03 | column 04 | column 05 | column 06 | column 07 | column 08 | column 09 | column 10 | column 11 | column 12 | column 13 | column 14 | column 15 | column 16 | column 17 | column 18 | column 19 | column 20 | column 21 | column 22 | column 23 | column 24 |"}]}],"marks":[{"type":"breakout","attrs":{"mode":"wide","width":1200}}]}
-```
+**I expand**
+
+| column 01 | column 02 | column 03 | column 04 | column 05 | column 06 | column 07 | column 08 | column 09 | column 10 | column 11 | column 12 | column 13 | column 14 | column 15 | column 16 | column 17 | column 18 | column 19 | column 20 | column 21 | column 22 | column 23 | column 24 |
 
 J: layout, full-width
 
-<!-- rf: columns=50,50 breakout=full-width -->
-
 J left
 
-<!-- rf: column -->
-
 J right
-
-<!-- rf: end-columns -->
 
 ## Table widths
 
@@ -909,15 +900,11 @@ M: width 1200
 | --- | --- |
 | {"width": 1200} | x |
 
-<!-- rf: width=1200 -->
-
 N: layout wide
 
 | A | B |
 | --- | --- |
 | {"layout": "wide"} | x |
-
-<!-- rf: layout=wide -->
 
 O: layout full-width
 
@@ -925,12 +912,8 @@ O: layout full-width
 | --- | --- |
 | {"layout": "full-width"} | x |
 
-<!-- rf: layout=full-width -->
-
 P: layout align-start, width 400
 
 | A | B |
 | --- | --- |
 | {"layout": "align-start", "width": 400} | x |
-
-<!-- rf: layout=align-start width=400 -->

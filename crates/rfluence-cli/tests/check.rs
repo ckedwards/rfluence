@@ -1,4 +1,4 @@
-//! `rf check` on the markdown corpus.
+//! `rfluence check` on the markdown corpus.
 
 use std::path::PathBuf;
 use std::process::{Command, Output};
@@ -8,7 +8,7 @@ fn corpus(name: &str) -> PathBuf {
 }
 
 fn rf(args: &[&str]) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_rf")).args(args).output().unwrap()
+    Command::new(env!("CARGO_BIN_EXE_rfluence")).args(args).output().unwrap()
 }
 
 fn stdout(o: &Output) -> String {

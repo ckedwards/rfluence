@@ -1,11 +1,10 @@
 ---
 rfluence:
-  id: "295341"
-  space_key: rfluencete
-  parent: "753877"
-  version: 1
+  title: merfluence
   url: https://tech-accounts11.atlassian.net/wiki/spaces/rfluencete/pages/295341
-  labels: []
+  space_key: rfluencete
+  updated: 2026-10-04T02:03:58.751Z
+  simplified: true
 ---
 
 # merfluence

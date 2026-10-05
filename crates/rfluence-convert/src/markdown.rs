@@ -53,6 +53,15 @@ pub fn render<'a>(root: &'a AstNode<'a>) -> String {
     out
 }
 
+/// A heading line (`# Title`), escaped by comrak.
+pub fn heading(level: u8, text: &str) -> String {
+    let arena = Arena::new();
+    let root = node(&arena, NodeValue::Document);
+    let h = append(&arena, root, NodeValue::Heading(comrak::nodes::NodeHeading { level, setext: false, closed: false }));
+    append(&arena, h, NodeValue::Text(text.to_string().into()));
+    render(root)
+}
+
 /// The text content of an inline subtree (text, code, and breaks as spaces).
 pub fn inline_text<'a>(node: &'a AstNode<'a>) -> String {
     let mut out = String::new();
@@ -73,6 +82,35 @@ pub fn split_info(info: &str) -> (Option<&str>, &str) {
     let info = info.trim();
     let (first, rest) = info.split_once(char::is_whitespace).unwrap_or((info, ""));
     if first.is_empty() || first.contains('=') { (None, info) } else { (Some(first), rest.trim()) }
+}
+
+/// Collapse runs of blank lines to one, outside code blocks.
+pub fn collapse_blank_lines(md: &str) -> String {
+    let arena = Arena::new();
+    let root = comrak::parse_document(&arena, md, &options());
+    let code: Vec<(usize, usize)> = root
+        .descendants()
+        .filter_map(|n| {
+            let d = n.data();
+            matches!(d.value, NodeValue::CodeBlock(_)).then(|| (d.sourcepos.start.line, d.sourcepos.end.line))
+        })
+        .collect();
+    let mut out = String::with_capacity(md.len());
+    let mut blank = false;
+    for (i, line) in md.lines().enumerate() {
+        let in_code = code.iter().any(|&(s, e)| (s..=e).contains(&(i + 1)));
+        if line.trim().is_empty() && !in_code {
+            if blank {
+                continue;
+            }
+            blank = true;
+        } else {
+            blank = false;
+        }
+        out.push_str(line);
+        out.push('\n');
+    }
+    out
 }
 
 /// Strip trailing whitespace from every line outside code and HTML blocks, where it is

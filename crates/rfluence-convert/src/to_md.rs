@@ -31,6 +31,8 @@ pub struct FetchContext {
     /// Attachment file names by `fileId`, from the attachments API. Falls back to the
     /// `__fileName` attribute that API-created images have.
     pub attachments: HashMap<String, String>,
+    /// Simplified output for reading, not round trips (design.md, "Simplified output").
+    pub simplified: bool,
 }
 
 /// Convert a page body to markdown.
@@ -45,7 +47,13 @@ pub fn adf_to_markdown(doc: &Node, ctx: &FetchContext) -> String {
     });
     let w = Writer { arena: &arena, ctx, anchors: Anchors::new(headings.iter().map(String::as_str)) };
     w.blocks(root, &doc.content);
-    normalize(&crate::markdown::render(root))
+    if ctx.simplified {
+        // Never compared in a round trip, so no normalize pass (it would escape the
+        // simplified markers, e.g. `[IN PROGRESS]` as `\[IN PROGRESS\]`).
+        crate::markdown::collapse_blank_lines(&crate::markdown::strip_trailing_whitespace(&crate::markdown::render(root)))
+    } else {
+        normalize(&crate::markdown::render(root))
+    }
 }
 
 struct Writer<'a, 'c> {
@@ -87,7 +95,78 @@ impl<'a> Writer<'a, '_> {
             _ => false,
         };
         if !converted {
-            self.adf_block(parent, node);
+            if self.simple() {
+                self.simplified_block(parent, node);
+            } else {
+                self.adf_block(parent, node);
+            }
+        }
+    }
+
+    fn simple(&self) -> bool {
+        self.ctx.simplified
+    }
+
+    /// Text written as is (not escaped), for simplified output's markers.
+    fn marker(&self, parent: &'a AstNode<'a>, text: &str) {
+        let p = append(self.arena, parent, NodeValue::Paragraph);
+        append(self.arena, p, NodeValue::HtmlInline(text.to_string()));
+    }
+
+    /// Simplified output for a node without a markdown form: its text, or a short marker.
+    fn simplified_block(&self, parent: &'a AstNode<'a>, node: &Node) {
+        match node.kind.as_str() {
+            "extension" | "bodiedExtension" => {
+                if !node.content.is_empty() {
+                    self.blocks(parent, &node.content);
+                    return;
+                }
+                let params = node.attrs.get("parameters");
+                let title = params
+                    .and_then(|p| p.pointer("/macroMetadata/title"))
+                    .or_else(|| params.and_then(|p| p.get("extensionTitle")))
+                    .and_then(Value::as_str)
+                    .or_else(|| node.attr_str("text"))
+                    .or_else(|| node.attr_str("extensionKey"))
+                    .unwrap_or("macro");
+                let title = match node.attr_str("extensionKey") {
+                    Some("toc") => "Table of contents",
+                    Some("children") => "Child pages",
+                    _ => title,
+                };
+                self.marker(parent, &format!("[{title}]"));
+            }
+            "decisionList" => {
+                // As a list of the decisions.
+                let items = node
+                    .content
+                    .iter()
+                    .map(|d| Node::new("listItem").with_content(vec![Node::new("paragraph").with_content(d.content.clone())]))
+                    .collect();
+                self.list(parent, &Node::new("bulletList").with_content(items));
+            }
+            "panel" => {
+                let quote = append(self.arena, parent, NodeValue::BlockQuote);
+                self.blocks(quote, &node.content);
+            }
+            "mediaGroup" => {
+                for media in &node.content {
+                    let name = media
+                        .attr_str("id")
+                        .and_then(|id| self.ctx.attachments.get(id).map(String::as_str))
+                        .or_else(|| media.attr_str("__fileName"))
+                        .unwrap_or("attachment");
+                    self.marker(parent, &format!("[file: {name}]"));
+                }
+            }
+            _ if node.content.iter().any(|c| !c.is("text")) => self.blocks(parent, &node.content),
+            _ => {
+                let text = node.plain_text();
+                if !text.trim().is_empty() {
+                    let p = append(self.arena, parent, NodeValue::Paragraph);
+                    append(self.arena, p, NodeValue::Text(text.into()));
+                }
+            }
         }
     }
 
@@ -131,7 +210,12 @@ impl<'a> Writer<'a, '_> {
     }
 
     fn paragraph(&self, parent: &'a AstNode<'a>, node: &Node) -> bool {
-        let Some(settings) = Self::block_settings(node) else { return false };
+        let settings = match Self::block_settings(node) {
+            Some(_) if self.simple() => Settings::new(),
+            None if self.simple() => Settings::new(),
+            Some(s) => s,
+            None => return false,
+        };
         let mut content: &[Node] = &node.content;
         // Markdown can't end a paragraph with a hard break.
         while content.last().is_some_and(|n| n.is("hardBreak")) {
@@ -151,7 +235,11 @@ impl<'a> Writer<'a, '_> {
     }
 
     fn heading(&self, parent: &'a AstNode<'a>, node: &Node) -> bool {
-        let Some(settings) = Self::block_settings(node) else { return false };
+        let settings = match Self::block_settings(node) {
+            _ if self.simple() => Settings::new(),
+            Some(s) => s,
+            None => return false,
+        };
         let level = node.attr_f64("level").unwrap_or(1.0).clamp(1.0, 6.0) as u8;
         let Some(items) = self.items(&node.content) else { return false };
         let h = append(self.arena, parent, NodeValue::Heading(NodeHeading { level, setext: false, closed: false }));
@@ -163,6 +251,10 @@ impl<'a> Writer<'a, '_> {
     }
 
     fn code_block(&self, parent: &'a AstNode<'a>, node: &Node) -> bool {
+        if self.simple() {
+            self.code(parent, node.attr_str("language").unwrap_or("").to_string(), node.plain_text() + "\n");
+            return true;
+        }
         if node.attrs.keys().any(|k| !matches!(k.as_str(), "language" | "localId") && !k.starts_with("__")) {
             return false;
         }
@@ -188,6 +280,17 @@ impl<'a> Writer<'a, '_> {
 
     /// An expand as `<details><summary>Title</summary>` ... `</details>`.
     fn expand(&self, parent: &'a AstNode<'a>, node: &Node) -> bool {
+        if self.simple() {
+            // The title as a bold line, then the content.
+            let title = node.attr_str("title").unwrap_or("");
+            if !title.is_empty() {
+                let p = append(self.arena, parent, NodeValue::Paragraph);
+                let strong = append(self.arena, p, NodeValue::Strong);
+                append(self.arena, strong, NodeValue::Text(title.to_string().into()));
+            }
+            self.blocks(parent, &node.content);
+            return true;
+        }
         if node.attrs.keys().any(|k| !matches!(k.as_str(), "title" | "localId") && !k.starts_with("__"))
             || node.marks.iter().any(|m| !(m.kind == "breakout" && adf::is_default_breakout(m)))
         {
@@ -202,6 +305,13 @@ impl<'a> Writer<'a, '_> {
     /// A layout as `<!-- rf: columns=50,50 -->`, the columns separated by
     /// `<!-- rf: column -->`, then `<!-- rf: end-columns -->` (design.md, "Element mapping").
     fn layout(&self, parent: &'a AstNode<'a>, node: &Node) -> bool {
+        if self.simple() {
+            // The columns' content, in order.
+            for column in &node.content {
+                self.blocks(parent, &column.content);
+            }
+            return true;
+        }
         let mut settings = Settings::new();
         let mut widths = Vec::new();
         for column in &node.content {
@@ -328,6 +438,10 @@ impl<'a> Writer<'a, '_> {
 
     fn media_single(&self, parent: &'a AstNode<'a>, node: &Node) -> bool {
         let Some(media) = node.content.first().filter(|m| m.is("media")) else { return false };
+        if self.simple() {
+            self.simplified_image(parent, node, media);
+            return true;
+        }
         let caption = match &node.content[1..] {
             [] => None,
             [c] if c.is("caption") && c.content.iter().all(|t| t.is("text") && t.marks.is_empty()) => Some(c.plain_text()),
@@ -407,8 +521,38 @@ impl<'a> Writer<'a, '_> {
         true
     }
 
+    /// An image in simplified output: external images keep their URL; attached ones become
+    /// `[image: alt]`, since the file isn't there.
+    fn simplified_image(&self, parent: &'a AstNode<'a>, node: &Node, media: &Node) {
+        let alt = media.attr_str("alt").filter(|a| !a.is_empty());
+        let caption = node.content.iter().find(|c| c.is("caption")).map(Node::plain_text).filter(|c| !c.is_empty());
+        let p = append(self.arena, parent, NodeValue::Paragraph);
+        if let Some(url) = media.attr_str("url").filter(|_| media.attr_str("type") == Some("external")) {
+            let img = append(self.arena, p, NodeValue::Image(Box::new(NodeLink { url: url.into(), title: String::new() })));
+            if let Some(alt) = alt {
+                append(self.arena, img, NodeValue::Text(alt.to_string().into()));
+            }
+        } else {
+            let name = media
+                .attr_str("id")
+                .and_then(|id| self.ctx.attachments.get(id).map(String::as_str))
+                .or_else(|| media.attr_str("__fileName"));
+            let label = alt.or(name).unwrap_or("image");
+            append(self.arena, p, NodeValue::HtmlInline(format!("[image: {label}]")));
+        }
+        if let Some(caption) = caption {
+            append(self.arena, p, NodeValue::Text(format!(" ({caption})").into()));
+        }
+    }
+
     fn card(&self, parent: &'a AstNode<'a>, node: &Node) -> bool {
         let Some(url) = node.attr_str("url") else { return false };
+        if self.simple() {
+            let p = append(self.arena, parent, NodeValue::Paragraph);
+            let link = append(self.arena, p, NodeValue::Link(Box::new(NodeLink { url: url.into(), title: String::new() })));
+            append(self.arena, link, NodeValue::Text(url.to_string().into()));
+            return true;
+        }
         let embed = node.is("embedCard");
         let allowed: &[&str] = if embed { &["url", "layout", "width", "originalWidth", "originalHeight", "localId"] } else { &["url", "localId"] };
         if node.attrs.keys().any(|k| !allowed.contains(&k.as_str()) && !k.starts_with("__")) || !node.marks.is_empty() {
@@ -442,7 +586,7 @@ impl<'a> Writer<'a, '_> {
         if guest.get("useMaxWidth").and_then(Value::as_bool) == Some(false) {
             settings.set("useMaxWidth", "false");
         }
-        let info = if settings.is_empty() { "mermaid".to_string() } else { format!("mermaid {settings}") };
+        let info = if settings.is_empty() || self.simple() { "mermaid".to_string() } else { format!("mermaid {settings}") };
         // `source` has no trailing newline; fence content does (design.md, "Mermaid diagrams").
         self.code(parent, info, format!("{source}\n"));
         true
@@ -468,7 +612,7 @@ impl<'a> Writer<'a, '_> {
                 inline::build(self.arena, c, cell);
             }
         }
-        if !t.settings.is_empty() {
+        if !t.settings.is_empty() && !self.simple() {
             append(
                 self.arena,
                 parent,
@@ -489,13 +633,14 @@ impl<'a> Writer<'a, '_> {
             return false;
         }
         let cell_attrs = ["colspan", "rowspan", "colwidth", "background", "localId"];
+        let strict = !self.simple();
         let span = |c: &Node, key: &str| c.attr_f64(key).unwrap_or(1.0).max(1.0) as usize;
         let mut spans = Vec::new();
         for row in &node.content {
             let mut r = Vec::new();
             for cell in &row.content {
                 if !(cell.is("tableCell") || cell.is("tableHeader"))
-                    || cell.attrs.keys().any(|k| !cell_attrs.contains(&k.as_str()) && !k.starts_with("__"))
+                    || strict && cell.attrs.keys().any(|k| !cell_attrs.contains(&k.as_str()) && !k.starts_with("__"))
                 {
                     return false;
                 }
@@ -556,12 +701,13 @@ impl<'a> Writer<'a, '_> {
             push(&mut buf, "<tr>");
             for cell in &row.content {
                 let header = cell.is("tableHeader");
-                let own_widths = if table_widths { None } else { cell_widths(cell) };
+                let own_widths = if table_widths || self.simple() { None } else { cell_widths(cell) };
+                let background = if self.simple() { None } else { cell.attr_str("background") };
                 let open = crate::html_table::cell_open(
                     header,
                     span(cell, "colspan"),
                     span(cell, "rowspan"),
-                    cell.attr_str("background"),
+                    background,
                     own_widths.as_deref(),
                 );
                 push(&mut buf, &open);
@@ -570,6 +716,16 @@ impl<'a> Writer<'a, '_> {
                 let scratch = crate::markdown::node(self.arena, NodeValue::Document);
                 self.blocks(scratch, &cell.content);
                 let kids: Vec<_> = scratch.children().collect();
+                // Simplified output puts one-line content on the tags' line: shorter to read,
+                // though markdown there isn't parsed (it can't be uploaded anyway).
+                let one_line = (self.simple() && !kids.is_empty())
+                    .then(|| crate::markdown::render(scratch).trim().to_string())
+                    .filter(|md| !md.contains('\n'));
+                if let Some(md) = one_line {
+                    buf.push_str(&md);
+                    buf.push_str(if header { "</th>" } else { "</td>" });
+                    continue;
+                }
                 if !kids.is_empty() {
                     self.html_block(parent, std::mem::take(&mut buf));
                     for k in kids {
@@ -582,7 +738,7 @@ impl<'a> Writer<'a, '_> {
         }
         push(&mut buf, "</table>");
         self.html_block(parent, buf.trim_start_matches('\n').to_string());
-        if !settings.is_empty() {
+        if !settings.is_empty() && !self.simple() {
             append(self.arena, parent, NodeValue::HtmlBlock(NodeHtmlBlock { block_type: 2, literal: settings.to_comment() }));
         }
         true
@@ -605,6 +761,7 @@ impl<'a> Writer<'a, '_> {
                 "hardBreak" => items.push(Item::new(marks, Leaf::LineBreak)),
                 "emoji" => match emoji_text(node) {
                     Some(text) => items.push(Item::new(marks, Leaf::Text(text))),
+                    None if self.simple() => items.extend(simplified_inline(node)),
                     None => items.extend(span(node)),
                 },
                 "inlineCard" if node.attr_str("url").is_some() => {
@@ -613,6 +770,7 @@ impl<'a> Writer<'a, '_> {
                     marks.push(MdMark::Link { url: url.clone(), title: String::new() });
                     items.push(Item::new(marks, Leaf::Text(url)));
                 }
+                _ if self.simple() => items.extend(simplified_inline(node)),
                 _ => items.extend(span(node)),
             }
         }
@@ -622,6 +780,11 @@ impl<'a> Writer<'a, '_> {
     fn md_marks(&self, marks: &[Mark]) -> Option<Vec<MdMark>> {
         let mut out = Vec::new();
         for mark in marks {
+            // Simplified output keeps only marks with markdown syntax.
+            let markdown = matches!(mark.kind.as_str(), "strong" | "em" | "strike" | "link" | "code");
+            if self.simple() && !markdown {
+                continue;
+            }
             out.push(match mark.kind.as_str() {
                 "strong" => MdMark::Strong,
                 "em" => MdMark::Emph,
@@ -815,6 +978,19 @@ fn emoji_text(node: &Node) -> Option<String> {
     }
     // A custom emoji (no characters): its shortcode.
     short.filter(|s| emoji::find_shortcodes(s).first().is_some_and(|sc| sc.range == (0..s.len()))).map(str::to_string)
+}
+
+/// An inline node in simplified output: its visible text (`[IN PROGRESS]` for a status).
+fn simplified_inline<'a>(node: &Node) -> Vec<Item<'a>> {
+    let text = match node.kind.as_str() {
+        "status" => format!("[{}]", node.attr_str("text").unwrap_or("")),
+        "mention" => node.attr_str("text").unwrap_or("").to_string(),
+        "date" => node.attr_str("timestamp").and_then(|t| t.parse::<i64>().ok()).map(iso_date).unwrap_or_default(),
+        "emoji" => node.attr_str("shortName").unwrap_or("").to_string(),
+        "inlineExtension" => node.attr_str("text").or_else(|| node.attr_str("extensionKey")).map(|t| format!("[{t}]")).unwrap_or_default(),
+        _ => node.plain_text(),
+    };
+    if text.is_empty() { vec![] } else { vec![Item::new(vec![], Leaf::Html(text))] }
 }
 
 /// An inline node without a markdown form, as `<span data-adf='{json}'>visible text</span>`.

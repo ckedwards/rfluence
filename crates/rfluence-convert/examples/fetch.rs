@@ -15,6 +15,6 @@ fn main() {
     }
     let page: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(dir.join("page.json")).unwrap()).unwrap();
     let id = page["id"].as_str().unwrap().to_string();
-    let ctx = rfluence_convert::FetchContext { page_id: Some(id), assets_dir: "page.assets".into(), attachments };
+    let ctx = rfluence_convert::FetchContext { page_id: Some(id), assets_dir: "page.assets".into(), attachments, simplified: false };
     print!("{}", rfluence_convert::adf_to_markdown(&doc, &ctx));
 }

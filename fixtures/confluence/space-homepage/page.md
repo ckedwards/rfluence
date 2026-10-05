@@ -1,3 +1,15 @@
+---
+rfluence:
+  id: "295257"
+  space_key: rfluencete
+  parent: "753877"
+  version: 1
+  url: https://tech-accounts11.atlassian.net/wiki/spaces/rfluencete/pages/295257
+  labels: []
+---
+
+# Software development
+
 ```adf
 {"type":"panel","attrs":{"panelColor":"#E3FCEF","panelType":"custom"},"content":[{"type":"heading","attrs":{"level":3},"content":[{"type":"text","text":"Welcome to your software project space!"}]},{"type":"bulletList","content":[{"type":"listItem","content":[{"type":"paragraph","content":[{"type":"text","text":"We've added some suggestions and placeholders. Everything is customizable."}]}]},{"type":"listItem","content":[{"type":"paragraph","content":[{"type":"text","text":"Get started with templates:"}]},{"type":"bulletList","content":[{"type":"listItem","content":[{"type":"paragraph","content":[{"type":"inlineCard","attrs":{"url":"https://tech-accounts11.atlassian.net/wiki/spaces/rfluencete/pages/295297"}}]}]},{"type":"listItem","content":[{"type":"paragraph","content":[{"type":"inlineCard","attrs":{"url":"https://tech-accounts11.atlassian.net/wiki/spaces/rfluencete/pages/295310"}}]}]},{"type":"listItem","content":[{"type":"paragraph","content":[{"type":"inlineCard","attrs":{"url":"https://tech-accounts11.atlassian.net/wiki/spaces/rfluencete/pages/295323"}}]}]}]}]}]}]}
 ```

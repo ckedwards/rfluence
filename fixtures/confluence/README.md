@@ -105,7 +105,7 @@ literal shortcode text: the label "Atlassian calls it :pencil:" fetches as "📝
 | `page.json` | The rest of the page response: `id`, `title`, `version`, `labels`, `parentId`, links (keys sorted) |
 | `attachments.json` | The page's attachments, including each one's `fileId` (keys sorted) |
 | `attachments/` | The attachment files, so the page can be recreated |
-| `page.md` | The page as `rf fetch` writes it (reference output). Images point at `attachments/`, so it previews with them |
+| `page.md` | The page as `rfluence fetch` writes it (reference output). Images point at `attachments/`, so it previews with them |
 | `adf.v*-api-save.json` | An earlier version, saved by hand (see below) |
 
 ### Saved earlier versions
@@ -130,7 +130,7 @@ All in `crates/rfluence-convert/tests/`:
   * `fetch.rs`: every page converted to markdown must match its `page.md`, and the editor-save
     tests: each saved earlier version must give the same markdown as the later one, apart
     from the edits listed above. After an intended change to fetch output, run
-    `RF_UPDATE_FIXTURES=1 cargo test` and review the `page.md` diffs.
+    `RFLUENCE_UPDATE_FIXTURES=1 cargo test` and review the `page.md` diffs.
   * `roundtrip.rs`: for every page, fetch -> upload -> fetch gives identical markdown.
 
 ## Capturing
@@ -142,14 +142,14 @@ scripts/capture-fixtures.sh --new <fixture> <id>    # add a page
 ```
 
 Re-capturing replaces a fixture with the page as it is now. If the page was edited, update its
-`page.md` with `RF_UPDATE_FIXTURES=1 cargo test` and review the diff.
+`page.md` with `RFLUENCE_UPDATE_FIXTURES=1 cargo test` and review the diff.
 
 ### Adding a reference page
 
 1. Create the page on the site (through the API or the editor; say which in the table above).
 2. `scripts/capture-fixtures.sh --new <fixture> <page id>`, with a lowercase-with-dashes name.
 3. Add it to this README: what it covers and how it was made.
-4. Run `RF_UPDATE_FIXTURES=1 cargo test` to write its `page.md`, and review it.
+4. Run `RFLUENCE_UPDATE_FIXTURES=1 cargo test` to write its `page.md`, and review it.
 
 ## Restoring the pages
 

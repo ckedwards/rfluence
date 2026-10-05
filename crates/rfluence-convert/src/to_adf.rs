@@ -148,7 +148,7 @@ enum Place {
 struct Reader<'a, 'c> {
     arena: &'a Arena<'a>,
     ctx: &'c UploadContext,
-    /// `rf check`: images don't need attachments.
+    /// `rfluence check`: images don't need attachments.
     check_only: bool,
     anchors: Anchors,
     diags: Vec<Diagnostic>,

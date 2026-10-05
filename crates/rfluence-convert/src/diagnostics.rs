@@ -1,4 +1,4 @@
-//! What `rf check` and upload report about markdown Confluence can't store exactly.
+//! What `rfluence check` and upload report about markdown Confluence can't store exactly.
 
 use serde::Serialize;
 

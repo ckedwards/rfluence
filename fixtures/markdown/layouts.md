@@ -31,7 +31,7 @@ Three columns, full width, with an image, a code block and an expand:
 <!-- rf: column -->
 
 ```shell
-rf fetch 123456
+rfluence fetch 123456
 ```
 
 <!-- rf: column -->

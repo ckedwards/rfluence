@@ -278,7 +278,7 @@ expression: "format!(\"{json}\\n\\ndiagnostics: {:#?}\", upload.diagnostics)"
               "content": [
                 {
                   "type": "text",
-                  "text": "rf fetch 123456"
+                  "text": "rfluence fetch 123456"
                 }
               ]
             }

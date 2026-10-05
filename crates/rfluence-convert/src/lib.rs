@@ -11,11 +11,14 @@ mod inline;
 pub mod language;
 mod markdown;
 mod normalize;
+mod page;
+pub mod select;
 pub mod settings;
 mod to_adf;
 mod to_md;
 
 pub use diagnostics::{Diagnostic, Severity};
 pub use normalize::normalize;
+pub use page::{PageMeta, frontmatter, page_markdown, simplified_frontmatter};
 pub use to_adf::{Error, MermaidApp, Upload, UploadContext, check, local_images, markdown_to_adf};
 pub use to_md::{FetchContext, adf_to_markdown, is_merfluence};
