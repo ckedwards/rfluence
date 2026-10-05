@@ -1,0 +1,9 @@
+[package]
+name = "rfluence-client"
+version = "0.1.0"
+description = "Confluence API client, auth and config for rfluence"
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]

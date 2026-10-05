@@ -1,0 +1,57 @@
+{
+  "_links": {
+    "base": "https://tech-accounts11.atlassian.net/wiki"
+  },
+  "results": [
+    {
+      "_links": {
+        "download": "/rest/api/content/131074/child/attachment/att98313/download",
+        "webui": "/pages/viewpageattachments.action?pageId=131074&preview=%2F131074%2F98313%2Fgreen.png"
+      },
+      "comment": "",
+      "createdAt": "2026-10-04T02:19:18.884Z",
+      "downloadLink": "/rest/api/content/131074/child/attachment/att98313/download",
+      "fileId": "b9e35bcf-7773-4ae5-a0af-0bc4d58060fe",
+      "fileSize": 1213,
+      "id": "att98313",
+      "mediaType": "image/png",
+      "mediaTypeDescription": "PNG Image",
+      "pageId": "131074",
+      "status": "current",
+      "title": "green.png",
+      "version": {
+        "authorId": "712020:05eb3148-b0e1-450d-a60d-67073e3cc131",
+        "createdAt": "2026-10-04T02:19:18.884Z",
+        "message": "",
+        "minorEdit": true,
+        "number": 1
+      },
+      "webuiLink": "/pages/viewpageattachments.action?pageId=131074&preview=%2F131074%2F98313%2Fgreen.png"
+    },
+    {
+      "_links": {
+        "download": "/rest/api/content/131074/child/attachment/att131095/download",
+        "webui": "/pages/viewpageattachments.action?pageId=131074&preview=%2F131074%2F131095%2Fsquare.svg"
+      },
+      "comment": "",
+      "createdAt": "2026-10-04T02:19:21.693Z",
+      "downloadLink": "/rest/api/content/131074/child/attachment/att131095/download",
+      "fileId": "c6f31dee-aa49-4c8e-97d8-bd0d7050a48b",
+      "fileSize": 260,
+      "id": "att131095",
+      "mediaType": "image/svg+xml",
+      "mediaTypeDescription": null,
+      "pageId": "131074",
+      "status": "current",
+      "title": "square.svg",
+      "version": {
+        "authorId": "712020:05eb3148-b0e1-450d-a60d-67073e3cc131",
+        "createdAt": "2026-10-04T02:19:21.694Z",
+        "message": "",
+        "minorEdit": true,
+        "number": 2
+      },
+      "webuiLink": "/pages/viewpageattachments.action?pageId=131074&preview=%2F131074%2F131095%2Fsquare.svg"
+    }
+  ]
+}

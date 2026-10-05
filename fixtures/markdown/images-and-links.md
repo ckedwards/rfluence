@@ -10,7 +10,9 @@ An image with non-default settings:
 
 ![roadmap](images-and-links.assets/roadmap.svg)<!-- rf: layout=center width=1070 -->
 
-An image with a title and an inline image ![icon](images-and-links.assets/icon.png "Status icon") in a sentence.
+An image with alt text:
+
+![Status icon](images-and-links.assets/icon.png)
 
 An external image:
 

@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="360" viewBox="0 0 1600 360" font-family="sans-serif">
+  <rect width="1600" height="360" fill="#ffffff"/>
+  <text x="40" y="50" font-size="28" font-weight="bold" fill="#172b4d">Ingestion roadmap 2026</text>
+  <line x1="40" y1="110" x2="1560" y2="110" stroke="#dfe1e6" stroke-width="2"/>
+  <g font-size="20" fill="#42526e" text-anchor="middle">
+    <text x="230" y="95">Q1</text><text x="610" y="95">Q2</text><text x="990" y="95">Q3</text><text x="1370" y="95">Q4</text>
+  </g>
+  <g stroke="#dfe1e6" stroke-width="1">
+    <line x1="420" y1="70" x2="420" y2="330"/><line x1="800" y1="70" x2="800" y2="330"/><line x1="1180" y1="70" x2="1180" y2="330"/>
+  </g>
+  <g font-size="18" fill="#172b4d">
+    <rect x="50" y="140" width="520" height="44" rx="6" fill="#deebff" stroke="#0052cc"/>
+    <text x="66" y="169">Batch endpoint (POST /v1/events)</text>
+    <rect x="430" y="200" width="560" height="44" rx="6" fill="#e3fcef" stroke="#00875a"/>
+    <text x="446" y="229">Idempotent workers</text>
+    <rect x="810" y="260" width="640" height="44" rx="6" fill="#eae6ff" stroke="#5243aa"/>
+    <text x="826" y="289">Exactly-once billing events</text>
+  </g>
+</svg>

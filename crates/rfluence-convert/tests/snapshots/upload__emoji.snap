@@ -1,0 +1,248 @@
+---
+source: crates/rfluence-convert/tests/upload.rs
+expression: "format!(\"{json}\\n\\ndiagnostics: {:#?}\", upload.diagnostics)"
+---
+{
+  "type": "doc",
+  "content": [
+    {
+      "type": "heading",
+      "attrs": {
+        "level": 1
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "Emoji"
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "Emoji are written as characters: "
+        },
+        {
+          "type": "emoji",
+          "attrs": {
+            "id": "1f389",
+            "shortName": ":tada:",
+            "text": "🎉"
+          }
+        },
+        {
+          "type": "text",
+          "text": " "
+        },
+        {
+          "type": "emoji",
+          "attrs": {
+            "id": "1f680",
+            "shortName": ":rocket:",
+            "text": "🚀"
+          }
+        },
+        {
+          "type": "text",
+          "text": " "
+        },
+        {
+          "type": "emoji",
+          "attrs": {
+            "id": "2705",
+            "shortName": ":white_check_mark:",
+            "text": "✅"
+          }
+        },
+        {
+          "type": "text",
+          "text": " "
+        },
+        {
+          "type": "emoji",
+          "attrs": {
+            "id": "1f44d-1f3fd",
+            "shortName": ":+1:",
+            "text": "👍🏽"
+          }
+        },
+        {
+          "type": "text",
+          "text": " "
+        },
+        {
+          "type": "emoji",
+          "attrs": {
+            "id": "1f62e-200d-1f4a8",
+            "shortName": ":face_exhaling:",
+            "text": "😮‍💨"
+          }
+        },
+        {
+          "type": "text",
+          "text": " "
+        },
+        {
+          "type": "emoji",
+          "attrs": {
+            "id": "1f1f3-1f1ff",
+            "shortName": ":new_zealand:",
+            "text": "🇳🇿"
+          }
+        },
+        {
+          "type": "text",
+          "text": " "
+        },
+        {
+          "type": "emoji",
+          "attrs": {
+            "id": "31-fe0f-20e3",
+            "shortName": ":one:",
+            "text": "1️⃣"
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "Shortcodes are input, written as characters by normalize: "
+        },
+        {
+          "type": "emoji",
+          "attrs": {
+            "id": "1f680",
+            "shortName": ":rocket:",
+            "text": "🚀"
+          }
+        },
+        {
+          "type": "text",
+          "text": " "
+        },
+        {
+          "type": "emoji",
+          "attrs": {
+            "id": "1f389",
+            "shortName": ":tada:",
+            "text": "🎉"
+          }
+        },
+        {
+          "type": "text",
+          "text": " "
+        },
+        {
+          "type": "emoji",
+          "attrs": {
+            "id": "1f44d",
+            "shortName": ":+1:",
+            "text": "👍"
+          }
+        },
+        {
+          "type": "text",
+          "text": " and "
+        },
+        {
+          "type": "emoji",
+          "attrs": {
+            "id": "1f44d",
+            "shortName": ":+1:",
+            "text": "👍"
+          }
+        },
+        {
+          "type": "text",
+          "text": " (GitHub's shortcode names)."
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "Characters that are text unless marked as emoji stay text: © ™ ✔ ⛹, and become emoji with the variation selector: "
+        },
+        {
+          "type": "emoji",
+          "attrs": {
+            "id": "2714-fe0f",
+            "shortName": ":heavy_check_mark:",
+            "text": "✔️"
+          }
+        },
+        {
+          "type": "text",
+          "text": " "
+        },
+        {
+          "type": "emoji",
+          "attrs": {
+            "id": "26f9-fe0f",
+            "shortName": ":bouncing_ball_person:",
+            "text": "⛹️"
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "Custom emoji (no characters) keep their shortcode: :not_an_emoji:"
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "Shortcode-like text in code is never an emoji: "
+        },
+        {
+          "type": "text",
+          "marks": [
+            {
+              "type": "code"
+            }
+          ],
+          "text": ":tada:"
+        },
+        {
+          "type": "text",
+          "text": " "
+        },
+        {
+          "type": "text",
+          "marks": [
+            {
+              "type": "code"
+            }
+          ],
+          "text": "🎉"
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "Times and ratios aren't shortcodes: 10:30:45 and a:b:c."
+        }
+      ]
+    }
+  ],
+  "version": 1
+}
+
+diagnostics: []

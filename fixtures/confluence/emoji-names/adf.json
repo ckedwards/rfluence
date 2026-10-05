@@ -1,0 +1,142 @@
+{
+  "type": "doc",
+  "content": [
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "text": "1 baseline, Atlassian name: ",
+          "type": "text"
+        },
+        {
+          "type": "emoji",
+          "attrs": {
+            "id": "1f389",
+            "text": "🎉",
+            "shortName": ":tada:"
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "text": "2 GitHub name (Atlassian calls it :pencil:): ",
+          "type": "text"
+        },
+        {
+          "type": "emoji",
+          "attrs": {
+            "id": "1f4dd",
+            "text": "📝",
+            "shortName": ":memo:"
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "text": "3 id with fe0f (Atlassian's id has none): ",
+          "type": "text"
+        },
+        {
+          "type": "emoji",
+          "attrs": {
+            "id": "2764-fe0f",
+            "text": "❤️",
+            "shortName": ":heart:"
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "text": "4 GitHub name + id with fe0f: ",
+          "type": "text"
+        },
+        {
+          "type": "emoji",
+          "attrs": {
+            "id": "26a0-fe0f",
+            "text": "⚠️",
+            "shortName": ":warning:"
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "text": "5 skin tone with the base name: ",
+          "type": "text"
+        },
+        {
+          "type": "emoji",
+          "attrs": {
+            "id": "1f44d-1f3fd",
+            "text": "👍🏽",
+            "shortName": ":thumbsup:"
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "text": "6 not in Atlassian's catalog (shaking face): ",
+          "type": "text"
+        },
+        {
+          "type": "emoji",
+          "attrs": {
+            "id": "1fae8",
+            "text": "🫨",
+            "shortName": ":shaking_face:"
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "text": "7 shortName empty: ",
+          "type": "text"
+        },
+        {
+          "type": "emoji",
+          "attrs": {
+            "id": "1f389",
+            "text": "🎉",
+            "shortName": ""
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "text": "8 shortName is the character: ",
+          "type": "text"
+        },
+        {
+          "type": "emoji",
+          "attrs": {
+            "id": "1f389",
+            "text": "🎉",
+            "shortName": "🎉"
+          }
+        }
+      ]
+    }
+  ],
+  "version": 1
+}

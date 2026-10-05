@@ -1,0 +1,107 @@
+{
+  "_links": {
+    "base": "https://tech-accounts11.atlassian.net/wiki"
+  },
+  "results": [
+    {
+      "_links": {
+        "download": "/rest/api/content/458790/child/attachment/att131132/download",
+        "webui": "/pages/viewpageattachments.action?pageId=458790&preview=%2F458790%2F131132%2Fspec.pdf"
+      },
+      "comment": "",
+      "createdAt": "2026-10-04T04:14:15.804Z",
+      "downloadLink": "/rest/api/content/458790/child/attachment/att131132/download",
+      "fileId": "95a757c6-c9d7-4bb2-9b13-83ecf4cf2d20",
+      "fileSize": 591,
+      "id": "att131132",
+      "mediaType": "application/pdf",
+      "mediaTypeDescription": "PDF Document",
+      "pageId": "458790",
+      "status": "current",
+      "title": "spec.pdf",
+      "version": {
+        "authorId": "712020:05eb3148-b0e1-450d-a60d-67073e3cc131",
+        "createdAt": "2026-10-04T04:14:15.804Z",
+        "message": "",
+        "minorEdit": true,
+        "number": 1
+      },
+      "webuiLink": "/pages/viewpageattachments.action?pageId=458790&preview=%2F458790%2F131132%2Fspec.pdf"
+    },
+    {
+      "_links": {
+        "download": "/rest/api/content/458790/child/attachment/att426041/download",
+        "webui": "/pages/viewpageattachments.action?pageId=458790&preview=%2F458790%2F426041%2Frfluence-emoji.png"
+      },
+      "comment": "",
+      "createdAt": "2026-10-04T04:34:04.708Z",
+      "downloadLink": "/rest/api/content/458790/child/attachment/att426041/download",
+      "fileId": "da1f5d8d-4a52-4bb7-ba93-787f17a9e93d",
+      "fileSize": 1301,
+      "id": "att426041",
+      "mediaType": "image/png",
+      "mediaTypeDescription": "PNG Image",
+      "pageId": "458790",
+      "status": "current",
+      "title": "rfluence-emoji.png",
+      "version": {
+        "authorId": "712020:05eb3148-b0e1-450d-a60d-67073e3cc131",
+        "createdAt": "2026-10-04T04:34:04.708Z",
+        "message": "",
+        "minorEdit": false,
+        "number": 1
+      },
+      "webuiLink": "/pages/viewpageattachments.action?pageId=458790&preview=%2F458790%2F426041%2Frfluence-emoji.png"
+    },
+    {
+      "_links": {
+        "download": "/rest/api/content/458790/child/attachment/att524372/download",
+        "webui": "/pages/viewpageattachments.action?pageId=458790&preview=%2F458790%2F524372%2Fstriped.png"
+      },
+      "comment": "",
+      "createdAt": "2026-10-04T04:14:12.171Z",
+      "downloadLink": "/rest/api/content/458790/child/attachment/att524372/download",
+      "fileId": "abb9bd74-a7b3-4a81-a982-8643db091344",
+      "fileSize": 699,
+      "id": "att524372",
+      "mediaType": "image/png",
+      "mediaTypeDescription": "PNG Image",
+      "pageId": "458790",
+      "status": "current",
+      "title": "striped.png",
+      "version": {
+        "authorId": "712020:05eb3148-b0e1-450d-a60d-67073e3cc131",
+        "createdAt": "2026-10-04T04:14:12.171Z",
+        "message": "",
+        "minorEdit": true,
+        "number": 1
+      },
+      "webuiLink": "/pages/viewpageattachments.action?pageId=458790&preview=%2F458790%2F524372%2Fstriped.png"
+    },
+    {
+      "_links": {
+        "download": "/rest/api/content/458790/child/attachment/att524378/download",
+        "webui": "/pages/viewpageattachments.action?pageId=458790&preview=%2F458790%2F524378%2Fsmall.png"
+      },
+      "comment": "",
+      "createdAt": "2026-10-04T04:14:14.134Z",
+      "downloadLink": "/rest/api/content/458790/child/attachment/att524378/download",
+      "fileId": "fa0056ca-6d92-40fb-aa8d-d6ef8f23e1c9",
+      "fileSize": 197,
+      "id": "att524378",
+      "mediaType": "image/png",
+      "mediaTypeDescription": "PNG Image",
+      "pageId": "458790",
+      "status": "current",
+      "title": "small.png",
+      "version": {
+        "authorId": "712020:05eb3148-b0e1-450d-a60d-67073e3cc131",
+        "createdAt": "2026-10-04T04:14:14.134Z",
+        "message": "",
+        "minorEdit": true,
+        "number": 1
+      },
+      "webuiLink": "/pages/viewpageattachments.action?pageId=458790&preview=%2F458790%2F524378%2Fsmall.png"
+    }
+  ]
+}

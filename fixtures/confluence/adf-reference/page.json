@@ -1,0 +1,78 @@
+{
+  "_links": {
+    "base": "https://tech-accounts11.atlassian.net/wiki",
+    "editui": "/pages/resumedraft.action?draftId=458790",
+    "edituiv2": "/spaces/rfluencete/pages/edit-v2/458790",
+    "tinyui": "/x/JgAH",
+    "webui": "/spaces/rfluencete/pages/458790/rfluence+ADF+reference"
+  },
+  "authorId": "712020:05eb3148-b0e1-450d-a60d-67073e3cc131",
+  "createdAt": "2026-10-04T04:14:10.761Z",
+  "id": "458790",
+  "labels": {
+    "_links": {
+      "self": "/api/v2/pages/458790/labels"
+    },
+    "meta": {
+      "hasMore": false
+    },
+    "results": [
+      {
+        "id": "131113",
+        "name": "two",
+        "prefix": "global"
+      },
+      {
+        "id": "131115",
+        "name": "words",
+        "prefix": "global"
+      },
+      {
+        "id": "131117",
+        "name": "ünïcode",
+        "prefix": "global"
+      },
+      {
+        "id": "295400",
+        "name": "dash-ok",
+        "prefix": "global"
+      },
+      {
+        "id": "360477",
+        "name": "under_score",
+        "prefix": "global"
+      },
+      {
+        "id": "458779",
+        "name": "upper",
+        "prefix": "global"
+      },
+      {
+        "id": "458781",
+        "name": "comma",
+        "prefix": "global"
+      },
+      {
+        "id": "458783",
+        "name": "label",
+        "prefix": "global"
+      }
+    ]
+  },
+  "lastOwnerId": null,
+  "ownerId": "712020:05eb3148-b0e1-450d-a60d-67073e3cc131",
+  "parentId": "753877",
+  "parentType": "page",
+  "position": 54796672,
+  "spaceId": "753705",
+  "status": "current",
+  "title": "rfluence ADF reference",
+  "version": {
+    "authorId": "712020:05eb3148-b0e1-450d-a60d-67073e3cc131",
+    "createdAt": "2026-10-04T04:52:53.059Z",
+    "message": "",
+    "minorEdit": false,
+    "ncsStepVersion": "457",
+    "number": 5
+  }
+}

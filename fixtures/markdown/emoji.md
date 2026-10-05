@@ -1,11 +1,13 @@
 # Emoji
 
-Shortcodes that become emoji nodes: :rocket: :tada: :thumbsup: and the GitHub alias :+1:.
+Emoji are written as characters: 🎉 🚀 ✅ 👍🏽 😮‍💨 🇳🇿 1️⃣
 
-Literal shortcode text that must stay text: \:tada: and \:rotating_light: and :not_an_emoji:.
+Shortcodes are input, written as characters by normalize: :rocket: :tada: :thumbsup: and :+1: (GitHub's shortcode names).
 
-Unicode emoji typed directly: ✅ 🚀
+Characters that are text unless marked as emoji stay text: © ™ ✔ ⛹, and become emoji with the variation selector: ✔️ ⛹️
 
-Shortcode-like text in code is never an emoji: `:tada:`
+Custom emoji (no characters) keep their shortcode: :not_an_emoji:
+
+Shortcode-like text in code is never an emoji: `:tada:` `🎉`
 
 Times and ratios aren't shortcodes: 10:30:45 and a:b:c.

@@ -1,0 +1,37 @@
+{
+  "_links": {
+    "base": "https://tech-accounts11.atlassian.net/wiki",
+    "editui": "/pages/resumedraft.action?draftId=295257",
+    "edituiv2": "/spaces/rfluencete/pages/edit-v2/295257",
+    "tinyui": "/x/WYEE",
+    "webui": "/spaces/rfluencete/pages/295257/Software+development"
+  },
+  "authorId": "712020:05eb3148-b0e1-450d-a60d-67073e3cc131",
+  "createdAt": "2026-10-04T00:02:45.394Z",
+  "id": "295257",
+  "labels": {
+    "_links": {
+      "self": "/api/v2/pages/295257/labels"
+    },
+    "meta": {
+      "hasMore": false
+    },
+    "results": []
+  },
+  "lastOwnerId": null,
+  "ownerId": "712020:05eb3148-b0e1-450d-a60d-67073e3cc131",
+  "parentId": "753877",
+  "parentType": "page",
+  "position": 54800663,
+  "spaceId": "753705",
+  "status": "current",
+  "title": "Software development",
+  "version": {
+    "authorId": "712020:05eb3148-b0e1-450d-a60d-67073e3cc131",
+    "createdAt": "2026-10-04T00:02:48.626Z",
+    "message": "",
+    "minorEdit": false,
+    "ncsStepVersion": null,
+    "number": 1
+  }
+}

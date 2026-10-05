@@ -1,0 +1,37 @@
+{
+  "_links": {
+    "base": "https://tech-accounts11.atlassian.net/wiki",
+    "editui": "/pages/resumedraft.action?draftId=295349",
+    "edituiv2": "/spaces/rfluencete/pages/edit-v2/295349",
+    "tinyui": "/x/tYEE",
+    "webui": "/spaces/rfluencete/pages/295349/rfluence+link+API+test"
+  },
+  "authorId": "712020:05eb3148-b0e1-450d-a60d-67073e3cc131",
+  "createdAt": "2026-10-04T02:28:56.910Z",
+  "id": "295349",
+  "labels": {
+    "_links": {
+      "self": "/api/v2/pages/295349/labels"
+    },
+    "meta": {
+      "hasMore": false
+    },
+    "results": []
+  },
+  "lastOwnerId": null,
+  "ownerId": "712020:05eb3148-b0e1-450d-a60d-67073e3cc131",
+  "parentId": "753877",
+  "parentType": "page",
+  "position": 54798520,
+  "spaceId": "753705",
+  "status": "current",
+  "title": "rfluence link API test",
+  "version": {
+    "authorId": "712020:05eb3148-b0e1-450d-a60d-67073e3cc131",
+    "createdAt": "2026-10-04T02:37:40.026Z",
+    "message": "more bottom padding",
+    "minorEdit": false,
+    "ncsStepVersion": "3",
+    "number": 3
+  }
+}

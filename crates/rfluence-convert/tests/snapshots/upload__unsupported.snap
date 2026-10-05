@@ -1,0 +1,260 @@
+---
+source: crates/rfluence-convert/tests/upload.rs
+expression: "format!(\"{json}\\n\\ndiagnostics: {:#?}\", upload.diagnostics)"
+---
+{
+  "type": "doc",
+  "content": [
+    {
+      "type": "heading",
+      "attrs": {
+        "level": 1
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "Unsupported markdown"
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "Markdown with no Confluence equivalent. "
+        },
+        {
+          "type": "text",
+          "marks": [
+            {
+              "type": "code"
+            }
+          ],
+          "text": "rf check"
+        },
+        {
+          "type": "text",
+          "text": " reports each as an error, and upload refuses it (design.md, \"Checking markdown\")."
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "attrs": {
+        "level": 2
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "Footnotes"
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "Run the health check[^health] before failing over."
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "attrs": {
+        "level": 2
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "Raw HTML blocks"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "html"
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "<div align=\"center\">\n  <strong>HTML block</strong>\n</div>"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "html"
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "<!-- A comment between paragraphs -->"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "attrs": {
+        "level": 2
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "Inline images"
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "An inline image "
+        },
+        {
+          "type": "text",
+          "marks": [
+            {
+              "type": "link",
+              "attrs": {
+                "href": "unsupported.assets/icon.png"
+              }
+            }
+          ],
+          "text": "icon"
+        },
+        {
+          "type": "text",
+          "text": " in a sentence."
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "attrs": {
+        "level": 2
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "Nested quotes"
+        }
+      ]
+    },
+    {
+      "type": "blockquote",
+      "content": [
+        {
+          "type": "paragraph",
+          "content": [
+            {
+              "type": "text",
+              "text": "Outer quote"
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "content": [
+            {
+              "type": "text",
+              "text": "Inner quote"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "blockquote",
+      "content": [
+        {
+          "type": "paragraph",
+          "content": [
+            {
+              "type": "text",
+              "text": "A quote with an alert inside:"
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "content": [
+            {
+              "type": "text",
+              "text": "Alert nested in a quote."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "[^health]: "
+        },
+        {
+          "type": "text",
+          "text": "The health check lives at "
+        },
+        {
+          "type": "text",
+          "marks": [
+            {
+              "type": "code"
+            }
+          ],
+          "text": "scripts/health.sh"
+        },
+        {
+          "type": "text",
+          "text": "."
+        }
+      ]
+    }
+  ],
+  "version": 1
+}
+
+diagnostics: [
+    Diagnostic {
+        line: 7,
+        severity: Error,
+        message: "footnotes can't be represented in Confluence (reference uploaded as text)",
+    },
+    Diagnostic {
+        line: 9,
+        severity: Error,
+        message: "footnotes can't be represented in Confluence (definition uploaded as a paragraph)",
+    },
+    Diagnostic {
+        line: 13,
+        severity: Error,
+        message: "raw HTML block can't be represented in Confluence (uploaded as an html code block)",
+    },
+    Diagnostic {
+        line: 17,
+        severity: Error,
+        message: "raw HTML block can't be represented in Confluence (uploaded as an html code block)",
+    },
+    Diagnostic {
+        line: 21,
+        severity: Error,
+        message: "inline images can't be represented in Confluence (uploaded as a link)",
+    },
+    Diagnostic {
+        line: 25,
+        severity: Error,
+        message: "nested quote can't be represented in Confluence (flattened)",
+    },
+    Diagnostic {
+        line: 29,
+        severity: Error,
+        message: "alert in a quote can't be represented in Confluence (flattened)",
+    },
+]

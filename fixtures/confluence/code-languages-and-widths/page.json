@@ -1,0 +1,37 @@
+{
+  "_links": {
+    "base": "https://tech-accounts11.atlassian.net/wiki",
+    "editui": "/pages/resumedraft.action?draftId=98404",
+    "edituiv2": "/spaces/rfluencete/pages/edit-v2/98404",
+    "tinyui": "/x/ZIAB",
+    "webui": "/spaces/rfluencete/pages/98404/rfluence+code+language+and+width+API+test"
+  },
+  "authorId": "712020:05eb3148-b0e1-450d-a60d-67073e3cc131",
+  "createdAt": "2026-10-04T05:04:47.277Z",
+  "id": "98404",
+  "labels": {
+    "_links": {
+      "self": "/api/v2/pages/98404/labels"
+    },
+    "meta": {
+      "hasMore": false
+    },
+    "results": []
+  },
+  "lastOwnerId": null,
+  "ownerId": "712020:05eb3148-b0e1-450d-a60d-67073e3cc131",
+  "parentId": "753877",
+  "parentType": "page",
+  "position": 54797591,
+  "spaceId": "753705",
+  "status": "current",
+  "title": "rfluence code language and width API test",
+  "version": {
+    "authorId": "712020:05eb3148-b0e1-450d-a60d-67073e3cc131",
+    "createdAt": "2026-10-04T05:08:41.580Z",
+    "message": "",
+    "minorEdit": false,
+    "ncsStepVersion": "219",
+    "number": 3
+  }
+}

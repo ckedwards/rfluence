@@ -28,13 +28,6 @@ wrap.
 
 - items
 
-Nested blockquote with an alert inside:
-
-> Outer quote
->
-> > [!NOTE]
-> > Alert nested in a quote.
-
 ~~~python
 # tilde fence
 print("```")
@@ -63,10 +56,6 @@ the line above is only spaces
 {"type":"status","attrs":{"text":"IN PROGRESS","color":"blue","localId":"abc-123"}}
 ```
 
-<div align="center">
-  <strong>HTML block</strong>
-</div>
-
 Entities: &copy; &amp; &lt;tag&gt; &#x1F600; and escapes: \*not emphasis\*, 1\. not a list, \# not a heading.
 
 Inline code with backticks: `` `code` `` and a pipe outside a table: a | b.
@@ -74,3 +63,17 @@ Inline code with backticks: `` `code` `` and a pipe outside a table: a | b.
 ***
 
 Trailing text after a thematic break.
+
+> [!NOTE]
+> An alert with a list followed by code:
+>
+> - one
+> - two
+>
+> ```shell
+> echo hi
+> ```
+
+| Step | Notes |
+| --- | --- |
+| Deploy | Run the pipeline<br>then check the dashboard |

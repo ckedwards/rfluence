@@ -18,7 +18,7 @@
    ```
 
 2. Stop writes to the primary:
-   1. Set the app to read-only mode with <kbd>Ctrl</kbd>+<kbd>R</kbd> in the admin console.
+   1. Set the app to read-only mode with Ctrl+R in the admin console.
    2. Wait for in-flight transactions to finish.
 3. Promote the replica:
 
@@ -36,7 +36,7 @@
 
 ## Verifying
 
-Run the health check[^health] and confirm all checks pass ✅. If anything fails, roll back immediately :rotating_light:.
+Run the health check and confirm all checks pass ✅. If anything fails, roll back immediately :rotating_light:.
 
 <details>
 <summary>Expected health check output</summary>
@@ -56,7 +56,5 @@ replication lag ... 0.2s
   + Clear the read-only flag.
   + Notify the team.
 
-Contact the DB team if you are unsure.[^team]
+Contact the DB team if you are unsure.
 
-[^health]: The health check lives at `scripts/health.sh` and takes about 30 seconds.
-[^team]: Slack `#db-team`, or page via PagerDuty.

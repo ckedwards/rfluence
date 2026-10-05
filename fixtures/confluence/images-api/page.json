@@ -1,0 +1,37 @@
+{
+  "_links": {
+    "base": "https://tech-accounts11.atlassian.net/wiki",
+    "editui": "/pages/resumedraft.action?draftId=131074",
+    "edituiv2": "/spaces/rfluencete/pages/edit-v2/131074",
+    "tinyui": "/x/AgAC",
+    "webui": "/spaces/rfluencete/pages/131074/rfluence+image+API+test"
+  },
+  "authorId": "712020:05eb3148-b0e1-450d-a60d-67073e3cc131",
+  "createdAt": "2026-10-04T02:19:17.870Z",
+  "id": "131074",
+  "labels": {
+    "_links": {
+      "self": "/api/v2/pages/131074/labels"
+    },
+    "meta": {
+      "hasMore": false
+    },
+    "results": []
+  },
+  "lastOwnerId": null,
+  "ownerId": "712020:05eb3148-b0e1-450d-a60d-67073e3cc131",
+  "parentId": "753877",
+  "parentType": "page",
+  "position": 54797631,
+  "spaceId": "753705",
+  "status": "current",
+  "title": "rfluence image API test",
+  "version": {
+    "authorId": "712020:05eb3148-b0e1-450d-a60d-67073e3cc131",
+    "createdAt": "2026-10-04T02:19:37.110Z",
+    "message": "rfluence image test",
+    "minorEdit": false,
+    "ncsStepVersion": "10",
+    "number": 2
+  }
+}

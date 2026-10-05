@@ -1,0 +1,94 @@
+{
+  "type": "doc",
+  "content": [
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "text": "A shortName only: ",
+          "type": "text"
+        },
+        {
+          "type": "emoji",
+          "attrs": {
+            "shortName": ":rotating_light:"
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "text": "B all attrs: ",
+          "type": "text"
+        },
+        {
+          "type": "emoji",
+          "attrs": {
+            "id": "1f44d",
+            "text": "👍",
+            "shortName": ":thumbsup:"
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "text": "C GitHub alias as shortName: ",
+          "type": "text"
+        },
+        {
+          "type": "emoji",
+          "attrs": {
+            "shortName": ":+1:"
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "text": "D unknown shortName: ",
+          "type": "text"
+        },
+        {
+          "type": "emoji",
+          "attrs": {
+            "shortName": ":not_an_emoji:"
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "text": "E ZWJ all attrs: ",
+          "type": "text"
+        },
+        {
+          "type": "emoji",
+          "attrs": {
+            "id": "1f62e-200d-1f4a8",
+            "text": "😮‍💨",
+            "shortName": ":face_exhaling:"
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "text": "F unicode in text: ✅ and shortcode in text: :tada:",
+          "type": "text"
+        }
+      ]
+    }
+  ],
+  "version": 1
+}

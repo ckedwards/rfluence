@@ -1,0 +1,37 @@
+{
+  "_links": {
+    "base": "https://tech-accounts11.atlassian.net/wiki",
+    "editui": "/pages/resumedraft.action?draftId=295341",
+    "edituiv2": "/spaces/rfluencete/pages/edit-v2/295341",
+    "tinyui": "/x/rYEE",
+    "webui": "/spaces/rfluencete/pages/295341/merfluence"
+  },
+  "authorId": "712020:05eb3148-b0e1-450d-a60d-67073e3cc131",
+  "createdAt": "2026-10-04T02:02:44.455Z",
+  "id": "295341",
+  "labels": {
+    "_links": {
+      "self": "/api/v2/pages/295341/labels"
+    },
+    "meta": {
+      "hasMore": false
+    },
+    "results": []
+  },
+  "lastOwnerId": null,
+  "ownerId": "712020:05eb3148-b0e1-450d-a60d-67073e3cc131",
+  "parentId": "753877",
+  "parentType": "page",
+  "position": 54800187,
+  "spaceId": "753705",
+  "status": "current",
+  "title": "merfluence",
+  "version": {
+    "authorId": "712020:05eb3148-b0e1-450d-a60d-67073e3cc131",
+    "createdAt": "2026-10-04T02:03:58.751Z",
+    "message": "",
+    "minorEdit": false,
+    "ncsStepVersion": "7",
+    "number": 1
+  }
+}

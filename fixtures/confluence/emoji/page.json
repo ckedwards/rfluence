@@ -1,0 +1,37 @@
+{
+  "_links": {
+    "base": "https://tech-accounts11.atlassian.net/wiki",
+    "editui": "/pages/resumedraft.action?draftId=426008",
+    "edituiv2": "/spaces/rfluencete/pages/edit-v2/426008",
+    "tinyui": "/x/GIAG",
+    "webui": "/spaces/rfluencete/pages/426008/rfluence+emoji+API+test"
+  },
+  "authorId": "712020:05eb3148-b0e1-450d-a60d-67073e3cc131",
+  "createdAt": "2026-10-04T03:55:49.318Z",
+  "id": "426008",
+  "labels": {
+    "_links": {
+      "self": "/api/v2/pages/426008/labels"
+    },
+    "meta": {
+      "hasMore": false
+    },
+    "results": []
+  },
+  "lastOwnerId": null,
+  "ownerId": "712020:05eb3148-b0e1-450d-a60d-67073e3cc131",
+  "parentId": "753877",
+  "parentType": "page",
+  "position": 54796632,
+  "spaceId": "753705",
+  "status": "current",
+  "title": "rfluence emoji API test",
+  "version": {
+    "authorId": "712020:05eb3148-b0e1-450d-a60d-67073e3cc131",
+    "createdAt": "2026-10-04T04:46:30.789Z",
+    "message": "",
+    "minorEdit": false,
+    "ncsStepVersion": "5",
+    "number": 2
+  }
+}
