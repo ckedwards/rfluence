@@ -12,6 +12,7 @@ path = "src/main.rs"
 
 [dependencies]
 clap.workspace = true
+ignore.workspace = true
 percent-encoding.workspace = true
 rfluence-client.workspace = true
 rfluence-convert.workspace = true

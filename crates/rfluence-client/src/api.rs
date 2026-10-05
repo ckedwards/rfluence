@@ -35,7 +35,19 @@ pub struct Attachment {
     pub file_id: String,
     #[serde(rename = "mediaType", default)]
     pub media_type: String,
+    #[serde(rename = "fileSize")]
+    pub file_size: Option<u64>,
+    #[serde(rename = "_links", default)]
+    links: AttachmentLinks,
 }
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
+struct AttachmentLinks {
+    download: Option<String>,
+}
+
+/// The largest attachment `download` reads (Confluence Cloud's own limit is far below this).
+const MAX_DOWNLOAD: u64 = 2 * 1024 * 1024 * 1024;
 
 /// How a page was named on the command line.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -67,7 +79,7 @@ pub fn parse_page_ref(s: &str) -> Result<PageRef> {
         }
         if let Some(code) = path.split("/x/").nth(1) {
             let code = code.split(['/', '?']).next().unwrap_or("");
-            if let Some(id) = tiny_link_id(code) {
+            if let Some(id) = rfluence_convert::links::tiny_link_id(code) {
                 return Ok(PageRef::Id(id.to_string()));
             }
         }
@@ -90,24 +102,6 @@ pub fn page_ref_site(s: &str) -> Option<String> {
     }
     let (scheme, rest) = s.split_once("://")?;
     Some(format!("{scheme}://{}", rest.split('/').next()?))
-}
-
-/// The page ID in a tiny link code (`/x/tYEE` -> 295349): the ID's little-endian bytes in
-/// base64, with `/` and `+` written as `-` and `_`, and trailing zero bytes dropped.
-pub fn tiny_link_id(code: &str) -> Option<u64> {
-    if code.is_empty() || code.len() > 11 {
-        return None;
-    }
-    let mut b64: String = code.chars().map(|c| match c { '-' => '/', '_' => '+', c => c }).collect();
-    while b64.len() % 4 != 0 {
-        b64.push('A');
-    }
-    let bytes = base64::engine::general_purpose::STANDARD.decode(b64).ok()?;
-    let mut id = 0u64;
-    for (i, b) in bytes.iter().take(8).enumerate() {
-        id |= u64::from(*b) << (8 * i);
-    }
-    (id > 0).then_some(id)
 }
 
 impl Client {
@@ -162,8 +156,18 @@ impl Client {
 
     /// A page's body (ADF) and metadata, in one call (plus one per extra page of labels).
     pub fn page(&self, id: &str) -> Result<Page> {
+        self.page_at(id, None)
+    }
+
+    /// An earlier version of a page.
+    pub fn page_version(&self, id: &str, version: u64) -> Result<Page> {
+        self.page_at(id, Some(version))
+    }
+
+    fn page_at(&self, id: &str, version: Option<u64>) -> Result<Page> {
+        let version_query = version.map(|v| format!("&version={v}")).unwrap_or_default();
         let raw: RawPage = self
-            .get(&format!("/wiki/api/v2/pages/{id}?body-format=atlas_doc_format&include-labels=true"))
+            .get(&format!("/wiki/api/v2/pages/{id}?body-format=atlas_doc_format&include-labels=true{version_query}"))
             .map_err(|e| page_not_found(e, id))?;
         let mut labels: Vec<String> = Vec::new();
         let mut more = false;
@@ -224,6 +228,35 @@ impl Client {
                 None => return Ok(out),
             }
         }
+    }
+
+    /// An attachment's content.
+    pub fn download(&self, attachment: &Attachment) -> Result<Vec<u8>> {
+        let link = attachment
+            .links
+            .download
+            .as_deref()
+            .ok_or_else(|| Error::NotFound(format!("attachment {} has no download link", attachment.title)))?;
+        let url = format!("{}/wiki{link}", self.base_url);
+        let mut resp = self
+            .agent
+            .get(&url)
+            .header("Authorization", &self.authorization)
+            .call()
+            .map_err(|e| Error::Network(format!("{url}: {e}")))?;
+        let status = resp.status().as_u16();
+        if !(200..300).contains(&status) {
+            return Err(match status {
+                401 | 403 => Error::Auth(format!("HTTP {status} downloading {}", attachment.title)),
+                404 => Error::NotFound(format!("attachment {} not found", attachment.title)),
+                _ => Error::Api { status, message: format!("downloading {}", attachment.title) },
+            });
+        }
+        resp.body_mut()
+            .with_config()
+            .limit(MAX_DOWNLOAD)
+            .read_to_vec()
+            .map_err(|e| Error::Network(format!("{url}: {e}")))
     }
 
     /// The ID of the page titled `title` in space `space_key` (titles are unique per space).
@@ -384,18 +417,6 @@ mod tests {
             Some("https://other.atlassian.net")
         );
         assert_eq!(page_ref_site("123"), None);
-    }
-
-    #[test]
-    fn decodes_tiny_links() {
-        // From captured page responses (`_links.tinyui`).
-        for (code, id) in [
-            ("JgAH", 458790), ("ZIAB", 98404), ("CAAL", 720904), ("GIAG", 426008),
-            ("AgAC", 131074), ("tYEE", 295349), ("AwAH", 458755), ("rYEE", 295341),
-        ] {
-            assert_eq!(tiny_link_id(code), Some(id), "{code}");
-        }
-        assert_eq!(tiny_link_id(""), None);
     }
 
     #[test]

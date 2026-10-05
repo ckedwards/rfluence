@@ -554,7 +554,12 @@ Storage: sites, emails and the default site in `~/.config/rfluence/auth.json`; e
     * Accepts a page ID, a full page URL, or `SPACE:Title` (titles are only unique within a space).
     * `--max-chars` and `--section <heading>` to avoid flooding an LLM's context with large pages.
     * Output is always the round-trip form by default, whether to stdout or a file (choosing by destination would confuse people). `--simplified` gives the reduced form for reading (see "Simplified output"); the rfluence skill tells LLMs to use it when they only need to read a page.
-    * `-o <path>` writes to a file and downloads images to `<name>.assets/` (see "Images and attachments").
+    * `-o <path>` writes to a file and downloads images to `<name>.assets/` next to it (see "Images and attachments"):
+      * Only images (attachments shown by `mediaSingle` nodes) are downloaded, in parallel; a file already there with the same size is skipped, so fetching again downloads only what changed. Other attachments stay on Confluence. Measured on the test site: 1.9 s for a page with 3 new images (each download is two round trips: Confluence, then the media service it redirects to), 0.6 s when they're up to date.
+      * Text links (and image links) to pages held by markdown files in the project become relative paths, with anchors translated to the target file's GitHub-style anchors (see "Links"); smart links keep their URLs, since a relative path can't be a smart link. The project scan skips files ignored by `.gitignore`.
+      * An existing file keeps its non-`rfluence` frontmatter keys, byte for byte, and its `weight`.
+      * Local changes aren't overwritten: if the file is for the same page, its body is compared with what the version in its frontmatter converts to (fetching that version only if Confluence has a newer one). The comparison is in normalized form and ignores link destinations and image folders, which change when project files are added or the file is renamed; so a change to only a link's target isn't detected. With local changes, or a file holding another page, `fetch -o` refuses (exit 6) unless `--force`.
+      * Can't be combined with `--section` or `--max-chars` (it would replace the file with part of the page). `--simplified -o` writes the simplified form and downloads nothing.
   * `rfluence auth`, modelled on `gh auth` (see "Auth"):
     * `rfluence auth login [--site S] [--email E] [--with-token]` logs in to a site and makes it the default. It prompts for anything not given (the token without echo); `--with-token` reads the token from standard input for scripts. The credentials are checked against Confluence before anything is saved.
     * `rfluence auth logout [--site S]` removes a site's account and token (default: the default site); another saved site becomes the default.
@@ -862,7 +867,7 @@ Verified on the test site (folder 262167):
 
   * Default output is compact text for LLMs; `--json` for structured output.
   * `upload --config --dry-run` prints the resolved plan as a tree: each entry's resolved ancestor (title and ID), then every file -> page title -> parent, with planned creates, updates, moves, reorders, label changes and prunes marked. This is the main way to check a config does what was intended.
-  * Results go to stdout, errors go to stderr, with distinct exit codes: 0 success; 1 `rfluence check` found errors; 2 usage or configuration (bad arguments or page reference, missing or partial credentials); 3 not found (page, title or `--section`); 4 authentication failed; 5 other Confluence API or network errors. Version conflicts (upload) will get their own code.
+  * Results go to stdout, errors go to stderr, with distinct exit codes: 0 success; 1 `rfluence check` found errors; 2 usage or configuration (bad arguments or page reference, missing or partial credentials); 3 not found (page, title or `--section`); 4 authentication failed; 5 other Confluence API or network errors; 6 the command would lose changes (`fetch -o` over local edits or a file holding another page; upload's version conflicts will use it too).
 
 ## Testing
 

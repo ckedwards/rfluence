@@ -50,7 +50,7 @@ pub fn attachments(name: &str) -> HashMap<String, String> {
 
 /// Images point at the fixture's `attachments/` folder, so its page.md previews with them.
 pub fn fetch_ctx(name: &str) -> FetchContext {
-    FetchContext { page_id: Some(page_id(name)), assets_dir: "attachments".into(), attachments: attachments(name), simplified: false }
+    FetchContext { page_id: Some(page_id(name)), assets_dir: "attachments".into(), attachments: attachments(name), ..Default::default() }
 }
 
 /// The page metadata a client would read from the page response (page.json).

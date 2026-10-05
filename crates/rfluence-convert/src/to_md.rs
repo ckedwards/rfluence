@@ -33,6 +33,20 @@ pub struct FetchContext {
     pub attachments: HashMap<String, String>,
     /// Simplified output for reading, not round trips (design.md, "Simplified output").
     pub simplified: bool,
+    /// The site's host (`example.atlassian.net`), to recognise links to its pages.
+    pub site_host: Option<String>,
+    /// Pages in the local project, by page ID: text links to them are written as relative
+    /// paths (`rfluence fetch -o`; design.md, "Links").
+    pub links: HashMap<String, LinkTarget>,
+}
+
+/// A local markdown file for a page.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct LinkTarget {
+    /// Relative to the markdown file being written (`./setup.md`, `../api/auth.md`).
+    pub path: String,
+    /// The file's headings, to translate anchors to GitHub style.
+    pub headings: Vec<String>,
 }
 
 /// Convert a page body to markdown.
@@ -508,7 +522,10 @@ impl<'a> Writer<'a, '_> {
 
         let p = append(self.arena, parent, NodeValue::Paragraph);
         let target = match link {
-            Some(href) => append(self.arena, p, NodeValue::Link(Box::new(NodeLink { url: href.into(), title: String::new() }))),
+            Some(href) => {
+                let url = self.local_link(href).unwrap_or_else(|| href.to_string());
+                append(self.arena, p, NodeValue::Link(Box::new(NodeLink { url, title: String::new() })))
+            }
             None => p,
         };
         let img = append(self.arena, target, NodeValue::Image(Box::new(NodeLink { url: src, title: String::new() })));
@@ -744,6 +761,25 @@ impl<'a> Writer<'a, '_> {
         true
     }
 
+    /// A link to a page as a relative path, if the page is in the local project (or is this
+    /// page, with an anchor).
+    fn local_link(&self, href: &str) -> Option<String> {
+        let link = crate::links::page_link(href, self.ctx.site_host.as_deref()?)?;
+        if self.ctx.page_id.as_deref() == Some(link.id.as_str()) {
+            let gh = self.anchors.to_github(link.anchor.as_deref()?)?;
+            return Some(format!("#{gh}"));
+        }
+        let target = self.ctx.links.get(&link.id)?;
+        let anchor = match &link.anchor {
+            None => String::new(),
+            Some(a) => match Anchors::new(target.headings.iter().map(String::as_str)).to_github(a) {
+                Some(gh) => format!("#{gh}"),
+                None => format!("#{a}"),
+            },
+        };
+        Some(format!("{}{anchor}", target.path))
+    }
+
     /// Inline ADF nodes as items; `None` if they contain marks rfluence can't write.
     fn items(&self, nodes: &[Node]) -> Option<Vec<Item<'a>>> {
         let mut items = Vec::new();
@@ -804,7 +840,7 @@ impl<'a> Writer<'a, '_> {
                             Some(gh) => format!("#{gh}"),
                             None => href.to_string(),
                         },
-                        None => href.to_string(),
+                        None => self.local_link(href).unwrap_or_else(|| href.to_string()),
                     };
                     MdMark::Link { url, title: mark.attr_str("title").unwrap_or("").to_string() }
                 }
@@ -1048,5 +1084,38 @@ mod tests {
     fn formats_dates() {
         assert_eq!(iso_date(1_798_761_600_000), "2027-01-01");
         assert_eq!(iso_date(0), "1970-01-01");
+    }
+
+    #[test]
+    fn writes_links_to_project_pages_as_relative_paths() {
+        let doc: Node = serde_json::from_str(
+            r##"{"type":"doc","content":[
+                {"type":"heading","attrs":{"level":2},"content":[{"type":"text","text":"Here"}]},
+                {"type":"paragraph","content":[
+                    {"type":"text","text":"setup","marks":[{"type":"link","attrs":{"href":"https://x.atlassian.net/wiki/spaces/ENG/pages/22/Setup#Install-&-Run"}}]},
+                    {"type":"text","text":", "},
+                    {"type":"text","text":"self","marks":[{"type":"link","attrs":{"href":"https://x.atlassian.net/wiki/spaces/ENG/pages/11#Here"}}]},
+                    {"type":"text","text":", "},
+                    {"type":"text","text":"other","marks":[{"type":"link","attrs":{"href":"https://x.atlassian.net/wiki/spaces/ENG/pages/33"}}]},
+                    {"type":"text","text":", "},
+                    {"type":"inlineCard","attrs":{"url":"https://x.atlassian.net/wiki/spaces/ENG/pages/22"}}
+                ]}]}"##,
+        )
+        .unwrap();
+        let ctx = FetchContext {
+            page_id: Some("11".into()),
+            site_host: Some("x.atlassian.net".into()),
+            links: HashMap::from([(
+                "22".to_string(),
+                LinkTarget { path: "../guides/setup.md".into(), headings: vec!["Setup".into(), "Install & Run".into()] },
+            )]),
+            ..Default::default()
+        };
+        let md = adf_to_markdown(&doc, &ctx);
+        assert!(md.contains("[setup](../guides/setup.md#install--run)"), "{md}");
+        assert!(md.contains("[self](#here)"), "{md}");
+        // Pages outside the project, and smart links, keep their URLs.
+        assert!(md.contains("[other](https://x.atlassian.net/wiki/spaces/ENG/pages/33)"), "{md}");
+        assert!(md.contains("<https://x.atlassian.net/wiki/spaces/ENG/pages/22>"), "{md}");
     }
 }

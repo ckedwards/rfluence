@@ -3,6 +3,7 @@
 mod auth;
 mod check;
 mod fetch;
+mod project;
 
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -41,6 +42,13 @@ enum Command {
         /// The site to use (default: the page URL's site, or the default site).
         #[arg(long, value_name = "SITE")]
         site: Option<String>,
+        /// Write the page to this file, with its images in `<name>.assets/` next to it, and
+        /// links to other pages in the project as relative paths.
+        #[arg(short, long, value_name = "FILE")]
+        output: Option<PathBuf>,
+        /// With -o: overwrite the file even if it has local changes or holds another page.
+        #[arg(long)]
+        force: bool,
     },
     /// Check markdown files for content Confluence can't store exactly.
     ///
@@ -109,6 +117,8 @@ pub const EXIT_USAGE: u8 = 2;
 pub const EXIT_NOT_FOUND: u8 = 3;
 pub const EXIT_AUTH: u8 = 4;
 pub const EXIT_API: u8 = 5;
+/// Writing would lose changes (local edits, or a file holding another page).
+pub const EXIT_CONFLICT: u8 = 6;
 
 /// Print a client error and return its exit code.
 pub fn fail(e: &rfluence_client::Error) -> ExitCode {
@@ -124,8 +134,8 @@ pub fn fail(e: &rfluence_client::Error) -> ExitCode {
 
 fn main() -> ExitCode {
     match Cli::parse().command {
-        Command::Fetch { page, simplified, section, max_chars, json, site } => {
-            fetch::run(&fetch::Options { page, simplified, section, max_chars, json, site })
+        Command::Fetch { page, simplified, section, max_chars, json, site, output, force } => {
+            fetch::run(&fetch::Options { page, simplified, section, max_chars, json, site, output, force })
         }
         Command::Check { paths, json } => check::run(&paths, json),
         Command::Auth { action } => match action {

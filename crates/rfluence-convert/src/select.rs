@@ -111,6 +111,26 @@ pub fn truncate(body: &str, max_chars: usize) -> Option<String> {
     Some(kept)
 }
 
+/// Do two page bodies have the same content? For `rfluence fetch -o`'s check for local
+/// edits: compared in normalized form, ignoring link destinations (which change when files
+/// are added to the project) and image folders (which follow the file's name).
+pub fn same_content(a: &str, b: &str) -> bool {
+    comparable(a) == comparable(b)
+}
+
+fn comparable(md: &str) -> String {
+    let arena = Arena::new();
+    let root = parse_document(&arena, md, &options());
+    for n in root.descendants() {
+        match &mut n.data_mut().value {
+            NodeValue::Link(l) => l.url.clear(),
+            NodeValue::Image(l) => l.url = l.url.rsplit('/').next().unwrap_or_default().to_string(),
+            _ => {}
+        }
+    }
+    crate::normalize(&crate::markdown::render(root))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -134,6 +154,14 @@ mod tests {
         assert_eq!(section(body, "FAQ").unwrap(), "## FAQ\n\nAnswers.\n");
         assert!(section(body, "missing").is_none());
         assert_eq!(heading_titles(body), ["Title", "Install & Setup", "Detail", "FAQ"]);
+    }
+
+    #[test]
+    fn compares_content_ignoring_links_and_image_folders() {
+        let fetched = "# T\n\nSee [setup](https://x/wiki/spaces/E/pages/2).\n\n![a](page.assets/a.png)\n";
+        assert!(same_content(fetched, "# T\n\nSee [setup](./setup.md).\n\n![a](renamed.assets/a.png)\n"));
+        assert!(same_content(fetched, "T\n=\n\nSee [setup](./setup.md).\n\n![a](page.assets/a.png)\n\n\n"));
+        assert!(!same_content(fetched, "# T\n\nSee [setup](./setup.md) now.\n\n![a](page.assets/a.png)\n"));
     }
 
     #[test]
