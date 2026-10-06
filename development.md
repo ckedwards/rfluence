@@ -160,5 +160,5 @@ The crates are published together, at one version: `rfluence-convert` and `rflue
 cargo publish --workspace --dry-run    # packages each crate and builds it from the package alone
 ```
 
-A new crate in the workspace has to be published by hand the first time (`cargo publish -p <crate>` with a crates.io token), because trusted publishing can't create crates; then add a trusted publisher for it on crates.io (repository `ckedwards/rfluence`, workflow `release.yaml`).
+A new crate in the workspace has to be published by hand the first time (`cargo publish -p <crate>` with a crates.io token), because trusted publishing can't create crates; then add a trusted publisher for it on crates.io (repository `ckedwards/rfluence`, workflow `release.yaml`, environment `release`).
 
