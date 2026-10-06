@@ -3,9 +3,13 @@ resolver = "3"
 members = ["crates/*"]
 
 [workspace.package]
+# One version for all crates: they're released together.
+version = "0.1.0"
 edition = "2024"
 rust-version = "1.88"
-publish = false
+license = "MIT"
+repository = "https://github.com/ckedwards/rfluence"
+homepage = "https://github.com/ckedwards/rfluence"
 
 [workspace.dependencies]
 base64 = "0.23"
@@ -23,8 +27,8 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 serde_norway = "0.9"
 
-rfluence-convert = { path = "crates/rfluence-convert" }
-rfluence-client = { path = "crates/rfluence-client" }
+rfluence-convert = { path = "crates/rfluence-convert", version = "0.1.0" }
+rfluence-client = { path = "crates/rfluence-client", version = "0.1.0" }
 
 insta = "1"
 mockito = "1"

@@ -1,10 +1,17 @@
 [package]
 name = "rfluence-convert"
-version = "0.1.0"
-description = "Pure markdown <-> Confluence ADF conversion for rfluence"
+version.workspace = true
+description = "Markdown <-> Confluence ADF conversion that round-trips: the converter behind rfluence"
 edition.workspace = true
 rust-version.workspace = true
-publish.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+readme = "README.md"
+keywords = ["confluence", "markdown", "adf", "atlassian"]
+categories = ["text-processing", "parser-implementations"]
+# The tests (and examples) use fixtures/ at the repository root, which isn't published.
+exclude = ["tests/", "examples/"]
 
 [dependencies]
 comrak.workspace = true

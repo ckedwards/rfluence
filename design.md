@@ -631,7 +631,7 @@ Use widely adopted Rust libraries where reasonable. Candidates:
 crates/
   rfluence-convert   # pure md <-> ADF conversion; no I/O; most tests live here
   rfluence-client    # Confluence API client, auth, config
-  rfluence-cli       # binary: rfluence
+  rfluence-cli       # binary: rfluence (package name `rfluence`, for `cargo install rfluence`)
 skills/
   confluence-read    # Agent Skill: search and read pages (rfluence search, fetch --simplified)
   confluence-write   # Agent Skill: edit, create and publish pages (fetch -o, check, upload)

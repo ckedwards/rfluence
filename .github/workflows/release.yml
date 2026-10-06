@@ -2,7 +2,7 @@
 #
 #   git tag v0.1.0 && git push origin v0.1.0
 #
-# The tag must match the version in crates/rfluence-cli/Cargo.toml. Running the workflow by hand
+# The tag must match the version in Cargo.toml ([workspace.package]). Running the workflow by hand
 # (Actions > Release > Run workflow) builds and uploads the archives as workflow artifacts without
 # publishing a release, to try the builds before tagging.
 name: Release
@@ -29,7 +29,8 @@ jobs:
       - id: version
         shell: bash
         run: |
-          version=$(sed -n 's/^version = "\(.*\)"/\1/p' crates/rfluence-cli/Cargo.toml | head -1)
+          # The workspace version (Cargo.toml, [workspace.package]).
+          version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
           if [ "$GITHUB_REF_TYPE" = tag ] && [ "v$version" != "$GITHUB_REF_NAME" ]; then
             echo "::error::tag $GITHUB_REF_NAME doesn't match the crate version $version"
             exit 1
@@ -57,7 +58,7 @@ jobs:
           targets: ${{ matrix.target }}
       - if: contains(matrix.target, 'musl')
         run: sudo apt-get update && sudo apt-get install -y musl-tools
-      - run: cargo build --release --locked -p rfluence-cli --target ${{ matrix.target }}
+      - run: cargo build --release --locked -p rfluence --target ${{ matrix.target }}
       - name: Package
         shell: bash
         run: |
