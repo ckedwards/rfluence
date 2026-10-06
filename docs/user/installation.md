@@ -21,14 +21,18 @@ sudo mv rfluence-<version>-<platform>/rfluence /usr/local/bin/   # or any direct
 
 On Windows, unzip it and put `rfluence.exe` in a folder on your `PATH`. macOS may refuse to open a downloaded binary at first; allow it in System Settings > Privacy & Security, or run `xattr -d com.apple.quarantine /usr/local/bin/rfluence`.
 
-## From source
+## With Cargo
 
 You need Rust 1.88 or later ([rustup](https://rustup.rs) installs it). No other libraries are needed: HTTPS and the keyring support are built in.
 
 ```shell
-git clone https://github.com/ckedwards/rfluence.git
-cd rfluence
-cargo install --path crates/rfluence-cli
+cargo install rfluence      # from crates.io (once it's published)
+```
+
+Or the latest source:
+
+```shell
+cargo install --git https://github.com/ckedwards/rfluence rfluence
 ```
 
 This puts `rfluence` in `~/.cargo/bin`. If your shell can't find it, add that directory to your `PATH`, e.g. in `~/.bashrc` or `~/.zshrc`:
@@ -37,7 +41,7 @@ This puts `rfluence` in `~/.cargo/bin`. If your shell can't find it, add that di
 export PATH="$HOME/.cargo/bin:$PATH"
 ```
 
-To update, pull and run the `cargo install` command again.
+To update, run the `cargo install` command again.
 
 ## Check it works
 

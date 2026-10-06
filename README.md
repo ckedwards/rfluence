@@ -16,12 +16,11 @@ rfluence treats markdown as a real way to work on Confluence pages:
 
 ## Install
 
-Prebuilt binaries for Linux, macOS and Windows will be on the [releases page](https://github.com/ckedwards/rfluence/releases) (not published yet). Until then, build it from source with Rust 1.88 or later:
+Prebuilt binaries for Linux, macOS and Windows will be on the [releases page](https://github.com/ckedwards/rfluence/releases), and the crate on [crates.io](https://crates.io/crates/rfluence) (neither is published yet). With Rust 1.88 or later:
 
 ```shell
-git clone https://github.com/ckedwards/rfluence.git
-cd rfluence
-cargo install --path crates/rfluence-cli
+cargo install rfluence                                         # once it's on crates.io
+cargo install --git https://github.com/ckedwards/rfluence rfluence   # the latest source
 ```
 
 See [Installation](docs/user/installation.md).
@@ -78,3 +77,7 @@ Uploads refuse to overwrite changes made in Confluence since you fetched a page,
 - [Troubleshooting](docs/user/troubleshooting.md): exit codes and common errors
 
 Working on rfluence itself: [development.md](development.md) (building, testing) and [design.md](design.md) (how it works, and why).
+
+## License
+
+[MIT](LICENSE)

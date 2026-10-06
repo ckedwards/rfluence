@@ -15,7 +15,7 @@ No system libraries are needed: HTTPS uses rustls, and the Linux keyring store i
 crates/
   rfluence-convert   pure markdown <-> ADF conversion (no network or files); most tests live here
   rfluence-client    Confluence API client and credentials
-  rfluence-cli       the `rfluence` command
+  rfluence-cli       the `rfluence` command (published as the `rfluence` crate)
 fixtures/
   confluence/        captured Confluence pages: ADF, metadata, attachments, reference markdown
   markdown/          LLM-style markdown corpus for round-trip tests
@@ -27,7 +27,7 @@ scripts/             capture and restore the reference pages
 From the repo, rebuilding as needed (everything after `--` goes to `rfluence`):
 
 ```shell
-cargo run -q -p rfluence-cli -- fetch 458790
+cargo run -q -p rfluence -- fetch 458790
 ```
 
 Or build once and run the binary:
@@ -116,7 +116,7 @@ The upload snapshots (`crates/rfluence-convert/tests/snapshots/`) use [insta](ht
 `rfluence-cli/tests/live.rs` fetches the reference pages from the real test site, checks the output still matches the fixtures, and times `rfluence fetch`, `search` and `upload`. The upload test creates a temporary page in `rfluencete` (with an image, a label and links), updates it, checks that fetching it gives the file back, and trashes it. The `upload --config` test uploads a small tree (pages and a folder) under a temporary page twice, then trashes all of it. They're skipped unless `RFLUENCE_LIVE` is set; credentials come from the environment or `.env`:
 
 ```shell
-RFLUENCE_LIVE=1 cargo test -p rfluence-cli --test live -- --nocapture
+RFLUENCE_LIVE=1 cargo test -p rfluence --test live -- --nocapture
 ```
 
 ## Looking at conversions
@@ -146,7 +146,7 @@ GitHub Actions run `.github/workflows/ci.yml` on every push to `master` and ever
 
 To release:
 
-1. Set the new version in `crates/rfluence-cli/Cargo.toml` (and the other crates', to keep them together), run `cargo build` to update `Cargo.lock`, and commit.
+1. Set the new version in the root `Cargo.toml` (`[workspace.package]`, shared by all crates, and the `version` of the two `rfluence-*` entries in `[workspace.dependencies]`), run `cargo build` to update `Cargo.lock`, and commit.
 2. Tag and push the tag:
 
    ```shell
@@ -155,4 +155,15 @@ To release:
    ```
 
 `.github/workflows/release.yml` checks the tag matches the version, builds the archives listed in [docs/user/installation.md](docs/user/installation.md), and publishes a GitHub release with notes generated from the commits. To try the builds without releasing, run the workflow by hand (Actions > Release > Run workflow): the archives are uploaded as workflow artifacts.
+
+### Publishing to crates.io
+
+The three crates are published together: `rfluence-convert` and `rfluence-client` (libraries the command depends on) and `rfluence` (the command; `cargo install rfluence`). After tagging a release:
+
+```shell
+cargo publish --workspace --dry-run    # packages each crate and builds it from the package alone
+cargo publish --workspace              # needs `cargo login` with a crates.io token
+```
+
+Cargo publishes them in dependency order. A published version can't be replaced (only yanked), so do the dry run first. The packages leave out `tests/` and `examples/`, which need `fixtures/` from the repository.
 

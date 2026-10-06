@@ -1,10 +1,18 @@
 [package]
-name = "rfluence-cli"
-version = "0.1.0"
-description = "rfluence: fetch, search and upload Confluence pages as markdown"
+# Published as `rfluence`, so `cargo install rfluence` installs the command.
+name = "rfluence"
+version.workspace = true
+description = "Confluence pages as markdown, both ways: fetch, search, edit and upload pages without losing content"
 edition.workspace = true
 rust-version.workspace = true
-publish.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+readme = "../../README.md"
+keywords = ["confluence", "markdown", "atlassian", "cli", "documentation"]
+categories = ["command-line-utilities", "text-processing"]
+# The tests (and examples) use fixtures/ at the repository root, which isn't published.
+exclude = ["tests/", "examples/"]
 
 [[bin]]
 name = "rfluence"
