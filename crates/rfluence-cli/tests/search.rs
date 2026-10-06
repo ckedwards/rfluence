@@ -6,7 +6,10 @@ use std::process::{Command, Output};
 use mockito::Matcher;
 
 fn recorded() -> String {
-    std::fs::read_to_string(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/api/search-panel.json")).unwrap()
+    std::fs::read_to_string(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/api/search-panel.json"),
+    )
+    .unwrap()
 }
 
 fn rf(server: &mockito::ServerGuard, args: &[&str]) -> Output {
@@ -30,13 +33,19 @@ fn lists_results_for_an_llm() {
     let search = server
         .mock("GET", "/wiki/rest/api/search")
         .match_query(Matcher::AllOf(vec![
-            Matcher::UrlEncoded("cql".into(), r#"text ~ "panel" and type = page and space = "rfluencete""#.into()),
+            Matcher::UrlEncoded(
+                "cql".into(),
+                r#"text ~ "panel" and type = page and space = "rfluencete""#.into(),
+            ),
             Matcher::UrlEncoded("limit".into(), "3".into()),
             Matcher::UrlEncoded("expand".into(), "content.metadata.labels".into()),
         ]))
         .with_body(recorded())
         .create();
-    let o = rf(&server, &["search", "panel", "--space", "rfluencete", "--limit", "3"]);
+    let o = rf(
+        &server,
+        &["search", "panel", "--space", "rfluencete", "--limit", "3"],
+    );
     search.assert();
     assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stderr));
     let text = out(&o);
@@ -45,14 +54,22 @@ fn lists_results_for_an_llm() {
     ), "{text}");
     // Entities decoded, one line per excerpt.
     assert!(text.contains("We've added some suggestions"), "{text}");
-    assert!(text.ends_with("3 results. Read one with `rfluence fetch <id>`.\n"), "{text}");
+    assert!(
+        text.ends_with("3 results. Read one with `rfluence fetch <id>`.\n"),
+        "{text}"
+    );
 }
 
 #[test]
 fn prints_json() {
     let mut server = mockito::Server::new();
-    server.mock("GET", "/wiki/rest/api/search").match_query(Matcher::Any).with_body(recorded()).create();
-    let v: serde_json::Value = serde_json::from_slice(&rf(&server, &["search", "panel", "--json"]).stdout).unwrap();
+    server
+        .mock("GET", "/wiki/rest/api/search")
+        .match_query(Matcher::Any)
+        .with_body(recorded())
+        .create();
+    let v: serde_json::Value =
+        serde_json::from_slice(&rf(&server, &["search", "panel", "--json"]).stdout).unwrap();
     assert_eq!(v["results"][0]["id"], "458790");
     assert_eq!(v["results"][0]["space_key"], "rfluencete");
     assert_eq!(v["results"].as_array().unwrap().len(), 3);
@@ -83,12 +100,18 @@ fn invalid_cql_is_a_usage_error() {
         .create();
     let o = rf(&server, &["search", "--cql", "and and"]);
     assert_eq!(o.status.code(), Some(2));
-    assert!(String::from_utf8_lossy(&o.stderr).contains("invalid CQL query: Could not parse cql : and and"));
+    assert!(
+        String::from_utf8_lossy(&o.stderr)
+            .contains("invalid CQL query: Could not parse cql : and and")
+    );
 }
 
 #[test]
 fn needs_a_query() {
     let server = mockito::Server::new();
     assert_eq!(rf(&server, &["search"]).status.code(), Some(2));
-    assert_eq!(rf(&server, &["search", "x", "--cql", "y"]).status.code(), Some(2));
+    assert_eq!(
+        rf(&server, &["search", "x", "--cql", "y"]).status.code(),
+        Some(2)
+    );
 }

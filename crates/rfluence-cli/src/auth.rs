@@ -23,12 +23,18 @@ pub fn login(email: Option<String>, with_token: bool) -> ExitCode {
     // The token is checked on the default site: without one, ask for it (if someone can answer).
     if site.is_none() && interactive() && !with_token {
         eprintln!("No default site is set yet. rfluence needs one to check your token.");
-        let Some(answer) = prompt("Confluence site (e.g. example, or example.atlassian.net)", None) else {
+        let Some(answer) = prompt(
+            "Confluence site (e.g. example, or example.atlassian.net)",
+            None,
+        ) else {
             return ExitCode::from(EXIT_USAGE);
         };
         match crate::settings::store_default_site(&answer) {
             Ok(base_url) => {
-                eprintln!("Default site: {} (change it with `rfluence config set default-site`).", auth::host(&base_url));
+                eprintln!(
+                    "Default site: {} (change it with `rfluence config set default-site`).",
+                    auth::host(&base_url)
+                );
                 site = Some(base_url);
             }
             Err(e) => return fail(&e),
@@ -36,11 +42,14 @@ pub fn login(email: Option<String>, with_token: bool) -> ExitCode {
     }
     let saved = auth::account().ok().flatten().map(|a| a.email);
     let suggested = saved.or_else(git_email);
-    let Some(email) = email.or_else(|| prompt("Atlassian account email", suggested.as_deref())) else {
+    let Some(email) = email.or_else(|| prompt("Atlassian account email", suggested.as_deref()))
+    else {
         return ExitCode::from(EXIT_USAGE);
     };
     if !with_token {
-        eprintln!("Create an API token at https://id.atlassian.com/manage-profile/security/api-tokens");
+        eprintln!(
+            "Create an API token at https://id.atlassian.com/manage-profile/security/api-tokens"
+        );
     }
     let (token, user) = match &site {
         Some(base_url) => match ask_until_accepted(&email, base_url, with_token) {
@@ -58,10 +67,18 @@ pub fn login(email: Option<String>, with_token: bool) -> ExitCode {
     };
     let saved = match saved {
         Source::Keyring => "Token saved in the system keyring.".to_string(),
-        _ => format!("No system keyring: token saved in {}.", auth::token_file().map(|p| p.display().to_string()).unwrap_or_default()),
+        _ => format!(
+            "No system keyring: token saved in {}.",
+            auth::token_file()
+                .map(|p| p.display().to_string())
+                .unwrap_or_default()
+        ),
     };
     match (user, site) {
-        (Some(user), Some(site)) => eprintln!("Logged in as {user} ({email}) on {}. {saved}", auth::host(&site)),
+        (Some(user), Some(site)) => eprintln!(
+            "Logged in as {user} ({email}) on {}. {saved}",
+            auth::host(&site)
+        ),
         _ => eprintln!(
             "Logged in as {email}. {saved} Set your Confluence site with `rfluence config set default-site <site>` (e.g. `example` for example.atlassian.net); the token is checked there."
         ),
@@ -72,20 +89,34 @@ pub fn login(email: Option<String>, with_token: bool) -> ExitCode {
 /// Ask for the token until Confluence accepts it on `base_url` (up to [`TOKEN_TRIES`] times;
 /// once with --with-token, which reads it from standard input). Returns it and the user's
 /// name.
-fn ask_until_accepted(email: &str, base_url: &str, with_token: bool) -> Result<(String, String), ExitCode> {
+fn ask_until_accepted(
+    email: &str,
+    base_url: &str,
+    with_token: bool,
+) -> Result<(String, String), ExitCode> {
     let host = auth::host(base_url);
     let mut tries = 0;
     loop {
         tries += 1;
         let token = read_token(with_token).ok_or(ExitCode::from(EXIT_USAGE))?;
-        let creds = Credentials { base_url: base_url.to_string(), email: email.to_string(), token };
+        let creds = Credentials {
+            base_url: base_url.to_string(),
+            email: email.to_string(),
+            token,
+        };
         match Client::new(&creds).current_user() {
             Ok(user) => return Ok((creds.token, user)),
             // A mistyped token: ask again (not with --with-token: no one to ask).
-            Err(rfluence_client::Error::Auth(_) | rfluence_client::Error::Forbidden(_)) if !with_token && tries < TOKEN_TRIES => {
-                eprintln!("That token isn't accepted for {email} on {host}. Try again ({tries} of {TOKEN_TRIES} tries used).");
+            Err(rfluence_client::Error::Auth(_) | rfluence_client::Error::Forbidden(_))
+                if !with_token && tries < TOKEN_TRIES =>
+            {
+                eprintln!(
+                    "That token isn't accepted for {email} on {host}. Try again ({tries} of {TOKEN_TRIES} tries used)."
+                );
             }
-            Err(rfluence_client::Error::Auth(_) | rfluence_client::Error::Forbidden(_)) if !with_token => {
+            Err(rfluence_client::Error::Auth(_) | rfluence_client::Error::Forbidden(_))
+                if !with_token =>
+            {
                 eprintln!("rfluence: failed to authenticate after {TOKEN_TRIES} tries, exiting");
                 return Err(ExitCode::from(EXIT_AUTH));
             }
@@ -102,16 +133,24 @@ fn read_token(with_token: bool) -> Option<String> {
     if with_token {
         let mut t = String::new();
         if std::io::stdin().read_to_string(&mut t).is_err() || t.trim().is_empty() {
-            eprintln!("rfluence: --with-token reads the token from standard input, but there was none");
+            eprintln!(
+                "rfluence: --with-token reads the token from standard input, but there was none"
+            );
             return None;
         }
         return Some(t.trim().to_string());
     }
     if !interactive() {
-        eprintln!("rfluence: the API token is required: pass --with-token and give it on standard input");
+        eprintln!(
+            "rfluence: the API token is required: pass --with-token and give it on standard input"
+        );
         return None;
     }
-    let read = if prompts_from_stdin() { read_line().ok_or_else(|| std::io::Error::other("no input")) } else { rpassword::prompt_password("API token: ") };
+    let read = if prompts_from_stdin() {
+        read_line().ok_or_else(|| std::io::Error::other("no input"))
+    } else {
+        rpassword::prompt_password("API token: ")
+    };
     match read {
         Ok(t) if !t.trim().is_empty() => Some(t.trim().to_string()),
         Ok(_) => {
@@ -119,7 +158,9 @@ fn read_token(with_token: bool) -> Option<String> {
             None
         }
         Err(e) => {
-            eprintln!("rfluence: can't read the token ({e}); use --with-token to read it from standard input");
+            eprintln!(
+                "rfluence: can't read the token ({e}); use --with-token to read it from standard input"
+            );
             None
         }
     }
@@ -144,7 +185,11 @@ pub fn status(site: Option<String>) -> ExitCode {
         Ok(w) => w,
         Err(e) => return fail(&e),
     };
-    let (env, account, site) = match (auth::from_env(|k| std::env::var(k).ok()), auth::account(), auth::default_site()) {
+    let (env, account, site) = match (
+        auth::from_env(|k| std::env::var(k).ok()),
+        auth::account(),
+        auth::default_site(),
+    ) {
         (Ok(env), Ok(account), Ok(site)) => (env, account, site),
         (Err(e), ..) | (_, Err(e), _) | (.., Err(e)) => return fail(&e),
     };
@@ -170,7 +215,9 @@ pub fn status(site: Option<String>) -> ExitCode {
         check(creds.host(), Some(creds));
     }
     if let Some(account) = account {
-        let source = account.source.map_or_else(|| "no token found".to_string(), |s| format!("token: {s}"));
+        let source = account
+            .source
+            .map_or_else(|| "no token found".to_string(), |s| format!("token: {s}"));
         println!("{} ({source})", account.email);
         let target = match (&wanted, &site) {
             (Some(w), _) => Some((auth::host(w), w.clone())),
@@ -180,12 +227,25 @@ pub fn status(site: Option<String>) -> ExitCode {
         match target {
             Some((label, base_url)) => {
                 let token = auth::saved_token().map(|t| t.0);
-                check(label, token.map(|token| Credentials { base_url, email: account.email.clone(), token }));
+                check(
+                    label,
+                    token.map(|token| Credentials {
+                        base_url,
+                        email: account.email.clone(),
+                        token,
+                    }),
+                );
             }
-            None => println!("  no default site: set one with `rfluence config set default-site <site>`"),
+            None => println!(
+                "  no default site: set one with `rfluence config set default-site <site>`"
+            ),
         }
     }
-    if ok { ExitCode::SUCCESS } else { ExitCode::from(EXIT_AUTH) }
+    if ok {
+        ExitCode::SUCCESS
+    } else {
+        ExitCode::from(EXIT_AUTH)
+    }
 }
 
 /// Print the token rfluence would use for a site.
@@ -227,7 +287,11 @@ fn prompt(question: &str, default: Option<&str>) -> Option<String> {
     }
     let _ = std::io::stderr().flush();
     let answer = read_line()?;
-    let value = if answer.is_empty() { default.unwrap_or("") } else { &answer };
+    let value = if answer.is_empty() {
+        default.unwrap_or("")
+    } else {
+        &answer
+    };
     if value.is_empty() {
         eprintln!("rfluence: {question} is required");
         return None;
@@ -237,7 +301,10 @@ fn prompt(question: &str, default: Option<&str>) -> Option<String> {
 
 /// `git config --global user.email`, if git is there and it's set.
 fn git_email() -> Option<String> {
-    let out = std::process::Command::new("git").args(["config", "--global", "--get", "user.email"]).output().ok()?;
+    let out = std::process::Command::new("git")
+        .args(["config", "--global", "--get", "user.email"])
+        .output()
+        .ok()?;
     let email = String::from_utf8(out.stdout).ok()?.trim().to_string();
     (out.status.success() && !email.is_empty()).then_some(email)
 }

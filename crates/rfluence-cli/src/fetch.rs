@@ -39,7 +39,9 @@ struct Json<'a> {
 
 pub fn run(opts: &Options) -> ExitCode {
     if opts.output.is_some() && (opts.section.is_some() || opts.max_chars.is_some()) {
-        eprintln!("rfluence: --section and --max-chars give part of a page, so they can't be used with -o");
+        eprintln!(
+            "rfluence: --section and --max-chars give part of a page, so they can't be used with -o"
+        );
         return ExitCode::from(EXIT_USAGE);
     }
     let result = (|| {
@@ -58,12 +60,24 @@ pub fn run(opts: &Options) -> ExitCode {
     };
     // Both need the page's body: requested together, after it.
     let (titles, synced_copies) = std::thread::scope(|s| {
-        let synced = s.spawn(|| client.synced_copies(&rfluence_convert::synced::copy_ids(&page.adf)));
+        let synced =
+            s.spawn(|| client.synced_copies(&rfluence_convert::synced::copy_ids(&page.adf)));
         let titles = card_titles(&client, &page);
-        (titles, synced.join().expect("synced blocks thread doesn't panic"))
+        (
+            titles,
+            synced.join().expect("synced blocks thread doesn't panic"),
+        )
     });
     if let Some(path) = &opts.output {
-        return write_file(opts, &client, &page, &attachments, titles, synced_copies, path);
+        return write_file(
+            opts,
+            &client,
+            &page,
+            &attachments,
+            titles,
+            synced_copies,
+            path,
+        );
     }
 
     let ctx = FetchContext {
@@ -86,17 +100,25 @@ pub fn run(opts: &Options) -> ExitCode {
         match select::section(body, heading) {
             Some(s) => part = s,
             None => {
-                eprintln!("rfluence: no section {heading:?} on this page; headings: {}", select::heading_titles(body).join("; "));
+                eprintln!(
+                    "rfluence: no section {heading:?} on this page; headings: {}",
+                    select::heading_titles(body).join("; ")
+                );
                 return ExitCode::from(EXIT_NOT_FOUND);
             }
         }
     }
     if let Some(max) = opts.max_chars
-        && let Some(cut) = select::truncate(&part, max) {
+        && let Some(cut) = select::truncate(&part, max)
+    {
         part = cut;
     }
     let partial = part != body;
-    let frontmatter = if partial { select::mark_partial(frontmatter) } else { frontmatter.to_string() };
+    let frontmatter = if partial {
+        select::mark_partial(frontmatter)
+    } else {
+        frontmatter.to_string()
+    };
     let output = format!("{frontmatter}\n{part}");
 
     if opts.json {
@@ -112,7 +134,10 @@ pub fn run(opts: &Options) -> ExitCode {
             partial,
             markdown: &output,
         };
-        println!("{}", serde_json::to_string_pretty(&json).expect("JSON serializes"));
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&json).expect("JSON serializes")
+        );
     } else {
         print!("{output}");
     }
@@ -141,12 +166,18 @@ fn write_file(
     synced_copies: HashMap<String, Vec<Node>>,
     path: &Path,
 ) -> ExitCode {
-    let dir = path.parent().filter(|d| !d.as_os_str().is_empty()).unwrap_or(Path::new("."));
+    let dir = path
+        .parent()
+        .filter(|d| !d.as_os_str().is_empty())
+        .unwrap_or(Path::new("."));
     if let Err(e) = std::fs::create_dir_all(dir) {
         eprintln!("rfluence: {}: {e}", dir.display());
         return ExitCode::from(EXIT_USAGE);
     }
-    let stem = path.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_else(|| "page".into());
+    let stem = path
+        .file_stem()
+        .map(|s| s.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "page".into());
     let assets = format!("{stem}.assets");
     let root = project::root(dir);
     let ctx = FetchContext {
@@ -167,10 +198,17 @@ fn write_file(
     let mut output = fetched.clone();
     if let Some(existing) = &existing {
         let doc = frontmatter::split(existing);
-        let fields = doc.yaml.map(frontmatter::rfluence_fields).unwrap_or_default();
+        let fields = doc
+            .yaml
+            .map(frontmatter::rfluence_fields)
+            .unwrap_or_default();
         if !opts.force {
             if let Some(other) = fields.id.as_deref().filter(|id| *id != page.meta.id) {
-                eprintln!("rfluence: {} holds page {other}, not {}; use --force to overwrite it", path.display(), page.meta.id);
+                eprintln!(
+                    "rfluence: {} holds page {other}, not {}; use --force to overwrite it",
+                    path.display(),
+                    page.meta.id
+                );
                 return ExitCode::from(EXIT_CONFLICT);
             }
             if fields.id.is_some() && !fields.simplified && !fields.partial {
@@ -185,7 +223,10 @@ fn write_file(
             }
         }
         // The fetched frontmatter: everything before the body, without the blank line.
-        let fetched_frontmatter = format!("{}\n", fetched[..fetched.len() - fetched_doc.body.len()].trim_end_matches('\n'));
+        let fetched_frontmatter = format!(
+            "{}\n",
+            fetched[..fetched.len() - fetched_doc.body.len()].trim_end_matches('\n')
+        );
         let merged = frontmatter::merge(doc.yaml, &fetched_frontmatter);
         output = format!("{merged}\n{}", fetched_doc.body);
     }
@@ -214,16 +255,30 @@ fn write_file(
             images,
             downloaded,
         };
-        println!("{}", serde_json::to_string_pretty(&json).expect("JSON serializes"));
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&json).expect("JSON serializes")
+        );
     } else {
         let unchanged = existing.as_deref() == Some(output.as_str());
-        let what = if unchanged { "is up to date" } else { "written" };
+        let what = if unchanged {
+            "is up to date"
+        } else {
+            "written"
+        };
         let imgs = match (images, downloaded) {
             (0, _) => String::new(),
             (n, 0) => format!(", {n} images up to date"),
-            (n, d) => format!(", {d} of {n} images downloaded to {}", dir.join(&assets).display()),
+            (n, d) => format!(
+                ", {d} of {n} images downloaded to {}",
+                dir.join(&assets).display()
+            ),
         };
-        eprintln!("{} {what} (version {}{imgs})", path.display(), page.meta.version);
+        eprintln!(
+            "{} {what} (version {}{imgs})",
+            path.display(),
+            page.meta.version
+        );
     }
     ExitCode::SUCCESS
 }
@@ -281,7 +336,12 @@ fn local_changes(
 /// Download the page's images (attachments shown by `mediaSingle` nodes; other files stay
 /// on Confluence) into `dir`, in parallel, skipping files already there with the same size.
 /// Returns (images, downloaded).
-fn download_images(client: &Client, page: &Page, attachments: &[Attachment], dir: &Path) -> rfluence_client::Result<(usize, usize)> {
+fn download_images(
+    client: &Client,
+    page: &Page,
+    attachments: &[Attachment],
+    dir: &Path,
+) -> rfluence_client::Result<(usize, usize)> {
     let mut shown = HashSet::new();
     page.adf.walk(&mut |n: &Node| {
         if let Some(media) = n.content.first().filter(|_| n.is("mediaSingle"))
@@ -291,7 +351,10 @@ fn download_images(client: &Client, page: &Page, attachments: &[Attachment], dir
             shown.insert(id.to_string());
         }
     });
-    let wanted: Vec<&Attachment> = attachments.iter().filter(|a| shown.contains(&a.file_id)).collect();
+    let wanted: Vec<&Attachment> = attachments
+        .iter()
+        .filter(|a| shown.contains(&a.file_id))
+        .collect();
     let todo: Vec<&Attachment> = wanted
         .iter()
         .copied()
@@ -303,16 +366,24 @@ fn download_images(client: &Client, page: &Page, attachments: &[Attachment], dir
     if todo.is_empty() {
         return Ok((wanted.len(), 0));
     }
-    std::fs::create_dir_all(dir).map_err(|e| rfluence_client::Error::Io(format!("{}: {e}", dir.display())))?;
+    std::fs::create_dir_all(dir)
+        .map_err(|e| rfluence_client::Error::Io(format!("{}: {e}", dir.display())))?;
     const PARALLEL: usize = 6;
     for chunk in todo.chunks(PARALLEL) {
         let results: Vec<_> = std::thread::scope(|s| {
-            let handles: Vec<_> = chunk.iter().map(|a| s.spawn(move || (a, client.download(a)))).collect();
-            handles.into_iter().map(|h| h.join().expect("download thread doesn't panic")).collect()
+            let handles: Vec<_> = chunk
+                .iter()
+                .map(|a| s.spawn(move || (a, client.download(a))))
+                .collect();
+            handles
+                .into_iter()
+                .map(|h| h.join().expect("download thread doesn't panic"))
+                .collect()
         });
         for (a, bytes) in results {
             let file = dir.join(&a.title);
-            std::fs::write(&file, bytes?).map_err(|e| rfluence_client::Error::Io(format!("{}: {e}", file.display())))?;
+            std::fs::write(&file, bytes?)
+                .map_err(|e| rfluence_client::Error::Io(format!("{}: {e}", file.display())))?;
         }
     }
     Ok((wanted.len(), todo.len()))
@@ -329,15 +400,25 @@ fn slug(title: &str, fallback: &str) -> String {
         }
     }
     let out: String = out.trim_end_matches('-').chars().take(60).collect();
-    if out.is_empty() { fallback.to_string() } else { out.trim_end_matches('-').to_string() }
+    if out.is_empty() {
+        fallback.to_string()
+    } else {
+        out.trim_end_matches('-').to_string()
+    }
 }
 
 #[cfg(test)]
 mod tests {
     #[test]
     fn slugs_titles() {
-        assert_eq!(super::slug("rfluence ADF reference", "1"), "rfluence-adf-reference");
-        assert_eq!(super::slug("Ingestion: Overview (v2)", "1"), "ingestion-overview-v2");
+        assert_eq!(
+            super::slug("rfluence ADF reference", "1"),
+            "rfluence-adf-reference"
+        );
+        assert_eq!(
+            super::slug("Ingestion: Overview (v2)", "1"),
+            "ingestion-overview-v2"
+        );
         assert_eq!(super::slug("!!!", "123"), "123");
     }
 }

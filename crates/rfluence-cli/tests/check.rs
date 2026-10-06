@@ -4,11 +4,16 @@ use std::path::PathBuf;
 use std::process::{Command, Output};
 
 fn corpus(name: &str) -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/markdown").join(name)
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../fixtures/markdown")
+        .join(name)
 }
 
 fn rf(args: &[&str]) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_rfluence")).args(args).output().unwrap()
+    Command::new(env!("CARGO_BIN_EXE_rfluence"))
+        .args(args)
+        .output()
+        .unwrap()
 }
 
 fn stdout(o: &Output) -> String {
@@ -27,7 +32,10 @@ fn warnings_dont_fail() {
     let out = rf(&["check", corpus("approximated.md").to_str().unwrap()]);
     assert!(out.status.success(), "{}", stdout(&out));
     let text = stdout(&out);
-    assert!(text.contains("approximated.md:5: warning: `<kbd>` written as inline code"), "{text}");
+    assert!(
+        text.contains("approximated.md:5: warning: `<kbd>` written as inline code"),
+        "{text}"
+    );
     assert!(text.ends_with("0 errors, 13 warnings\n"), "{text}");
 }
 
@@ -36,7 +44,10 @@ fn errors_exit_1() {
     let out = rf(&["check", corpus("unsupported.md").to_str().unwrap()]);
     assert_eq!(out.status.code(), Some(1));
     let text = stdout(&out);
-    assert!(text.contains(": error: footnotes can't be represented"), "{text}");
+    assert!(
+        text.contains(": error: footnotes can't be represented"),
+        "{text}"
+    );
 }
 
 #[test]
@@ -48,12 +59,20 @@ fn missing_image_file_is_a_warning() {
     let out = rf(&["check", md.to_str().unwrap()]);
     std::fs::remove_dir_all(&dir).unwrap();
     assert!(out.status.success());
-    assert!(stdout(&out).contains(":3: warning: image file not found: page.assets/missing.png"), "{}", stdout(&out));
+    assert!(
+        stdout(&out).contains(":3: warning: image file not found: page.assets/missing.png"),
+        "{}",
+        stdout(&out)
+    );
 }
 
 #[test]
 fn json_output() {
-    let out = rf(&["check", "--json", corpus("unsupported.md").to_str().unwrap()]);
+    let out = rf(&[
+        "check",
+        "--json",
+        corpus("unsupported.md").to_str().unwrap(),
+    ]);
     let v: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
     let first = &v.as_array().unwrap()[0];
     assert!(first["path"].as_str().unwrap().ends_with("unsupported.md"));
@@ -70,10 +89,35 @@ fn unreadable_file_exits_2() {
 #[test]
 fn warnings_can_fail_too() {
     let approximated = corpus("approximated.md");
-    let out = rf(&["check", "--warnings-are-errors", approximated.to_str().unwrap()]);
+    let out = rf(&[
+        "check",
+        "--warnings-are-errors",
+        approximated.to_str().unwrap(),
+    ]);
     assert_eq!(out.status.code(), Some(1));
-    assert!(stdout(&out).ends_with("0 errors, 13 warnings\n"), "{}", stdout(&out));
+    assert!(
+        stdout(&out).ends_with("0 errors, 13 warnings\n"),
+        "{}",
+        stdout(&out)
+    );
     // Clean files still pass, and errors still fail.
-    assert!(rf(&["check", "--warnings-are-errors", corpus("runbook.md").to_str().unwrap()]).status.success());
-    assert_eq!(rf(&["check", "--warnings-are-errors", corpus("unsupported.md").to_str().unwrap()]).status.code(), Some(1));
+    assert!(
+        rf(&[
+            "check",
+            "--warnings-are-errors",
+            corpus("runbook.md").to_str().unwrap()
+        ])
+        .status
+        .success()
+    );
+    assert_eq!(
+        rf(&[
+            "check",
+            "--warnings-are-errors",
+            corpus("unsupported.md").to_str().unwrap()
+        ])
+        .status
+        .code(),
+        Some(1)
+    );
 }

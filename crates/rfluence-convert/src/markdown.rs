@@ -25,11 +25,18 @@ pub fn options() -> Options<'static> {
 
 /// Allocate a detached AST node.
 pub fn node<'a>(arena: &'a Arena<'a>, value: NodeValue) -> &'a AstNode<'a> {
-    arena.alloc(AstNode::new(RefCell::new(Ast::new(value, LineColumn { line: 1, column: 1 }))))
+    arena.alloc(AstNode::new(RefCell::new(Ast::new(
+        value,
+        LineColumn { line: 1, column: 1 },
+    ))))
 }
 
 /// Allocate a node and append it to `parent`.
-pub fn append<'a>(arena: &'a Arena<'a>, parent: &'a AstNode<'a>, value: NodeValue) -> &'a AstNode<'a> {
+pub fn append<'a>(
+    arena: &'a Arena<'a>,
+    parent: &'a AstNode<'a>,
+    value: NodeValue,
+) -> &'a AstNode<'a> {
     let n = node(arena, value);
     parent.append(n);
     n
@@ -49,7 +56,8 @@ pub fn render<'a>(root: &'a AstNode<'a>) -> String {
         }
     }
     let mut out = String::new();
-    comrak::format_commonmark(root, &options(), &mut out).expect("formatting to a String can't fail");
+    comrak::format_commonmark(root, &options(), &mut out)
+        .expect("formatting to a String can't fail");
     out
 }
 
@@ -57,7 +65,15 @@ pub fn render<'a>(root: &'a AstNode<'a>) -> String {
 pub fn heading(level: u8, text: &str) -> String {
     let arena = Arena::new();
     let root = node(&arena, NodeValue::Document);
-    let h = append(&arena, root, NodeValue::Heading(comrak::nodes::NodeHeading { level, setext: false, closed: false }));
+    let h = append(
+        &arena,
+        root,
+        NodeValue::Heading(comrak::nodes::NodeHeading {
+            level,
+            setext: false,
+            closed: false,
+        }),
+    );
     append(&arena, h, NodeValue::Text(text.to_string().into()));
     render(root)
 }
@@ -81,7 +97,11 @@ pub fn inline_text<'a>(node: &'a AstNode<'a>) -> String {
 pub fn split_info(info: &str) -> (Option<&str>, &str) {
     let info = info.trim();
     let (first, rest) = info.split_once(char::is_whitespace).unwrap_or((info, ""));
-    if first.is_empty() || first.contains('=') { (None, info) } else { (Some(first), rest.trim()) }
+    if first.is_empty() || first.contains('=') {
+        (None, info)
+    } else {
+        (Some(first), rest.trim())
+    }
 }
 
 /// Collapse runs of blank lines to one, outside code blocks.
@@ -92,7 +112,8 @@ pub fn collapse_blank_lines(md: &str) -> String {
         .descendants()
         .filter_map(|n| {
             let d = n.data();
-            matches!(d.value, NodeValue::CodeBlock(_)).then(|| (d.sourcepos.start.line, d.sourcepos.end.line))
+            matches!(d.value, NodeValue::CodeBlock(_))
+                .then(|| (d.sourcepos.start.line, d.sourcepos.end.line))
         })
         .collect();
     let mut out = String::with_capacity(md.len());

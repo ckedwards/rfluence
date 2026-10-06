@@ -18,9 +18,15 @@ fn fixture(file: &str) -> String {
 
 /// The images-api page (two images, version 2) on the mock site, with another body and
 /// version if given.
-fn page_json(server: &mockito::ServerGuard, adf: Option<&serde_json::Value>, version: u64) -> String {
+fn page_json(
+    server: &mockito::ServerGuard,
+    adf: Option<&serde_json::Value>,
+    version: u64,
+) -> String {
     let mut page: serde_json::Value = serde_json::from_str(&fixture("page.json")).unwrap();
-    let adf = adf.cloned().unwrap_or_else(|| serde_json::from_str(&fixture("adf.json")).unwrap());
+    let adf = adf
+        .cloned()
+        .unwrap_or_else(|| serde_json::from_str(&fixture("adf.json")).unwrap());
     page["body"] = json!({ "atlas_doc_format": { "value": adf.to_string() } });
     page["version"]["number"] = version.into();
     page["_links"]["base"] = format!("{}/wiki", server.url()).into();
@@ -35,32 +41,59 @@ struct Site {
 impl Site {
     /// A mock site serving the page (at `version`, with `adf` if given), its attachments
     /// and their files, and the page's `rfluence` property if given.
-    fn new(name: &str, adf: Option<serde_json::Value>, version: u64, property: Option<serde_json::Value>) -> Site {
+    fn new(
+        name: &str,
+        adf: Option<serde_json::Value>,
+        version: u64,
+        property: Option<serde_json::Value>,
+    ) -> Site {
         let mut server = mockito::Server::new();
         let body = page_json(&server, adf.as_ref(), version);
-        server.mock("GET", format!("/wiki/api/v2/pages/{ID}").as_str()).match_query(Matcher::Any).with_body(body).create();
+        server
+            .mock("GET", format!("/wiki/api/v2/pages/{ID}").as_str())
+            .match_query(Matcher::Any)
+            .with_body(body)
+            .create();
         let attachments = fixture("attachments.json");
-        for a in serde_json::from_str::<serde_json::Value>(&attachments).unwrap()["results"].as_array().unwrap() {
-            let bytes = std::fs::read(fixtures().join("attachments").join(a["title"].as_str().unwrap())).unwrap();
+        for a in serde_json::from_str::<serde_json::Value>(&attachments).unwrap()["results"]
+            .as_array()
+            .unwrap()
+        {
+            let bytes = std::fs::read(
+                fixtures()
+                    .join("attachments")
+                    .join(a["title"].as_str().unwrap()),
+            )
+            .unwrap();
             let path = format!("/wiki{}", a["_links"]["download"].as_str().unwrap());
             server.mock("GET", path.as_str()).with_body(bytes).create();
         }
         server
-            .mock("GET", format!("/wiki/api/v2/pages/{ID}/attachments").as_str())
+            .mock(
+                "GET",
+                format!("/wiki/api/v2/pages/{ID}/attachments").as_str(),
+            )
             .match_query(Matcher::Any)
             .with_body(attachments)
             .create();
         server
-            .mock("GET", format!("/wiki/api/v2/pages/{ID}/properties").as_str())
+            .mock(
+                "GET",
+                format!("/wiki/api/v2/pages/{ID}/properties").as_str(),
+            )
             .match_query(Matcher::UrlEncoded("key".into(), "rfluence".into()))
-            .with_body(json!({ "results": property.into_iter().collect::<Vec<_>>(), "_links": {} }).to_string())
+            .with_body(
+                json!({ "results": property.into_iter().collect::<Vec<_>>(), "_links": {} })
+                    .to_string(),
+            )
             .create();
         Site::bare(name, server)
     }
 
     /// A mock site serving nothing yet, and an empty project directory.
     fn bare(name: &str, server: mockito::ServerGuard) -> Site {
-        let dir = std::env::temp_dir().join(format!("rfluence-upload-{name}-{}", std::process::id()));
+        let dir =
+            std::env::temp_dir().join(format!("rfluence-upload-{name}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         Site { server, dir }
@@ -96,7 +129,12 @@ impl Site {
         .to_string()
     }
 
-    fn expect_labels_and_property(&mut self, labels: serde_json::Value, version: u64, path: &str) -> (mockito::Mock, mockito::Mock) {
+    fn expect_labels_and_property(
+        &mut self,
+        labels: serde_json::Value,
+        version: u64,
+        path: &str,
+    ) -> (mockito::Mock, mockito::Mock) {
         let label = self
             .server
             .mock("POST", "/wiki/rest/api/content/500/label")
@@ -167,7 +205,9 @@ impl Site {
     /// A PUT of the page body, answered with the page at `version`.
     fn expect_update(&mut self, version: u64, body: Vec<Matcher>) -> mockito::Mock {
         let response = page_json(&self.server, None, version);
-        let mut all = vec![Matcher::PartialJson(json!({ "id": ID, "status": "current", "version": { "number": version } }))];
+        let mut all = vec![Matcher::PartialJson(
+            json!({ "id": ID, "status": "current", "version": { "number": version } }),
+        )];
         all.extend(body);
         self.server
             .mock("PUT", format!("/wiki/api/v2/pages/{ID}").as_str())
@@ -198,7 +238,15 @@ fn sent_body_contains(text: &str) -> Matcher {
 }
 
 fn regex_escape(s: &str) -> String {
-    s.chars().map(|c| if "\\.+*?()|[]{}^$".contains(c) { format!("\\{c}") } else { c.to_string() }).collect()
+    s.chars()
+        .map(|c| {
+            if "\\.+*?()|[]{}^$".contains(c) {
+                format!("\\{c}")
+            } else {
+                c.to_string()
+            }
+        })
+        .collect()
 }
 
 #[test]
@@ -210,7 +258,8 @@ fn uploads_edits_images_and_labels_then_writes_back_the_version() {
     let mut site = Site::new("edit", None, 2, Some(property));
     site.fetch();
     let md = site.read();
-    let edited = md.replace("labels: []", "labels: [New Label]") + "\nAn added paragraph.\n\n![](page.assets/new.png)\n";
+    let edited = md.replace("labels: []", "labels: [New Label]")
+        + "\nAn added paragraph.\n\n![](page.assets/new.png)\n";
     site.write(&edited);
     std::fs::write(site.path("page.assets/new.png"), b"\x89PNG new").unwrap();
 
@@ -226,22 +275,33 @@ fn uploads_edits_images_and_labels_then_writes_back_the_version() {
         ]))
         .with_body(json!({ "results": [{ "id": "att9", "title": "new.png", "extensions": { "fileId": "new-file-id", "fileSize": 8 } }] }).to_string())
         .create();
-    let update = site.expect_update(3, vec![
-        Matcher::PartialJson(json!({ "title": "rfluence image API test" })),
-        sent_body_contains("An added paragraph."),
-        sent_body_contains(r#""id":"new-file-id""#),
-        // The existing images keep their attachments' fileIds.
-        sent_body_contains(r#""id":"b9e35bcf-7773-4ae5-a0af-0bc4d58060fe""#),
-    ]);
+    let update = site.expect_update(
+        3,
+        vec![
+            Matcher::PartialJson(json!({ "title": "rfluence image API test" })),
+            sent_body_contains("An added paragraph."),
+            sent_body_contains(r#""id":"new-file-id""#),
+            // The existing images keep their attachments' fileIds.
+            sent_body_contains(r#""id":"b9e35bcf-7773-4ae5-a0af-0bc4d58060fe""#),
+        ],
+    );
     let label = site
         .server
-        .mock("POST", format!("/wiki/rest/api/content/{ID}/label").as_str())
-        .match_body(Matcher::Json(json!([{ "prefix": "global", "name": "new-label" }])))
+        .mock(
+            "POST",
+            format!("/wiki/rest/api/content/{ID}/label").as_str(),
+        )
+        .match_body(Matcher::Json(
+            json!([{ "prefix": "global", "name": "new-label" }]),
+        ))
         .with_body(json!({ "results": [] }).to_string())
         .create();
     let property_update = site
         .server
-        .mock("PUT", format!("/wiki/api/v2/pages/{ID}/properties/77").as_str())
+        .mock(
+            "PUT",
+            format!("/wiki/api/v2/pages/{ID}/properties/77").as_str(),
+        )
         .match_body(Matcher::Json(json!({
             "key": "rfluence",
             "value": { "managed": true, "version": 3, "path": "page.md", "config_labels": ["x"] },
@@ -260,7 +320,9 @@ fn uploads_edits_images_and_labels_then_writes_back_the_version() {
     assert!(out(&o).contains("images uploaded: new.png"), "{}", out(&o));
     assert!(out(&o).contains("labels added: new-label"), "{}", out(&o));
     // Only the rfluence: block changed: the new version and the label as Confluence has it.
-    let expected = edited.replace("  version: 2\n", "  version: 3\n").replace("labels: [New Label]", "labels: [new-label]");
+    let expected = edited
+        .replace("  version: 2\n", "  version: 3\n")
+        .replace("labels: [New Label]", "labels: [new-label]");
     similar_asserts::assert_eq!(site.read(), expected);
 }
 
@@ -283,7 +345,10 @@ fn an_unchanged_file_sends_nothing() {
 fn dry_run_shows_the_plan_and_changes_nothing() {
     let mut site = Site::new("dry-run", None, 2, None);
     site.fetch();
-    let edited = site.read().replace("# rfluence image API test", "# Renamed") + "\n![](page.assets/new.png)\n";
+    let edited = site
+        .read()
+        .replace("# rfluence image API test", "# Renamed")
+        + "\n![](page.assets/new.png)\n";
     site.write(&edited);
     std::fs::write(site.path("page.assets/new.png"), b"new").unwrap();
     // A changed image of the same size as its attachment is compared by content.
@@ -297,8 +362,16 @@ fn dry_run_shows_the_plan_and_changes_nothing() {
     let o = site.upload(&["--dry-run"]);
     assert!(o.status.success(), "{}", err(&o));
     let text = out(&o);
-    assert!(text.starts_with(&format!("Dry run: would update page {ID} \"rfluence image API test\" (version 2 -> 3)")), "{text}");
-    assert!(text.contains("title: \"rfluence image API test\" -> \"Renamed\""), "{text}");
+    assert!(
+        text.starts_with(&format!(
+            "Dry run: would update page {ID} \"rfluence image API test\" (version 2 -> 3)"
+        )),
+        "{text}"
+    );
+    assert!(
+        text.contains("title: \"rfluence image API test\" -> \"Renamed\""),
+        "{text}"
+    );
     assert!(text.contains("images to upload: new.png"), "{text}");
     assert!(text.contains("images to update: green.png"), "{text}");
     put.assert();
@@ -313,11 +386,19 @@ fn refuses_to_overwrite_changes_made_in_confluence() {
     site.write(&(site.read() + "\nLocal edit.\n"));
     // Someone edits the page in Confluence: now version 5.
     let newer = page_json(&site.server, None, 5);
-    site.server.mock("GET", format!("/wiki/api/v2/pages/{ID}").as_str()).match_query(Matcher::Any).with_body(newer).create();
+    site.server
+        .mock("GET", format!("/wiki/api/v2/pages/{ID}").as_str())
+        .match_query(Matcher::Any)
+        .with_body(newer)
+        .create();
     let put = site.server.mock("PUT", Matcher::Any).expect(0).create();
     let o = site.upload(&[]);
     assert_eq!(o.status.code(), Some(6), "{}", err(&o));
-    assert!(err(&o).contains("changed in Confluence since this file was fetched (version 2 -> 5)"), "{}", err(&o));
+    assert!(
+        err(&o).contains("changed in Confluence since this file was fetched (version 2 -> 5)"),
+        "{}",
+        err(&o)
+    );
     put.assert();
 
     // --force overwrites them.
@@ -343,14 +424,23 @@ fn keeps_inline_comments_on_their_text() {
     site.fetch();
     let md = site.read();
     assert!(md.contains("Keep this text and drop this\n"), "{md}");
-    site.write(&md.replace("Keep this text and drop this", "First, keep this text and that"));
+    site.write(&md.replace(
+        "Keep this text and drop this",
+        "First, keep this text and that",
+    ));
     let update = site.expect_update(3, vec![sent_body_contains(
         r#"{"type":"text","marks":[{"type":"annotation","attrs":{"annotationType":"inlineComment","id":"c-1"}}],"text":"this text"}"#,
     )]);
     let o = site.upload(&[]);
     assert!(o.status.success(), "{}", err(&o));
     update.assert();
-    assert!(out(&o).contains(r#"1 inline comment was detached (text changed or no longer unique): "drop this""#), "{}", out(&o));
+    assert!(
+        out(&o).contains(
+            r#"1 inline comment was detached (text changed or no longer unique): "drop this""#
+        ),
+        "{}",
+        out(&o)
+    );
 }
 
 #[test]
@@ -360,14 +450,42 @@ fn stops_before_sending_anything() {
     let md = site.read();
     // Line numbers are the file's (frontmatter and title included).
     let appended = md.lines().count() + 2;
-    let green = md.lines().position(|l| l.contains("](page.assets/green.png)")).unwrap() + 1;
+    let green = md
+        .lines()
+        .position(|l| l.contains("](page.assets/green.png)"))
+        .unwrap()
+        + 1;
     let cases = [
         // `rfluence check` errors.
-        (md.clone() + "\nA footnote[^1].\n\n[^1]: Note.\n", 1, "2 errors (content Confluence can't store), nothing uploaded".to_string()),
-        (md.clone() + "\n[setup](./setup.md)\n", 2, format!("links to files without a Confluence page: line {appended}: ./setup.md (no such file)")),
-        (md.replace("  labels: []", "  labels: [\"a.b\"]"), 2, "contains '.'".to_string()),
-        (md.replace("  version: 2", "  verison: 2"), 2, "unknown keys under `rfluence:` in the frontmatter: verison".to_string()),
-        (md.replacen("](page.assets/green.png)", "](page.assets/missing.png)", 1), 2, format!("image files not found, and the page has no attachment with their names: line {green}: page.assets/missing.png")),
+        (
+            md.clone() + "\nA footnote[^1].\n\n[^1]: Note.\n",
+            1,
+            "2 errors (content Confluence can't store), nothing uploaded".to_string(),
+        ),
+        (
+            md.clone() + "\n[setup](./setup.md)\n",
+            2,
+            format!(
+                "links to files without a Confluence page: line {appended}: ./setup.md (no such file)"
+            ),
+        ),
+        (
+            md.replace("  labels: []", "  labels: [\"a.b\"]"),
+            2,
+            "contains '.'".to_string(),
+        ),
+        (
+            md.replace("  version: 2", "  verison: 2"),
+            2,
+            "unknown keys under `rfluence:` in the frontmatter: verison".to_string(),
+        ),
+        (
+            md.replacen("](page.assets/green.png)", "](page.assets/missing.png)", 1),
+            2,
+            format!(
+                "image files not found, and the page has no attachment with their names: line {green}: page.assets/missing.png"
+            ),
+        ),
     ];
     for (file, code, message) in cases {
         let message = message.as_str();
@@ -392,7 +510,11 @@ fn creates_a_page_and_records_it_in_the_file() {
         ]))
         .with_body(site.created(1))
         .create();
-    let (label, property) = site.expect_labels_and_property(json!([{ "prefix": "global", "name": "docs" }]), 1, "new.md");
+    let (label, property) = site.expect_labels_and_property(
+        json!([{ "prefix": "global", "name": "docs" }]),
+        1,
+        "new.md",
+    );
 
     let o = site.upload_file("new.md", &[]);
     assert!(o.status.success(), "{}", err(&o));
@@ -400,11 +522,20 @@ fn creates_a_page_and_records_it_in_the_file() {
     label.assert();
     property.assert();
     let url = format!("{}/wiki/spaces/ENG/pages/500", site.server.url());
-    assert_eq!(out(&o), format!("Created page 500 \"New page\" in space ENG from {} (version 1)\n  {url}\n  labels added: docs\n", site.path("new.md").display()));
+    assert_eq!(
+        out(&o),
+        format!(
+            "Created page 500 \"New page\" in space ENG from {} (version 1)\n  {url}\n  labels added: docs\n",
+            site.path("new.md").display()
+        )
+    );
     let expected = format!(
         "---\ntags: [kept]\nrfluence:\n  id: \"500\"\n  space_key: ENG\n  parent: \"100\"\n  version: 1\n  url: {url}\n  labels: [docs]\n---\n\n# New page\n\nHello.\n"
     );
-    similar_asserts::assert_eq!(std::fs::read_to_string(site.path("new.md")).unwrap(), expected);
+    similar_asserts::assert_eq!(
+        std::fs::read_to_string(site.path("new.md")).unwrap(),
+        expected
+    );
 }
 
 #[test]
@@ -417,7 +548,9 @@ fn creates_a_page_with_images_then_attaches_them() {
     let create = site
         .server
         .mock("POST", "/wiki/api/v2/pages")
-        .match_body(Matcher::PartialJson(json!({ "parentId": "42", "title": "New page" })))
+        .match_body(Matcher::PartialJson(
+            json!({ "parentId": "42", "title": "New page" }),
+        ))
         .with_body(site.created(1))
         .create();
     let attach = site
@@ -446,10 +579,22 @@ fn creates_a_page_with_images_then_attaches_them() {
     body.assert();
     label.assert();
     property.assert();
-    assert!(out(&o).contains("(version 2)") && out(&o).contains("images uploaded: box.png"), "{}", out(&o));
+    assert!(
+        out(&o).contains("(version 2)") && out(&o).contains("images uploaded: box.png"),
+        "{}",
+        out(&o)
+    );
     let written = std::fs::read_to_string(site.path("new.md")).unwrap();
-    assert!(written.starts_with("---\nrfluence:\n  id: \"500\"\n  space_key: ENG\n  parent: \"100\"\n  version: 2\n"), "{written}");
-    assert!(written.ends_with("---\n\n# New page\n\n![box](new.assets/box.png)\n"), "{written}");
+    assert!(
+        written.starts_with(
+            "---\nrfluence:\n  id: \"500\"\n  space_key: ENG\n  parent: \"100\"\n  version: 2\n"
+        ),
+        "{written}"
+    );
+    assert!(
+        written.ends_with("---\n\n# New page\n\n![box](new.assets/box.png)\n"),
+        "{written}"
+    );
 }
 
 #[test]
@@ -459,7 +604,11 @@ fn never_creates_a_duplicate_title() {
     let post = site.server.mock("POST", Matcher::Any).expect(0).create();
     let o = site.upload_file("new.md", &[]);
     assert_eq!(o.status.code(), Some(6), "{}", err(&o));
-    assert!(err(&o).contains("space ENG already has a page titled \"New page\" (page 321)"), "{}", err(&o));
+    assert!(
+        err(&o).contains("space ENG already has a page titled \"New page\" (page 321)"),
+        "{}",
+        err(&o)
+    );
     post.assert();
 
     // --force overwrites that page, and the file gets its ID.
@@ -469,21 +618,40 @@ fn never_creates_a_duplicate_title() {
         "body": { "atlas_doc_format": { "value": r#"{"type":"doc","version":1,"content":[]}"# } },
         "_links": { "webui": "/spaces/ENG/pages/321", "base": format!("{}/wiki", site.server.url()) },
     });
-    site.server.mock("GET", "/wiki/api/v2/pages/321").match_query(Matcher::Any).with_body(page.to_string()).create();
-    site.server.mock("GET", "/wiki/api/v2/pages/321/attachments").match_query(Matcher::Any).with_body(r#"{"results":[]}"#).create();
-    site.server.mock("GET", "/wiki/api/v2/pages/321/properties").match_query(Matcher::Any).with_body(r#"{"results":[]}"#).create();
+    site.server
+        .mock("GET", "/wiki/api/v2/pages/321")
+        .match_query(Matcher::Any)
+        .with_body(page.to_string())
+        .create();
+    site.server
+        .mock("GET", "/wiki/api/v2/pages/321/attachments")
+        .match_query(Matcher::Any)
+        .with_body(r#"{"results":[]}"#)
+        .create();
+    site.server
+        .mock("GET", "/wiki/api/v2/pages/321/properties")
+        .match_query(Matcher::Any)
+        .with_body(r#"{"results":[]}"#)
+        .create();
     let mut updated = page.clone();
     updated["version"]["number"] = 5.into();
     let put = site
         .server
         .mock("PUT", "/wiki/api/v2/pages/321")
-        .match_body(Matcher::AllOf(vec![Matcher::PartialJson(json!({ "version": { "number": 5 } })), sent_body_contains("dropped the ID")]))
+        .match_body(Matcher::AllOf(vec![
+            Matcher::PartialJson(json!({ "version": { "number": 5 } })),
+            sent_body_contains("dropped the ID"),
+        ]))
         .with_body(updated.to_string())
         .create();
     let o = site.upload_file("new.md", &["--force"]);
     assert!(o.status.success(), "{}", err(&o));
     put.assert();
-    assert!(std::fs::read_to_string(site.path("new.md")).unwrap().contains("  id: \"321\"\n  space_key: ENG\n  parent: \"100\"\n  version: 5\n"));
+    assert!(
+        std::fs::read_to_string(site.path("new.md"))
+            .unwrap()
+            .contains("  id: \"321\"\n  space_key: ENG\n  parent: \"100\"\n  version: 5\n")
+    );
 }
 
 #[test]
@@ -493,16 +661,30 @@ fn dry_run_create_and_what_a_new_page_needs() {
     site.write_file("new.md", "# New page\n\nText.\n");
     let o = site.upload_file("new.md", &["--space", "ENG", "--dry-run"]);
     assert!(o.status.success(), "{}", err(&o));
-    assert_eq!(out(&o), "Dry run: would create page \"New page\" in space ENG under 100\n");
-    assert_eq!(std::fs::read_to_string(site.path("new.md")).unwrap(), "# New page\n\nText.\n");
+    assert_eq!(
+        out(&o),
+        "Dry run: would create page \"New page\" in space ENG under 100\n"
+    );
+    assert_eq!(
+        std::fs::read_to_string(site.path("new.md")).unwrap(),
+        "# New page\n\nText.\n"
+    );
 
     let o = site.upload_file("new.md", &[]);
     assert_eq!(o.status.code(), Some(2));
-    assert!(err(&o).contains("no space to create the page in"), "{}", err(&o));
+    assert!(
+        err(&o).contains("no space to create the page in"),
+        "{}",
+        err(&o)
+    );
     site.write_file("untitled.md", "Text without a title.\n");
     let o = site.upload_file("untitled.md", &["--space", "ENG"]);
     assert_eq!(o.status.code(), Some(2));
-    assert!(err(&o).contains("has no title for the new page"), "{}", err(&o));
+    assert!(
+        err(&o).contains("has no title for the new page"),
+        "{}",
+        err(&o)
+    );
     site.write_file("new.md", "# New page\n\n![](missing.png)\n");
     let o = site.upload_file("new.md", &["--space", "ENG"]);
     assert_eq!(o.status.code(), Some(2));
@@ -514,20 +696,54 @@ fn dry_run_create_and_what_a_new_page_needs() {
 /// Diagrams Viewer diagram (source expand + macro), else a code block.
 #[test]
 fn uploads_mermaid_for_the_apps_the_site_has() {
-    const MERFLUENCE: (&str, &str) = ("5321c3d1-955d-42ac-9f09-d4d6f0802224", "04b85365-6260-47d9-9f03-8f42e258aab7");
-    const VIEWER: (&str, &str) = ("23392b90-4271-4239-98ca-a3e96c663cbb", "63d4d207-ac2f-4273-865c-0240d37f044a");
+    const MERFLUENCE: (&str, &str) = (
+        "5321c3d1-955d-42ac-9f09-d4d6f0802224",
+        "04b85365-6260-47d9-9f03-8f42e258aab7",
+    );
+    const VIEWER: (&str, &str) = (
+        "23392b90-4271-4239-98ca-a3e96c663cbb",
+        "63d4d207-ac2f-4273-865c-0240d37f044a",
+    );
     /// (case, the site's Mermaid apps (none: the lookup fails), what the new page's body has)
     type Case<'a> = (&'a str, Option<Vec<(&'a str, &'a str)>>, Vec<&'a str>);
     let cases: [Case; 4] = [
-        ("both", Some(vec![VIEWER, MERFLUENCE]), vec![r#""extensionKey":"5321c3d1-955d-42ac-9f09-d4d6f0802224/04b85365"#, r#""source":"graph LR\n  a --> b""#]),
-        ("viewer", Some(vec![VIEWER]), vec![r#""title":"Mermaid source""#, r#""extensionKey":"23392b90-4271-4239-98ca-a3e96c663cbb/63d4d207"#]),
-        ("neither", Some(vec![]), vec![r#"{"type":"codeBlock","attrs":{"language":"mermaid"}"#]),
-        ("lookup fails", None, vec![r#"{"type":"codeBlock","attrs":{"language":"mermaid"}"#]),
+        (
+            "both",
+            Some(vec![VIEWER, MERFLUENCE]),
+            vec![
+                r#""extensionKey":"5321c3d1-955d-42ac-9f09-d4d6f0802224/04b85365"#,
+                r#""source":"graph LR\n  a --> b""#,
+            ],
+        ),
+        (
+            "viewer",
+            Some(vec![VIEWER]),
+            vec![
+                r#""title":"Mermaid source""#,
+                r#""extensionKey":"23392b90-4271-4239-98ca-a3e96c663cbb/63d4d207"#,
+            ],
+        ),
+        (
+            "neither",
+            Some(vec![]),
+            vec![r#"{"type":"codeBlock","attrs":{"language":"mermaid"}"#],
+        ),
+        (
+            "lookup fails",
+            None,
+            vec![r#"{"type":"codeBlock","attrs":{"language":"mermaid"}"#],
+        ),
     ];
     for (name, installed, sent) in cases {
         let mut site = Site::with_space(&format!("mermaid-{}", name.replace(' ', "-")), None);
-        site.write_file("new.md", "# New page\n\n```mermaid\ngraph LR\n  a --> b\n```\n");
-        site.server.mock("GET", "/_edge/tenant_info").with_body(r#"{"cloudId":"cloud-1"}"#).create();
+        site.write_file(
+            "new.md",
+            "# New page\n\n```mermaid\ngraph LR\n  a --> b\n```\n",
+        );
+        site.server
+            .mock("GET", "/_edge/tenant_info")
+            .with_body(r#"{"cloudId":"cloud-1"}"#)
+            .create();
         let graphql = site.server.mock("POST", "/gateway/api/graphql").match_body(Matcher::PartialJson(json!({
             "operationName": "rfluence_macros",
             "variables": { "contextIds": ["ari:cloud:confluence::site/cloud-1"], "type": "xen:macro" },
@@ -543,10 +759,15 @@ fn uploads_mermaid_for_the_apps_the_site_has() {
         let create = site
             .server
             .mock("POST", "/wiki/api/v2/pages")
-            .match_body(Matcher::AllOf(sent.iter().map(|s| sent_body_contains(s)).collect()))
+            .match_body(Matcher::AllOf(
+                sent.iter().map(|s| sent_body_contains(s)).collect(),
+            ))
             .with_body(site.created(1))
             .create();
-        site.server.mock("POST", "/wiki/api/v2/pages/500/properties").with_body("{}").create();
+        site.server
+            .mock("POST", "/wiki/api/v2/pages/500/properties")
+            .with_body("{}")
+            .create();
 
         let o = site.upload_file("new.md", &["--space", "ENG"]);
         assert!(o.status.success(), "{name}: {}", err(&o));
@@ -563,18 +784,31 @@ fn uploads_mermaid_for_the_apps_the_site_has() {
 fn moves_a_page_to_its_parent() {
     let mut site = Site::new("move", None, 2, None);
     site.fetch();
-    let md = site.read().replace("  parent: \"753877\"", "  parent: \"999\"");
+    let md = site
+        .read()
+        .replace("  parent: \"753877\"", "  parent: \"999\"");
     site.write(&md);
     let put = site.server.mock("PUT", Matcher::Any).expect(0).create();
     let o = site.upload(&[]);
     assert!(o.status.success(), "{}", err(&o));
-    assert!(err(&o).contains("`parent` is 999, but the page is under 753877; it's left where it is; --move moves it"), "{}", err(&o));
+    assert!(
+        err(&o).contains(
+            "`parent` is 999, but the page is under 753877; it's left where it is; --move moves it"
+        ),
+        "{}",
+        err(&o)
+    );
     assert!(out(&o).contains("is up to date"), "{}", out(&o));
     put.assert();
     put.remove();
-    assert!(site.read().contains("  parent: \"999\"\n"), "the requested parent is kept: {}", site.read());
+    assert!(
+        site.read().contains("  parent: \"999\"\n"),
+        "the requested parent is kept: {}",
+        site.read()
+    );
 
-    let mut moved: serde_json::Value = serde_json::from_str(&page_json(&site.server, None, 3)).unwrap();
+    let mut moved: serde_json::Value =
+        serde_json::from_str(&page_json(&site.server, None, 3)).unwrap();
     moved["parentId"] = "999".into();
     let put = site
         .server
@@ -585,8 +819,16 @@ fn moves_a_page_to_its_parent() {
     let o = site.upload(&["--move"]);
     assert!(o.status.success(), "{}", err(&o));
     put.assert();
-    assert!(out(&o).contains("(version 2 -> 3)") && out(&o).contains("  parent: 753877 -> 999"), "{}", out(&o));
-    assert!(site.read().contains("  parent: \"999\"\n  version: 3\n"), "{}", site.read());
+    assert!(
+        out(&o).contains("(version 2 -> 3)") && out(&o).contains("  parent: 753877 -> 999"),
+        "{}",
+        out(&o)
+    );
+    assert!(
+        site.read().contains("  parent: \"999\"\n  version: 3\n"),
+        "{}",
+        site.read()
+    );
 }
 
 /// `--warnings-are-errors`: content uploaded as a close equivalent (here `<kbd>`, as inline
@@ -598,7 +840,11 @@ fn warnings_can_stop_an_upload() {
     site.write(&(site.read() + "\nPress <kbd>Ctrl</kbd>.\n"));
     let o = site.upload(&["--dry-run"]);
     assert!(o.status.success(), "{}", err(&o));
-    assert!(err(&o).contains("warning: `<kbd>` written as inline code"), "{}", err(&o));
+    assert!(
+        err(&o).contains("warning: `<kbd>` written as inline code"),
+        "{}",
+        err(&o)
+    );
 
     let o = site.upload(&["--dry-run", "--warnings-are-errors"]);
     assert_eq!(o.status.code(), Some(1), "{}", err(&o));
@@ -618,13 +864,22 @@ fn handles_windows_line_endings() {
     site.write(&crlf(&site.read()));
     let unchanged = site.upload(&[]);
     assert!(unchanged.status.success(), "{}", err(&unchanged));
-    assert!(out(&unchanged).contains("is up to date (version 2)"), "the frontmatter was read: {}", out(&unchanged));
+    assert!(
+        out(&unchanged).contains("is up to date (version 2)"),
+        "the frontmatter was read: {}",
+        out(&unchanged)
+    );
 
-    site.write(&crlf(&(site.read().replace("\r\n", "\n") + "\nLocal edit.\n")));
+    site.write(&crlf(
+        &(site.read().replace("\r\n", "\n") + "\nLocal edit.\n"),
+    ));
     let update = site.expect_update(3, vec![sent_body_contains("Local edit.")]);
     let o = site.upload(&[]);
     assert!(o.status.success(), "{}", err(&o));
     update.assert();
     let md = site.read();
-    assert!(md.contains("  version: 3\r\n") && !md.replace("\r\n", "").contains('\n'), "still \\r\\n everywhere: {md:?}");
+    assert!(
+        md.contains("  version: 3\r\n") && !md.replace("\r\n", "").contains('\n'),
+        "still \\r\\n everywhere: {md:?}"
+    );
 }

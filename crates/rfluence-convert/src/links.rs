@@ -61,7 +61,8 @@ pub fn linked_page_ids(doc: &crate::adf::Node, host: &str) -> Vec<String> {
     doc.walk(&mut |n| {
         for mark in n.marks.iter().filter(|m| m.kind == "link") {
             if let Some(link) = mark.attr_str("href").and_then(|u| page_link(u, host))
-                && !ids.contains(&link.id) {
+                && !ids.contains(&link.id)
+            {
                 ids.push(link.id);
             }
         }
@@ -111,11 +112,29 @@ mod tests {
     #[test]
     fn resolves_page_urls() {
         let link = |u: &str| page_link(u, HOST);
-        assert_eq!(link("https://x.atlassian.net/wiki/spaces/ENG/pages/123").unwrap().id, "123");
-        let with_anchor = link("https://x.atlassian.net/wiki/spaces/ENG/pages/123/Some+Title#Install-&-Setup").unwrap();
-        assert_eq!((with_anchor.id.as_str(), with_anchor.anchor.as_deref()), ("123", Some("Install-&-Setup")));
-        assert_eq!(link("https://x.atlassian.net/wiki/pages/viewpage.action?pageId=456").unwrap().id, "456");
-        assert_eq!(link("https://x.atlassian.net/wiki/x/tYEE").unwrap().id, "295349");
+        assert_eq!(
+            link("https://x.atlassian.net/wiki/spaces/ENG/pages/123")
+                .unwrap()
+                .id,
+            "123"
+        );
+        let with_anchor =
+            link("https://x.atlassian.net/wiki/spaces/ENG/pages/123/Some+Title#Install-&-Setup")
+                .unwrap();
+        assert_eq!(
+            (with_anchor.id.as_str(), with_anchor.anchor.as_deref()),
+            ("123", Some("Install-&-Setup"))
+        );
+        assert_eq!(
+            link("https://x.atlassian.net/wiki/pages/viewpage.action?pageId=456")
+                .unwrap()
+                .id,
+            "456"
+        );
+        assert_eq!(
+            link("https://x.atlassian.net/wiki/x/tYEE").unwrap().id,
+            "295349"
+        );
         assert!(link("https://other.atlassian.net/wiki/spaces/ENG/pages/123").is_none());
         assert!(link("https://x.atlassian.net/wiki/spaces/ENG/overview").is_none());
         assert!(link("#anchor").is_none());
@@ -136,8 +155,14 @@ mod tests {
     fn decodes_tiny_links() {
         // From captured page responses (`_links.tinyui`).
         for (code, id) in [
-            ("JgAH", 458790), ("ZIAB", 98404), ("CAAL", 720904), ("GIAG", 426008),
-            ("AgAC", 131074), ("tYEE", 295349), ("AwAH", 458755), ("rYEE", 295341),
+            ("JgAH", 458790),
+            ("ZIAB", 98404),
+            ("CAAL", 720904),
+            ("GIAG", 426008),
+            ("AgAC", 131074),
+            ("tYEE", 295349),
+            ("AwAH", 458755),
+            ("rYEE", 295341),
         ] {
             assert_eq!(tiny_link_id(code), Some(id), "{code}");
         }

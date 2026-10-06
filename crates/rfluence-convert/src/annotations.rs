@@ -23,7 +23,16 @@ const ATOM: char = '\u{FFFC}';
 fn is_inline(n: &Node) -> bool {
     matches!(
         n.kind.as_str(),
-        "text" | "hardBreak" | "emoji" | "mention" | "status" | "date" | "inlineCard" | "inlineExtension" | "placeholder" | "mediaInline"
+        "text"
+            | "hardBreak"
+            | "emoji"
+            | "mention"
+            | "status"
+            | "date"
+            | "inlineCard"
+            | "inlineExtension"
+            | "placeholder"
+            | "mediaInline"
     )
 }
 
@@ -65,8 +74,12 @@ pub fn reanchor(remote: &Node, new: &mut Node) -> Reanchored {
     let mut ranges: BTreeMap<String, (Mark, Vec<(usize, usize)>)> = BTreeMap::new();
     for (node, start, end) in &old_nodes {
         for mark in node.marks.iter().filter(|m| m.kind == "annotation") {
-            let Some(id) = mark.attr_str("id") else { continue };
-            let entry = ranges.entry(id.to_string()).or_insert_with(|| (mark.clone(), Vec::new()));
+            let Some(id) = mark.attr_str("id") else {
+                continue;
+            };
+            let entry = ranges
+                .entry(id.to_string())
+                .or_insert_with(|| (mark.clone(), Vec::new()));
             match entry.1.last_mut() {
                 Some(last) if last.1 == *start => last.1 = *end,
                 _ => entry.1.push((*start, *end)),
@@ -97,7 +110,11 @@ pub fn reanchor(remote: &Node, new: &mut Node) -> Reanchored {
             let (from, to) = (at, at + needle.len());
             for (k, (s, e)) in spans.iter().enumerate() {
                 if *s < to && from < *e {
-                    additions.entry(k).or_default().push((from.max(*s) - s, to.min(*e) - s, mark.clone()));
+                    additions.entry(k).or_default().push((
+                        from.max(*s) - s,
+                        to.min(*e) - s,
+                        mark.clone(),
+                    ));
                 }
             }
             result.kept += 1;
@@ -163,7 +180,11 @@ fn split(node: &Node, adds: &[(usize, usize, Mark)]) -> Vec<Node> {
 
 fn shorten(s: &str) -> String {
     let one_line = s.split_whitespace().collect::<Vec<_>>().join(" ");
-    if one_line.chars().count() > 60 { format!("{}…", one_line.chars().take(59).collect::<String>()) } else { one_line }
+    if one_line.chars().count() > 60 {
+        format!("{}…", one_line.chars().take(59).collect::<String>())
+    } else {
+        one_line
+    }
 }
 
 #[cfg(test)]
@@ -178,7 +199,10 @@ mod tests {
         let mut out = Vec::new();
         doc.walk(&mut |n| {
             if let Some(m) = n.marks.iter().find(|m| m.kind == "annotation") {
-                out.push((n.text.clone().unwrap_or_default(), m.attr_str("id").unwrap_or_default().to_string()));
+                out.push((
+                    n.text.clone().unwrap_or_default(),
+                    m.attr_str("id").unwrap_or_default().to_string(),
+                ));
             }
         });
         out
@@ -188,19 +212,31 @@ mod tests {
         format!(r#"{{"type":"paragraph","content":[{texts}]}}"#)
     }
 
-    const NOTE: &str = r#"{"type":"annotation","attrs":{"annotationType":"inlineComment","id":"c1"}}"#;
+    const NOTE: &str =
+        r#"{"type":"annotation","attrs":{"annotationType":"inlineComment","id":"c1"}}"#;
 
     #[test]
     fn keeps_a_comment_on_unchanged_text() {
         let remote = doc(&format!(
             r#"{{"type":"doc","content":[{}]}}"#,
-            para(&format!(r#"{{"type":"text","text":"Line with "}},{{"type":"text","text":"inline comment","marks":[{NOTE}]}}"#))
+            para(&format!(
+                r#"{{"type":"text","text":"Line with "}},{{"type":"text","text":"inline comment","marks":[{NOTE}]}}"#
+            ))
         ));
-        let mut new = doc(&format!(r#"{{"type":"doc","content":[{}]}}"#, para(r#"{"type":"text","text":"Line with inline comment"}"#)));
+        let mut new = doc(&format!(
+            r#"{{"type":"doc","content":[{}]}}"#,
+            para(r#"{"type":"text","text":"Line with inline comment"}"#)
+        ));
         let r = reanchor(&remote, &mut new);
         assert_eq!((r.kept, r.lost.len()), (1, 0));
-        assert_eq!(annotated(&new), [("inline comment".to_string(), "c1".to_string())]);
-        assert_eq!(new.content[0].content[0].text.as_deref(), Some("Line with "));
+        assert_eq!(
+            annotated(&new),
+            [("inline comment".to_string(), "c1".to_string())]
+        );
+        assert_eq!(
+            new.content[0].content[0].text.as_deref(),
+            Some("Line with ")
+        );
     }
 
     #[test]
@@ -208,12 +244,28 @@ mod tests {
         // The second "the cat" is commented; a sentence added in front shifts everything.
         let remote = doc(&format!(
             r#"{{"type":"doc","content":[{}]}}"#,
-            para(&format!(r#"{{"type":"text","text":"the cat. "}},{{"type":"text","text":"the cat","marks":[{NOTE}]}},{{"type":"text","text":"."}}"#))
+            para(&format!(
+                r#"{{"type":"text","text":"the cat. "}},{{"type":"text","text":"the cat","marks":[{NOTE}]}},{{"type":"text","text":"."}}"#
+            ))
         ));
-        let mut new = doc(&format!(r#"{{"type":"doc","content":[{}]}}"#, para(r#"{"type":"text","text":"New intro. the cat. the cat."}"#)));
+        let mut new = doc(&format!(
+            r#"{{"type":"doc","content":[{}]}}"#,
+            para(r#"{"type":"text","text":"New intro. the cat. the cat."}"#)
+        ));
         reanchor(&remote, &mut new);
-        let texts: Vec<_> = new.content[0].content.iter().map(|n| (n.text.clone().unwrap(), !n.marks.is_empty())).collect();
-        assert_eq!(texts, [("New intro. the cat. ".into(), false), ("the cat".into(), true), (".".into(), false)]);
+        let texts: Vec<_> = new.content[0]
+            .content
+            .iter()
+            .map(|n| (n.text.clone().unwrap(), !n.marks.is_empty()))
+            .collect();
+        assert_eq!(
+            texts,
+            [
+                ("New intro. the cat. ".into(), false),
+                ("the cat".into(), true),
+                (".".into(), false)
+            ]
+        );
     }
 
     #[test]
@@ -221,29 +273,48 @@ mod tests {
         // Commented text crossing a bold run, re-uploaded with different formatting.
         let remote = doc(&format!(
             r#"{{"type":"doc","content":[{}]}}"#,
-            para(&format!(r#"{{"type":"text","text":"very ","marks":[{NOTE}]}},{{"type":"text","text":"bold","marks":[{{"type":"strong"}},{NOTE}]}},{{"type":"text","text":" claim"}}"#))
+            para(&format!(
+                r#"{{"type":"text","text":"very ","marks":[{NOTE}]}},{{"type":"text","text":"bold","marks":[{{"type":"strong"}},{NOTE}]}},{{"type":"text","text":" claim"}}"#
+            ))
         ));
         let mut new = doc(&format!(
             r#"{{"type":"doc","content":[{}]}}"#,
-            para(r#"{"type":"text","text":"very bold","marks":[{"type":"em"}]},{"type":"text","text":" claim"}"#)
+            para(
+                r#"{"type":"text","text":"very bold","marks":[{"type":"em"}]},{"type":"text","text":" claim"}"#
+            )
         ));
         let r = reanchor(&remote, &mut new);
         assert_eq!(r.kept, 1);
-        assert_eq!(annotated(&new), [("very bold".to_string(), "c1".to_string())]);
-        assert_eq!(new.content[0].content[0].marks.len(), 2, "keeps em and adds the annotation");
+        assert_eq!(
+            annotated(&new),
+            [("very bold".to_string(), "c1".to_string())]
+        );
+        assert_eq!(
+            new.content[0].content[0].marks.len(),
+            2,
+            "keeps em and adds the annotation"
+        );
     }
 
     #[test]
     fn reports_changed_or_ambiguous_text() {
         let remote = doc(&format!(
             r#"{{"type":"doc","content":[{}]}}"#,
-            para(&format!(r#"{{"type":"text","text":"x x "}},{{"type":"text","text":"x","marks":[{NOTE}]}}"#))
+            para(&format!(
+                r#"{{"type":"text","text":"x x "}},{{"type":"text","text":"x","marks":[{NOTE}]}}"#
+            ))
         ));
         // Changed: gone.
-        let mut changed = doc(&format!(r#"{{"type":"doc","content":[{}]}}"#, para(r#"{"type":"text","text":"y y y"}"#)));
+        let mut changed = doc(&format!(
+            r#"{{"type":"doc","content":[{}]}}"#,
+            para(r#"{"type":"text","text":"y y y"}"#)
+        ));
         assert_eq!(reanchor(&remote, &mut changed).lost, ["x"]);
         // The third "x" no longer exists and two remain: ambiguous.
-        let mut ambiguous = doc(&format!(r#"{{"type":"doc","content":[{}]}}"#, para(r#"{"type":"text","text":"x x"}"#)));
+        let mut ambiguous = doc(&format!(
+            r#"{{"type":"doc","content":[{}]}}"#,
+            para(r#"{"type":"text","text":"x x"}"#)
+        ));
         let r = reanchor(&remote, &mut ambiguous);
         assert_eq!((r.kept, r.lost.len()), (0, 1));
         assert!(annotated(&ambiguous).is_empty());
@@ -253,11 +324,15 @@ mod tests {
     fn doesnt_match_across_blocks_or_inline_nodes() {
         let remote = doc(&format!(
             r#"{{"type":"doc","content":[{}]}}"#,
-            para(&format!(r#"{{"type":"text","text":"ab","marks":[{NOTE}]}}"#))
+            para(&format!(
+                r#"{{"type":"text","text":"ab","marks":[{NOTE}]}}"#
+            ))
         ));
         let mut new = doc(&format!(
             r#"{{"type":"doc","content":[{},{}]}}"#,
-            para(r#"{"type":"text","text":"a"},{"type":"emoji","attrs":{"shortName":":x:"}},{"type":"text","text":"b"}"#),
+            para(
+                r#"{"type":"text","text":"a"},{"type":"emoji","attrs":{"shortName":":x:"}},{"type":"text","text":"b"}"#
+            ),
             para(r#"{"type":"text","text":"a"}"#)
         ));
         assert_eq!(reanchor(&remote, &mut new).lost, ["ab"]);

@@ -7,11 +7,11 @@
 
 use std::collections::{HashMap, HashSet};
 
-use comrak::nodes::{
-    AlertType, AstNode, ListDelimType, ListType, NodeAlert, NodeCodeBlock, NodeHeading, NodeHtmlBlock, NodeLink,
-    NodeList, NodeTable, NodeTaskItem, NodeValue, TableAlignment,
-};
 use comrak::Arena;
+use comrak::nodes::{
+    AlertType, AstNode, ListDelimType, ListType, NodeAlert, NodeCodeBlock, NodeHeading,
+    NodeHtmlBlock, NodeLink, NodeList, NodeTable, NodeTaskItem, NodeValue, TableAlignment,
+};
 use serde_json::Value;
 
 use crate::adf::{self, Mark, Node};
@@ -66,13 +66,24 @@ pub fn adf_to_markdown(doc: &Node, ctx: &FetchContext) -> String {
             headings.push(n.plain_text());
         }
     });
-    let viewer = if ctx.simplified { mermaid::viewer_sources(doc) } else { Default::default() };
-    let w = Writer { arena: &arena, ctx, anchors: Anchors::new(headings.iter().map(String::as_str)), viewer };
+    let viewer = if ctx.simplified {
+        mermaid::viewer_sources(doc)
+    } else {
+        Default::default()
+    };
+    let w = Writer {
+        arena: &arena,
+        ctx,
+        anchors: Anchors::new(headings.iter().map(String::as_str)),
+        viewer,
+    };
     w.blocks(root, &doc.content);
     if ctx.simplified {
         // Never compared in a round trip, so no normalize pass (it would escape the
         // simplified markers, e.g. `[IN PROGRESS]` as `\[IN PROGRESS\]`).
-        crate::markdown::collapse_blank_lines(&crate::markdown::strip_trailing_whitespace(&crate::markdown::render(root)))
+        crate::markdown::collapse_blank_lines(&crate::markdown::strip_trailing_whitespace(
+            &crate::markdown::render(root),
+        ))
     } else {
         normalize(&crate::markdown::render(root))
     }
@@ -91,7 +102,9 @@ impl<'a> Writer<'a, '_> {
         let mut i = 0;
         while i < nodes.len() {
             // A viewer diagram as rfluence uploads it: source expand, then the macro.
-            if let Some(source) = mermaid::viewer_pair(&nodes[i], nodes.get(i + 1)).filter(|_| !self.simple()) {
+            if let Some(source) =
+                mermaid::viewer_pair(&nodes[i], nodes.get(i + 1)).filter(|_| !self.simple())
+            {
                 self.code(parent, "mermaid".into(), format!("{source}\n"));
                 i += 2;
                 continue;
@@ -103,7 +116,9 @@ impl<'a> Writer<'a, '_> {
 
     /// Simplified output: a viewer macro as the diagram it draws.
     fn viewer_diagram(&self, parent: &'a AstNode<'a>, node: &Node) -> bool {
-        let Some(source) = self.viewer.0.get(&(node as *const Node)) else { return false };
+        let Some(source) = self.viewer.0.get(&(node as *const Node)) else {
+            return false;
+        };
         self.code(parent, "mermaid".into(), format!("{source}\n"));
         true
     }
@@ -118,7 +133,9 @@ impl<'a> Writer<'a, '_> {
             "paragraph" => self.paragraph(parent, node),
             "heading" => self.heading(parent, node),
             "codeBlock" if self.drawn(node) => true,
-            "expand" if !node.content.is_empty() && node.content.iter().all(|n| self.drawn(n)) => true,
+            "expand" if !node.content.is_empty() && node.content.iter().all(|n| self.drawn(n)) => {
+                true
+            }
             "codeBlock" => self.code_block(parent, node),
             "blockquote" if node.marks.is_empty() => {
                 let quote = append(self.arena, parent, NodeValue::BlockQuote);
@@ -135,7 +152,9 @@ impl<'a> Writer<'a, '_> {
             "mediaSingle" => self.media_single(parent, node),
             "blockCard" | "embedCard" => self.card(parent, node),
             "extension" if mermaid::is_merfluence(node) => self.mermaid(parent, node),
-            "extension" if self.simple() && mermaid::is_viewer(node) => self.viewer_diagram(parent, node),
+            "extension" if self.simple() && mermaid::is_viewer(node) => {
+                self.viewer_diagram(parent, node)
+            }
             "table" => self.table(parent, node),
             "expand" | "nestedExpand" => self.expand(parent, node),
             "layoutSection" => self.layout(parent, node),
@@ -191,7 +210,11 @@ impl<'a> Writer<'a, '_> {
                 let items = node
                     .content
                     .iter()
-                    .map(|d| Node::new("listItem").with_content(vec![Node::new("paragraph").with_content(d.content.clone())]))
+                    .map(|d| {
+                        Node::new("listItem").with_content(vec![
+                            Node::new("paragraph").with_content(d.content.clone()),
+                        ])
+                    })
                     .collect();
                 self.list(parent, &Node::new("bulletList").with_content(items));
             }
@@ -271,7 +294,9 @@ impl<'a> Writer<'a, '_> {
         while content.last().is_some_and(|n| n.is("hardBreak")) {
             content = &content[..content.len() - 1];
         }
-        let Some(items) = self.items(content) else { return false };
+        let Some(items) = self.items(content) else {
+            return false;
+        };
         if items.is_empty() {
             // Markdown has no empty paragraph (design.md, "What Confluence rewrites on save").
             return true;
@@ -291,8 +316,18 @@ impl<'a> Writer<'a, '_> {
             None => return false,
         };
         let level = node.attr_f64("level").unwrap_or(1.0).clamp(1.0, 6.0) as u8;
-        let Some(items) = self.items(&node.content) else { return false };
-        let h = append(self.arena, parent, NodeValue::Heading(NodeHeading { level, setext: false, closed: false }));
+        let Some(items) = self.items(&node.content) else {
+            return false;
+        };
+        let h = append(
+            self.arena,
+            parent,
+            NodeValue::Heading(NodeHeading {
+                level,
+                setext: false,
+                closed: false,
+            }),
+        );
         inline::build(self.arena, h, &items);
         if !settings.is_empty() {
             append(self.arena, h, NodeValue::HtmlInline(settings.to_comment()));
@@ -302,10 +337,18 @@ impl<'a> Writer<'a, '_> {
 
     fn code_block(&self, parent: &'a AstNode<'a>, node: &Node) -> bool {
         if self.simple() {
-            self.code(parent, node.attr_str("language").unwrap_or("").to_string(), node.plain_text() + "\n");
+            self.code(
+                parent,
+                node.attr_str("language").unwrap_or("").to_string(),
+                node.plain_text() + "\n",
+            );
             return true;
         }
-        if node.attrs.keys().any(|k| !matches!(k.as_str(), "language" | "localId") && !k.starts_with("__")) {
+        if node
+            .attrs
+            .keys()
+            .any(|k| !matches!(k.as_str(), "language" | "localId") && !k.starts_with("__"))
+        {
             return false;
         }
         let mut settings = Settings::new();
@@ -325,7 +368,14 @@ impl<'a> Writer<'a, '_> {
     }
 
     fn html_block(&self, parent: &'a AstNode<'a>, literal: String) {
-        append(self.arena, parent, NodeValue::HtmlBlock(NodeHtmlBlock { block_type: 6, literal }));
+        append(
+            self.arena,
+            parent,
+            NodeValue::HtmlBlock(NodeHtmlBlock {
+                block_type: 6,
+                literal,
+            }),
+        );
     }
 
     /// An expand as `<details><summary>Title</summary>` ... `</details>`.
@@ -336,17 +386,30 @@ impl<'a> Writer<'a, '_> {
             if !title.is_empty() {
                 let p = append(self.arena, parent, NodeValue::Paragraph);
                 let strong = append(self.arena, p, NodeValue::Strong);
-                append(self.arena, strong, NodeValue::Text(title.to_string().into()));
+                append(
+                    self.arena,
+                    strong,
+                    NodeValue::Text(title.to_string().into()),
+                );
             }
             self.blocks(parent, &node.content);
             return true;
         }
-        if node.attrs.keys().any(|k| !matches!(k.as_str(), "title" | "localId") && !k.starts_with("__"))
-            || node.marks.iter().any(|m| !(m.kind == "breakout" && adf::is_default_breakout(m)))
+        if node
+            .attrs
+            .keys()
+            .any(|k| !matches!(k.as_str(), "title" | "localId") && !k.starts_with("__"))
+            || node
+                .marks
+                .iter()
+                .any(|m| !(m.kind == "breakout" && adf::is_default_breakout(m)))
         {
             return false;
         }
-        self.html_block(parent, crate::approx::details_open(node.attr_str("title").unwrap_or("")));
+        self.html_block(
+            parent,
+            crate::approx::details_open(node.attr_str("title").unwrap_or("")),
+        );
         self.blocks(parent, &node.content);
         self.html_block(parent, "</details>".into());
         true
@@ -366,7 +429,10 @@ impl<'a> Writer<'a, '_> {
         let mut widths = Vec::new();
         for column in &node.content {
             if !column.is("layoutColumn")
-                || column.attrs.keys().any(|k| !matches!(k.as_str(), "width" | "localId") && !k.starts_with("__"))
+                || column
+                    .attrs
+                    .keys()
+                    .any(|k| !matches!(k.as_str(), "width" | "localId") && !k.starts_with("__"))
             {
                 return false;
             }
@@ -402,7 +468,9 @@ impl<'a> Writer<'a, '_> {
     /// Tabs as `<!-- rf: tabs -->`, each tab after `<!-- rf: tab title="..." -->`, then
     /// `<!-- rf: end-tabs -->` (design.md, "Tabs and synced blocks").
     fn tabs(&self, parent: &'a AstNode<'a>, node: &Node) -> bool {
-        let Some(titles) = tab_titles(node) else { return false };
+        let Some(titles) = tab_titles(node) else {
+            return false;
+        };
         if self.simple() {
             // Each tab's title as a bold line, then its content.
             for (title, frame) in titles.iter().zip(&node.content) {
@@ -430,7 +498,9 @@ impl<'a> Writer<'a, '_> {
     /// A synced block on its own page: its content between markers carrying its ID. The
     /// content is read-only (upload sends Confluence's version).
     fn synced_original(&self, parent: &'a AstNode<'a>, node: &Node) -> bool {
-        let Some(id) = node.attr_str("resourceId") else { return false };
+        let Some(id) = node.attr_str("resourceId") else {
+            return false;
+        };
         if self.simple() {
             self.blocks(parent, &node.content);
             return true;
@@ -448,13 +518,20 @@ impl<'a> Writer<'a, '_> {
     /// A copy of a synced block: the source's content (read-only) between markers carrying
     /// the source page and block ID, or `unavailable` if the source couldn't be read.
     fn synced_copy(&self, parent: &'a AstNode<'a>, node: &Node) -> bool {
-        let Some(resource_id) = node.attr_str("resourceId") else { return false };
-        let Some((page, id)) = crate::synced::parse_copy(resource_id) else { return false };
+        let Some(resource_id) = node.attr_str("resourceId") else {
+            return false;
+        };
+        let Some((page, id)) = crate::synced::parse_copy(resource_id) else {
+            return false;
+        };
         let content = self.ctx.synced_copies.get(resource_id);
         if self.simple() {
             match content {
                 Some(c) => self.blocks(parent, c),
-                None => self.marker(parent, &format!("[Synced block from page {page}: not available]")),
+                None => self.marker(
+                    parent,
+                    &format!("[Synced block from page {page}: not available]"),
+                ),
             }
             return true;
         }
@@ -475,12 +552,21 @@ impl<'a> Writer<'a, '_> {
     }
 
     fn list(&self, parent: &'a AstNode<'a>, node: &Node) -> bool {
-        if !node.marks.is_empty() || node.content.iter().any(|i| !i.is("listItem") || !i.marks.is_empty()) {
+        if !node.marks.is_empty()
+            || node
+                .content
+                .iter()
+                .any(|i| !i.is("listItem") || !i.marks.is_empty())
+        {
             return false;
         }
         let ordered = node.is("orderedList");
         let info = NodeList {
-            list_type: if ordered { ListType::Ordered } else { ListType::Bullet },
+            list_type: if ordered {
+                ListType::Ordered
+            } else {
+                ListType::Bullet
+            },
             marker_offset: 0,
             padding: if ordered { 3 } else { 2 },
             start: node.attr_f64("order").unwrap_or(1.0) as usize,
@@ -531,7 +617,10 @@ impl<'a> Writer<'a, '_> {
             let item = append(
                 self.arena,
                 list,
-                NodeValue::TaskItem(NodeTaskItem { symbol: done.then_some('x'), symbol_sourcepos: (1, 1, 1, 1).into() }),
+                NodeValue::TaskItem(NodeTaskItem {
+                    symbol: done.then_some('x'),
+                    symbol_sourcepos: (1, 1, 1, 1).into(),
+                }),
             );
             let items = self.items(&child.content).unwrap_or_default();
             if !items.is_empty() {
@@ -553,7 +642,10 @@ impl<'a> Writer<'a, '_> {
             Some("error") => AlertType::Caution,
             _ => return false,
         };
-        if node.attrs.keys().any(|k| !matches!(k.as_str(), "panelType" | "localId") && !k.starts_with("__"))
+        if node
+            .attrs
+            .keys()
+            .any(|k| !matches!(k.as_str(), "panelType" | "localId") && !k.starts_with("__"))
             || !node.marks.is_empty()
         {
             return false;
@@ -561,41 +653,80 @@ impl<'a> Writer<'a, '_> {
         let alert = append(
             self.arena,
             parent,
-            NodeValue::Alert(Box::new(NodeAlert { alert_type, title: None, multiline: false, fence_length: 0, fence_offset: 0 })),
+            NodeValue::Alert(Box::new(NodeAlert {
+                alert_type,
+                title: None,
+                multiline: false,
+                fence_length: 0,
+                fence_offset: 0,
+            })),
         );
         self.blocks(alert, &node.content);
         true
     }
 
     fn media_single(&self, parent: &'a AstNode<'a>, node: &Node) -> bool {
-        let Some(media) = node.content.first().filter(|m| m.is("media")) else { return false };
+        let Some(media) = node.content.first().filter(|m| m.is("media")) else {
+            return false;
+        };
         if self.simple() {
             self.simplified_image(parent, node, media);
             return true;
         }
         let caption = match &node.content[1..] {
             [] => None,
-            [c] if c.is("caption") && c.content.iter().all(|t| t.is("text") && t.marks.is_empty()) => Some(c.plain_text()),
+            [c] if c.is("caption")
+                && c.content.iter().all(|t| t.is("text") && t.marks.is_empty()) =>
+            {
+                Some(c.plain_text())
+            }
             _ => return false,
         };
         let known_ms = ["layout", "width", "widthType", "localId"];
-        let known_media = ["type", "id", "collection", "alt", "url", "width", "height", "localId"];
-        if node.attrs.keys().any(|k| !known_ms.contains(&k.as_str()) && !k.starts_with("__"))
-            || media.attrs.keys().any(|k| !known_media.contains(&k.as_str()) && !k.starts_with("__"))
+        let known_media = [
+            "type",
+            "id",
+            "collection",
+            "alt",
+            "url",
+            "width",
+            "height",
+            "localId",
+        ];
+        if node
+            .attrs
+            .keys()
+            .any(|k| !known_ms.contains(&k.as_str()) && !k.starts_with("__"))
+            || media
+                .attrs
+                .keys()
+                .any(|k| !known_media.contains(&k.as_str()) && !k.starts_with("__"))
             || !node.marks.is_empty()
         {
             return false;
         }
         let src = match media.attr_str("type") {
             Some("file") => {
-                let Some(id) = media.attr_str("id") else { return false };
+                let Some(id) = media.attr_str("id") else {
+                    return false;
+                };
                 if let Some(page) = &self.ctx.page_id
-                    && media.attr_str("collection") != Some(&format!("contentId-{page}")) {
+                    && media.attr_str("collection") != Some(&format!("contentId-{page}"))
+                {
                     return false;
                 }
-                let name = self.ctx.attachments.get(id).map(String::as_str).or_else(|| media.attr_str("__fileName"));
+                let name = self
+                    .ctx
+                    .attachments
+                    .get(id)
+                    .map(String::as_str)
+                    .or_else(|| media.attr_str("__fileName"));
                 let Some(name) = name else { return false };
-                if self.ctx.assets_dir.is_empty() { name.to_string() } else { format!("{}/{name}", self.ctx.assets_dir) }
+                if self.ctx.assets_dir.is_empty() {
+                    name.to_string()
+                } else {
+                    format!("{}/{name}", self.ctx.assets_dir)
+                }
             }
             Some("external") => match media.attr_str("url") {
                 Some(url) => url.to_string(),
@@ -640,11 +771,25 @@ impl<'a> Writer<'a, '_> {
         let target = match link {
             Some(href) => {
                 let url = self.local_link(href).unwrap_or_else(|| href.to_string());
-                append(self.arena, p, NodeValue::Link(Box::new(NodeLink { url, title: String::new() })))
+                append(
+                    self.arena,
+                    p,
+                    NodeValue::Link(Box::new(NodeLink {
+                        url,
+                        title: String::new(),
+                    })),
+                )
             }
             None => p,
         };
-        let img = append(self.arena, target, NodeValue::Image(Box::new(NodeLink { url: src, title: String::new() })));
+        let img = append(
+            self.arena,
+            target,
+            NodeValue::Image(Box::new(NodeLink {
+                url: src,
+                title: String::new(),
+            })),
+        );
         if let Some(alt) = media.attr_str("alt").filter(|a| !a.is_empty()) {
             append(self.arena, img, NodeValue::Text(alt.to_string().into()));
         }
@@ -658,10 +803,25 @@ impl<'a> Writer<'a, '_> {
     /// `[image: alt]`, since the file isn't there.
     fn simplified_image(&self, parent: &'a AstNode<'a>, node: &Node, media: &Node) {
         let alt = media.attr_str("alt").filter(|a| !a.is_empty());
-        let caption = node.content.iter().find(|c| c.is("caption")).map(Node::plain_text).filter(|c| !c.is_empty());
+        let caption = node
+            .content
+            .iter()
+            .find(|c| c.is("caption"))
+            .map(Node::plain_text)
+            .filter(|c| !c.is_empty());
         let p = append(self.arena, parent, NodeValue::Paragraph);
-        if let Some(url) = media.attr_str("url").filter(|_| media.attr_str("type") == Some("external")) {
-            let img = append(self.arena, p, NodeValue::Image(Box::new(NodeLink { url: url.into(), title: String::new() })));
+        if let Some(url) = media
+            .attr_str("url")
+            .filter(|_| media.attr_str("type") == Some("external"))
+        {
+            let img = append(
+                self.arena,
+                p,
+                NodeValue::Image(Box::new(NodeLink {
+                    url: url.into(),
+                    title: String::new(),
+                })),
+            );
             if let Some(alt) = alt {
                 append(self.arena, img, NodeValue::Text(alt.to_string().into()));
             }
@@ -671,10 +831,18 @@ impl<'a> Writer<'a, '_> {
                 .and_then(|id| self.ctx.attachments.get(id).map(String::as_str))
                 .or_else(|| media.attr_str("__fileName"));
             let label = alt.or(name).unwrap_or("image");
-            append(self.arena, p, NodeValue::HtmlInline(format!("[image: {label}]")));
+            append(
+                self.arena,
+                p,
+                NodeValue::HtmlInline(format!("[image: {label}]")),
+            );
         }
         if let Some(caption) = caption {
-            append(self.arena, p, NodeValue::Text(format!(" ({caption})").into()));
+            append(
+                self.arena,
+                p,
+                NodeValue::Text(format!(" ({caption})").into()),
+            );
         }
     }
 
@@ -683,21 +851,51 @@ impl<'a> Writer<'a, '_> {
     fn card_link(&self, url: &str) -> Option<(String, String)> {
         let link = crate::links::page_link(url, self.ctx.site_host.as_deref()?)?;
         let title = self.ctx.titles.get(&link.id)?.clone();
-        Some((title, self.local_link(url).unwrap_or_else(|| url.to_string())))
+        Some((
+            title,
+            self.local_link(url).unwrap_or_else(|| url.to_string()),
+        ))
     }
 
     fn card(&self, parent: &'a AstNode<'a>, node: &Node) -> bool {
-        let Some(url) = node.attr_str("url") else { return false };
-        let (text, dest) = self.card_link(url).unwrap_or_else(|| (url.to_string(), url.to_string()));
+        let Some(url) = node.attr_str("url") else {
+            return false;
+        };
+        let (text, dest) = self
+            .card_link(url)
+            .unwrap_or_else(|| (url.to_string(), url.to_string()));
         if self.simple() {
             let p = append(self.arena, parent, NodeValue::Paragraph);
-            let link = append(self.arena, p, NodeValue::Link(Box::new(NodeLink { url: dest, title: String::new() })));
+            let link = append(
+                self.arena,
+                p,
+                NodeValue::Link(Box::new(NodeLink {
+                    url: dest,
+                    title: String::new(),
+                })),
+            );
             append(self.arena, link, NodeValue::Text(text.into()));
             return true;
         }
         let embed = node.is("embedCard");
-        let allowed: &[&str] = if embed { &["url", "layout", "width", "originalWidth", "originalHeight", "localId"] } else { &["url", "localId"] };
-        if node.attrs.keys().any(|k| !allowed.contains(&k.as_str()) && !k.starts_with("__")) || !node.marks.is_empty() {
+        let allowed: &[&str] = if embed {
+            &[
+                "url",
+                "layout",
+                "width",
+                "originalWidth",
+                "originalHeight",
+                "localId",
+            ]
+        } else {
+            &["url", "localId"]
+        };
+        if node
+            .attrs
+            .keys()
+            .any(|k| !allowed.contains(&k.as_str()) && !k.starts_with("__"))
+            || !node.marks.is_empty()
+        {
             return false;
         }
         let mut settings = Settings::new();
@@ -709,33 +907,55 @@ impl<'a> Writer<'a, '_> {
             settings.set("width", fmt_num(width));
         }
         let p = append(self.arena, parent, NodeValue::Paragraph);
-        let link = append(self.arena, p, NodeValue::Link(Box::new(NodeLink { url: dest, title: String::new() })));
+        let link = append(
+            self.arena,
+            p,
+            NodeValue::Link(Box::new(NodeLink {
+                url: dest,
+                title: String::new(),
+            })),
+        );
         append(self.arena, link, NodeValue::Text(text.into()));
         append(self.arena, p, NodeValue::HtmlInline(settings.to_comment()));
         true
     }
 
     fn mermaid(&self, parent: &'a AstNode<'a>, node: &Node) -> bool {
-        let guest = node.attrs.get("parameters").and_then(|p| p.get("guestParams"));
-        let Some(source) = guest.and_then(|g| g.get("source")).and_then(Value::as_str) else { return false };
+        let guest = node
+            .attrs
+            .get("parameters")
+            .and_then(|p| p.get("guestParams"));
+        let Some(source) = guest.and_then(|g| g.get("source")).and_then(Value::as_str) else {
+            return false;
+        };
         let mut settings = Settings::new();
         let guest = guest.expect("checked above");
         for (key, default) in [("theme", "auto"), ("mermaidVersion", "auto")] {
-            if let Some(v) = guest.get(key).and_then(Value::as_str).filter(|v| *v != default) {
+            if let Some(v) = guest
+                .get(key)
+                .and_then(Value::as_str)
+                .filter(|v| *v != default)
+            {
                 settings.set(key, v);
             }
         }
         if guest.get("useMaxWidth").and_then(Value::as_bool) == Some(false) {
             settings.set("useMaxWidth", "false");
         }
-        let info = if settings.is_empty() || self.simple() { "mermaid".to_string() } else { format!("mermaid {settings}") };
+        let info = if settings.is_empty() || self.simple() {
+            "mermaid".to_string()
+        } else {
+            format!("mermaid {settings}")
+        };
         // `source` has no trailing newline; fence content does (design.md, "Mermaid diagrams").
         self.code(parent, info, format!("{source}\n"));
         true
     }
 
     fn table(&self, parent: &'a AstNode<'a>, node: &Node) -> bool {
-        let Some(t) = TableShape::read(node, self) else { return self.html_table(parent, node) };
+        let Some(t) = TableShape::read(node, self) else {
+            return self.html_table(parent, node);
+        };
         let num_columns = t.alignments.len();
         let table = append(
             self.arena,
@@ -758,7 +978,10 @@ impl<'a> Writer<'a, '_> {
             append(
                 self.arena,
                 parent,
-                NodeValue::HtmlBlock(NodeHtmlBlock { block_type: 2, literal: t.settings.to_comment() }),
+                NodeValue::HtmlBlock(NodeHtmlBlock {
+                    block_type: 2,
+                    literal: t.settings.to_comment(),
+                }),
             );
         }
         true
@@ -766,11 +989,23 @@ impl<'a> Writer<'a, '_> {
 
     /// A table GFM can't express, as an HTML table with markdown cells (html_table.rs).
     fn html_table(&self, parent: &'a AstNode<'a>, node: &Node) -> bool {
-        let known = ["isNumberColumnEnabled", "layout", "width", "localId", "displayMode"];
-        if node.attrs.keys().any(|k| !known.contains(&k.as_str()) && !k.starts_with("__"))
+        let known = [
+            "isNumberColumnEnabled",
+            "layout",
+            "width",
+            "localId",
+            "displayMode",
+        ];
+        if node
+            .attrs
+            .keys()
+            .any(|k| !known.contains(&k.as_str()) && !k.starts_with("__"))
             || node.attr_str("displayMode").is_some_and(|m| m != "default")
             || !node.marks.is_empty()
-            || node.content.iter().any(|r| !r.is("tableRow") || r.content.is_empty())
+            || node
+                .content
+                .iter()
+                .any(|r| !r.is("tableRow") || r.content.is_empty())
         {
             return false;
         }
@@ -782,7 +1017,11 @@ impl<'a> Writer<'a, '_> {
             let mut r = Vec::new();
             for cell in &row.content {
                 if !(cell.is("tableCell") || cell.is("tableHeader"))
-                    || strict && cell.attrs.keys().any(|k| !cell_attrs.contains(&k.as_str()) && !k.starts_with("__"))
+                    || strict
+                        && cell
+                            .attrs
+                            .keys()
+                            .any(|k| !cell_attrs.contains(&k.as_str()) && !k.starts_with("__"))
                 {
                     return false;
                 }
@@ -794,7 +1033,11 @@ impl<'a> Writer<'a, '_> {
 
         // Column widths: one list for the table if every cell agrees, else per cell.
         let cell_widths = |cell: &Node| -> Option<Vec<f64>> {
-            cell.attr("colwidth")?.as_array()?.iter().map(Value::as_f64).collect()
+            cell.attr("colwidth")?
+                .as_array()?
+                .iter()
+                .map(Value::as_f64)
+                .collect()
         };
         let mut columns: Vec<Option<f64>> = Vec::new();
         let mut consistent = true;
@@ -822,11 +1065,17 @@ impl<'a> Writer<'a, '_> {
         if layout != "default" {
             settings.set("layout", layout);
         }
-        if let Some(width) = node.attr_f64("width").filter(|w| Some(*w) != adf::default_table_width(layout)) {
+        if let Some(width) = node
+            .attr_f64("width")
+            .filter(|w| Some(*w) != adf::default_table_width(layout))
+        {
             settings.set("width", fmt_num(width));
         }
         if table_widths {
-            let list: Vec<String> = columns.iter().map(|w| fmt_num(w.expect("checked"))).collect();
+            let list: Vec<String> = columns
+                .iter()
+                .map(|w| fmt_num(w.expect("checked")))
+                .collect();
             settings.set("colwidths", list.join(","));
         }
         if node.attr("isNumberColumnEnabled") == Some(&Value::Bool(true)) {
@@ -843,8 +1092,16 @@ impl<'a> Writer<'a, '_> {
             push(&mut buf, "<tr>");
             for cell in &row.content {
                 let header = cell.is("tableHeader");
-                let own_widths = if table_widths || self.simple() { None } else { cell_widths(cell) };
-                let background = if self.simple() { None } else { cell.attr_str("background") };
+                let own_widths = if table_widths || self.simple() {
+                    None
+                } else {
+                    cell_widths(cell)
+                };
+                let background = if self.simple() {
+                    None
+                } else {
+                    cell.attr_str("background")
+                };
                 let open = crate::html_table::cell_open(
                     header,
                     span(cell, "colspan"),
@@ -881,7 +1138,14 @@ impl<'a> Writer<'a, '_> {
         push(&mut buf, "</table>");
         self.html_block(parent, buf.trim_start_matches('\n').to_string());
         if !settings.is_empty() && !self.simple() {
-            append(self.arena, parent, NodeValue::HtmlBlock(NodeHtmlBlock { block_type: 2, literal: settings.to_comment() }));
+            append(
+                self.arena,
+                parent,
+                NodeValue::HtmlBlock(NodeHtmlBlock {
+                    block_type: 2,
+                    literal: settings.to_comment(),
+                }),
+            );
         }
         true
     }
@@ -897,10 +1161,12 @@ impl<'a> Writer<'a, '_> {
         let target = self.ctx.links.get(&link.id)?;
         let anchor = match &link.anchor {
             None => String::new(),
-            Some(a) => match Anchors::new(target.headings.iter().map(String::as_str)).to_github(a) {
-                Some(gh) => format!("#{gh}"),
-                None => format!("#{a}"),
-            },
+            Some(a) => {
+                match Anchors::new(target.headings.iter().map(String::as_str)).to_github(a) {
+                    Some(gh) => format!("#{gh}"),
+                    None => format!("#{a}"),
+                }
+            }
         };
         Some(format!("{}{anchor}", target.path))
     }
@@ -931,7 +1197,10 @@ impl<'a> Writer<'a, '_> {
                     match self.card_link(&url) {
                         // `[Title](url)`, marked as a smart link so upload keeps it one.
                         Some((title, dest)) => {
-                            marks.push(MdMark::Link { url: dest, title: String::new() });
+                            marks.push(MdMark::Link {
+                                url: dest,
+                                title: String::new(),
+                            });
                             items.push(Item::new(marks, Leaf::Text(title)));
                             if !self.simple() {
                                 let mut card = Settings::new();
@@ -941,7 +1210,10 @@ impl<'a> Writer<'a, '_> {
                         }
                         // `<url>`: an autolink is a smart link.
                         None => {
-                            marks.push(MdMark::Link { url: url.clone(), title: String::new() });
+                            marks.push(MdMark::Link {
+                                url: url.clone(),
+                                title: String::new(),
+                            });
                             items.push(Item::new(marks, Leaf::Text(url)));
                         }
                     }
@@ -957,7 +1229,10 @@ impl<'a> Writer<'a, '_> {
         let mut out = Vec::new();
         for mark in marks {
             // Simplified output keeps only marks with markdown syntax.
-            let markdown = matches!(mark.kind.as_str(), "strong" | "em" | "strike" | "link" | "code");
+            let markdown = matches!(
+                mark.kind.as_str(),
+                "strong" | "em" | "strike" | "link" | "code"
+            );
             if self.simple() && !markdown {
                 continue;
             }
@@ -972,7 +1247,11 @@ impl<'a> Writer<'a, '_> {
                 "backgroundColor" => MdMark::Background(mark.attr_str("color")?.to_string()),
                 "link" => {
                     let href = mark.attr_str("href")?;
-                    if mark.attrs.keys().any(|k| !matches!(k.as_str(), "href" | "title") && !k.starts_with("__")) {
+                    if mark
+                        .attrs
+                        .keys()
+                        .any(|k| !matches!(k.as_str(), "href" | "title") && !k.starts_with("__"))
+                    {
                         return None;
                     }
                     let url = match href.strip_prefix('#') {
@@ -982,7 +1261,10 @@ impl<'a> Writer<'a, '_> {
                         },
                         None => self.local_link(href).unwrap_or_else(|| href.to_string()),
                     };
-                    MdMark::Link { url, title: mark.attr_str("title").unwrap_or("").to_string() }
+                    MdMark::Link {
+                        url,
+                        title: mark.attr_str("title").unwrap_or("").to_string(),
+                    }
                 }
                 // Code is a leaf, not a wrapper; inline comments are re-anchored on upload
                 // (design.md, "Inline comments").
@@ -1003,8 +1285,17 @@ struct TableShape<'a> {
 
 impl<'a> TableShape<'a> {
     fn read(node: &Node, w: &Writer<'a, '_>) -> Option<TableShape<'a>> {
-        let known = ["isNumberColumnEnabled", "layout", "width", "localId", "displayMode"];
-        if node.attrs.keys().any(|k| !known.contains(&k.as_str()) && !k.starts_with("__"))
+        let known = [
+            "isNumberColumnEnabled",
+            "layout",
+            "width",
+            "localId",
+            "displayMode",
+        ];
+        if node
+            .attrs
+            .keys()
+            .any(|k| !known.contains(&k.as_str()) && !k.starts_with("__"))
             || node.attr_str("displayMode").is_some_and(|m| m != "default")
             || !node.marks.is_empty()
             || node.content.is_empty()
@@ -1040,7 +1331,10 @@ impl<'a> TableShape<'a> {
                     return None;
                 }
                 let known = ["colspan", "rowspan", "colwidth", "localId"];
-                if cell.attrs.keys().any(|k| !known.contains(&k.as_str()) && !k.starts_with("__"))
+                if cell
+                    .attrs
+                    .keys()
+                    .any(|k| !known.contains(&k.as_str()) && !k.starts_with("__"))
                     || cell.attr_f64("colspan").unwrap_or(1.0) != 1.0
                     || cell.attr_f64("rowspan").unwrap_or(1.0) != 1.0
                 {
@@ -1078,7 +1372,9 @@ impl<'a> TableShape<'a> {
                     _ => return None,
                 };
                 // Empty cells take the column's alignment; others must agree.
-                if (!items.is_empty() || align.is_some()) && *alignments[c].get_or_insert(align) != align {
+                if (!items.is_empty() || align.is_some())
+                    && *alignments[c].get_or_insert(align) != align
+                {
                     return None;
                 }
                 cells.push(items);
@@ -1091,11 +1387,15 @@ impl<'a> TableShape<'a> {
         if layout != "default" {
             settings.set("layout", layout);
         }
-        if let Some(width) = node.attr_f64("width").filter(|w| Some(*w) != adf::default_table_width(layout)) {
+        if let Some(width) = node
+            .attr_f64("width")
+            .filter(|w| Some(*w) != adf::default_table_width(layout))
+        {
             settings.set("width", fmt_num(width));
         }
         if widths.iter().any(|w| matches!(w, Some(Some(_)))) {
-            let list: Option<Vec<String>> = widths.iter().map(|w| w.flatten().map(fmt_num)).collect();
+            let list: Option<Vec<String>> =
+                widths.iter().map(|w| w.flatten().map(fmt_num)).collect();
             settings.set("colwidths", list?.join(","));
         }
         if node.attr("isNumberColumnEnabled") == Some(&Value::Bool(true)) {
@@ -1115,7 +1415,11 @@ impl<'a> TableShape<'a> {
                 _ => TableAlignment::None,
             })
             .collect();
-        Some(TableShape { rows, alignments, settings })
+        Some(TableShape {
+            rows,
+            alignments,
+            settings,
+        })
     }
 }
 
@@ -1153,7 +1457,13 @@ fn emoji_text(node: &Node) -> Option<String> {
         return Some(e.as_str().to_string());
     }
     // A custom emoji (no characters): its shortcode.
-    short.filter(|s| emoji::find_shortcodes(s).first().is_some_and(|sc| sc.range == (0..s.len()))).map(str::to_string)
+    short
+        .filter(|s| {
+            emoji::find_shortcodes(s)
+                .first()
+                .is_some_and(|sc| sc.range == (0..s.len()))
+        })
+        .map(str::to_string)
 }
 
 /// An inline node in simplified output: its visible text (`[IN PROGRESS]` for a status).
@@ -1161,12 +1471,24 @@ fn simplified_inline<'a>(node: &Node) -> Vec<Item<'a>> {
     let text = match node.kind.as_str() {
         "status" => format!("[{}]", node.attr_str("text").unwrap_or("")),
         "mention" => node.attr_str("text").unwrap_or("").to_string(),
-        "date" => node.attr_str("timestamp").and_then(|t| t.parse::<i64>().ok()).map(iso_date).unwrap_or_default(),
+        "date" => node
+            .attr_str("timestamp")
+            .and_then(|t| t.parse::<i64>().ok())
+            .map(iso_date)
+            .unwrap_or_default(),
         "emoji" => node.attr_str("shortName").unwrap_or("").to_string(),
-        "inlineExtension" => node.attr_str("text").or_else(|| node.attr_str("extensionKey")).map(|t| format!("[{t}]")).unwrap_or_default(),
+        "inlineExtension" => node
+            .attr_str("text")
+            .or_else(|| node.attr_str("extensionKey"))
+            .map(|t| format!("[{t}]"))
+            .unwrap_or_default(),
         _ => node.plain_text(),
     };
-    if text.is_empty() { vec![] } else { vec![Item::new(vec![], Leaf::Html(text))] }
+    if text.is_empty() {
+        vec![]
+    } else {
+        vec![Item::new(vec![], Leaf::Html(text))]
+    }
 }
 
 /// An inline node without a markdown form, as `<span data-adf='{json}'>visible text</span>`.
@@ -1176,13 +1498,24 @@ fn span<'a>(node: &Node) -> Vec<Item<'a>> {
     strip_annotations(&mut node);
     let visible = match node.kind.as_str() {
         "mention" | "status" => node.attr_str("text").unwrap_or("").to_string(),
-        "date" => node.attr_str("timestamp").and_then(|t| t.parse::<i64>().ok()).map(iso_date).unwrap_or_default(),
-        "inlineExtension" => node.attr_str("text").or_else(|| node.attr_str("extensionKey")).unwrap_or("").to_string(),
+        "date" => node
+            .attr_str("timestamp")
+            .and_then(|t| t.parse::<i64>().ok())
+            .map(iso_date)
+            .unwrap_or_default(),
+        "inlineExtension" => node
+            .attr_str("text")
+            .or_else(|| node.attr_str("extensionKey"))
+            .unwrap_or("")
+            .to_string(),
         _ => node.plain_text(),
     };
     // JSON in a single-quoted attribute: `'` must not appear raw.
     let json = adf::to_compact_json(&node).replace('\'', "\\u0027");
-    let mut items = vec![Item::new(vec![], Leaf::Html(format!("<span data-adf='{json}'>")))];
+    let mut items = vec![Item::new(
+        vec![],
+        Leaf::Html(format!("<span data-adf='{json}'>")),
+    )];
     if !visible.is_empty() {
         items.push(Item::new(vec![], Leaf::Text(visible)));
     }
@@ -1212,7 +1545,9 @@ fn iso_date(ms: i64) -> String {
 /// The tab titles of a tabs node, if rfluence can write it: the editor's node with one
 /// `extensionFrame` per tab and default settings.
 fn tab_titles(node: &Node) -> Option<Vec<String>> {
-    if node.attr_str("extensionType") != Some("com.atlassian.confluence.native") || node.attr_str("extensionKey") != Some("native-tabs") {
+    if node.attr_str("extensionType") != Some("com.atlassian.confluence.native")
+        || node.attr_str("extensionKey") != Some("native-tabs")
+    {
         return None;
     }
     let attrs_ok = node.attrs.iter().all(|(k, v)| match k.as_str() {
@@ -1227,14 +1562,25 @@ fn tab_titles(node: &Node) -> Option<Vec<String>> {
         "extensionTitle" => v == "Tabs",
         _ => false,
     });
-    let marks_ok = node.marks.iter().all(|m| m.kind == "breakout" && adf::is_default_breakout(m));
+    let marks_ok = node
+        .marks
+        .iter()
+        .all(|m| m.kind == "breakout" && adf::is_default_breakout(m));
     let tabs = params.get("tabs")?.as_array()?;
     let frames_ok = tabs.len() == node.content.len()
-        && node.content.iter().all(|f| f.is("extensionFrame") && f.marks.is_empty() && f.attrs.keys().all(|k| k == "localId" || k.starts_with("__")));
+        && node.content.iter().all(|f| {
+            f.is("extensionFrame")
+                && f.marks.is_empty()
+                && f.attrs
+                    .keys()
+                    .all(|k| k == "localId" || k.starts_with("__"))
+        });
     if !(attrs_ok && params_ok && marks_ok && frames_ok) {
         return None;
     }
-    tabs.iter().map(|t| t.get("title").and_then(Value::as_str).map(str::to_string)).collect()
+    tabs.iter()
+        .map(|t| t.get("title").and_then(Value::as_str).map(str::to_string))
+        .collect()
 }
 
 #[cfg(test)]
@@ -1268,16 +1614,28 @@ mod tests {
             site_host: Some("x.atlassian.net".into()),
             links: HashMap::from([(
                 "22".to_string(),
-                LinkTarget { path: "../guides/setup.md".into(), headings: vec!["Setup".into(), "Install & Run".into()] },
+                LinkTarget {
+                    path: "../guides/setup.md".into(),
+                    headings: vec!["Setup".into(), "Install & Run".into()],
+                },
             )]),
             ..Default::default()
         };
         let md = adf_to_markdown(&doc, &ctx);
-        assert!(md.contains("[setup](../guides/setup.md#install--run)"), "{md}");
+        assert!(
+            md.contains("[setup](../guides/setup.md#install--run)"),
+            "{md}"
+        );
         assert!(md.contains("[self](#here)"), "{md}");
         // Pages outside the project, and smart links, keep their URLs.
-        assert!(md.contains("[other](https://x.atlassian.net/wiki/spaces/ENG/pages/33)"), "{md}");
-        assert!(md.contains("<https://x.atlassian.net/wiki/spaces/ENG/pages/22>"), "{md}");
+        assert!(
+            md.contains("[other](https://x.atlassian.net/wiki/spaces/ENG/pages/33)"),
+            "{md}"
+        );
+        assert!(
+            md.contains("<https://x.atlassian.net/wiki/spaces/ENG/pages/22>"),
+            "{md}"
+        );
     }
 
     #[test]
@@ -1306,13 +1664,33 @@ mod tests {
             "See [Setup guide](https://x.atlassian.net/wiki/spaces/ENG/pages/22)<!-- rf: card=inline --> and <https://x.atlassian.net/wiki/spaces/ENG/pages/99>\n\n[Setup guide](https://x.atlassian.net/wiki/spaces/ENG/pages/22)<!-- rf: card=block -->\n"
         );
         // Simplified: just the link.
-        let simplified = adf_to_markdown(&doc, &FetchContext { simplified: true, ..ctx.clone() });
-        assert!(simplified.starts_with("See [Setup guide](https://x.atlassian.net/wiki/spaces/ENG/pages/22) and <https://"), "{simplified}");
+        let simplified = adf_to_markdown(
+            &doc,
+            &FetchContext {
+                simplified: true,
+                ..ctx.clone()
+            },
+        );
+        assert!(
+            simplified.starts_with(
+                "See [Setup guide](https://x.atlassian.net/wiki/spaces/ENG/pages/22) and <https://"
+            ),
+            "{simplified}"
+        );
         // -o: a project page's smart link is a relative path, still marked.
         let local = FetchContext {
-            links: HashMap::from([("22".to_string(), LinkTarget { path: "./setup.md".into(), headings: vec![] })]),
+            links: HashMap::from([(
+                "22".to_string(),
+                LinkTarget {
+                    path: "./setup.md".into(),
+                    headings: vec![],
+                },
+            )]),
             ..ctx
         };
-        assert!(adf_to_markdown(&doc, &local).starts_with("See [Setup guide](./setup.md)<!-- rf: card=inline -->"));
+        assert!(
+            adf_to_markdown(&doc, &local)
+                .starts_with("See [Setup guide](./setup.md)<!-- rf: card=inline -->")
+        );
     }
 }

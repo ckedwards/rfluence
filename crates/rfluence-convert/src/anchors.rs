@@ -25,11 +25,17 @@ impl Anchors {
         for text in headings {
             let base = confluence_base(text);
             let n = seen.entry(base.clone()).or_insert(0);
-            let confluence = if *n == 0 { base.clone() } else { format!("{base}.{n}") };
+            let confluence = if *n == 0 {
+                base.clone()
+            } else {
+                format!("{base}.{n}")
+            };
             *n += 1;
             // Markdown trims heading text, so the GitHub anchor is computed from the trimmed text.
             let gh = github.anchorize(text.trim());
-            anchors.confluence_to_github.insert(confluence.clone(), gh.clone());
+            anchors
+                .confluence_to_github
+                .insert(confluence.clone(), gh.clone());
             anchors.github_to_confluence.insert(gh, confluence);
         }
         anchors
@@ -39,13 +45,17 @@ impl Anchors {
     /// browser's "copy link") are decoded first.
     pub fn to_github(&self, confluence: &str) -> Option<&str> {
         let decoded = percent_encoding::percent_decode_str(confluence).decode_utf8_lossy();
-        self.confluence_to_github.get(decoded.as_ref()).map(String::as_str)
+        self.confluence_to_github
+            .get(decoded.as_ref())
+            .map(String::as_str)
     }
 
     /// Confluence anchor (raw, not percent-encoded) for a GitHub-style anchor.
     pub fn to_confluence(&self, github: &str) -> Option<&str> {
         let decoded = percent_encoding::percent_decode_str(github).decode_utf8_lossy();
-        self.github_to_confluence.get(decoded.as_ref()).map(String::as_str)
+        self.github_to_confluence
+            .get(decoded.as_ref())
+            .map(String::as_str)
     }
 }
 
@@ -63,7 +73,10 @@ mod tests {
             "Duplicate",
             "  Extra   spaces  ",
         ]);
-        assert_eq!(a.to_github("Install-&-Setup-(v2.0)"), Some("install--setup-v20"));
+        assert_eq!(
+            a.to_github("Install-&-Setup-(v2.0)"),
+            Some("install--setup-v20")
+        );
         assert_eq!(a.to_github("FAQ%3A-What's-new%3F"), Some("faq-whats-new"));
         assert_eq!(a.to_github("Ünïcode-Héading"), Some("ünïcode-héading"));
         assert_eq!(a.to_github("Duplicate.1"), Some("duplicate-1"));
