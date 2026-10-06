@@ -58,10 +58,9 @@ fn canonicalize<'a>(arena: &'a Arena<'a>, root: &'a AstNode<'a>) {
             }
             NodeValue::CodeBlock(cb) if cb.fenced => {
                 cb.info = canonical_info(&cb.info);
-                if cb.info == "adf" {
-                    if let Some(json) = canonical_adf_json(&cb.literal) {
-                        cb.literal = json;
-                    }
+                if cb.info == "adf"
+                    && let Some(json) = canonical_adf_json(&cb.literal) {
+                    cb.literal = json;
                 }
             }
             // ADF lists have no loose/tight distinction or marker style.

@@ -433,10 +433,9 @@ pub fn parse_at_line<'a>(arena: &'a Arena<'a>, md: &str, line: usize) -> Vec<&'a
 }
 
 fn close_row<'a>(row: &mut Option<Vec<Cell<'a>>>, table: &mut Table<'a>) {
-    if let Some(r) = row.take() {
-        if !r.is_empty() {
-            table.rows.push(r);
-        }
+    if let Some(r) = row.take()
+        && !r.is_empty() {
+        table.rows.push(r);
     }
 }
 

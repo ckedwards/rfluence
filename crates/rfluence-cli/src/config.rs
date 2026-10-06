@@ -208,10 +208,9 @@ fn project_markdown(root: &Path) -> Vec<String> {
     let mut files = Vec::new();
     for entry in ignore::WalkBuilder::new(root).build().flatten() {
         let path = entry.path();
-        if entry.file_type().is_some_and(|t| t.is_file()) && path.extension().is_some_and(|e| e.eq_ignore_ascii_case("md")) {
-            if let Ok(rel) = path.strip_prefix(root) {
-                files.push(rel.components().map(|c| c.as_os_str().to_string_lossy()).collect::<Vec<_>>().join("/"));
-            }
+        if entry.file_type().is_some_and(|t| t.is_file()) && path.extension().is_some_and(|e| e.eq_ignore_ascii_case("md"))
+            && let Ok(rel) = path.strip_prefix(root) {
+            files.push(rel.components().map(|c| c.as_os_str().to_string_lossy()).collect::<Vec<_>>().join("/"));
         }
     }
     files

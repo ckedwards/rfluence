@@ -589,10 +589,9 @@ impl<'a> Writer<'a, '_> {
         let src = match media.attr_str("type") {
             Some("file") => {
                 let Some(id) = media.attr_str("id") else { return false };
-                if let Some(page) = &self.ctx.page_id {
-                    if media.attr_str("collection") != Some(&format!("contentId-{page}")) {
-                        return false;
-                    }
+                if let Some(page) = &self.ctx.page_id
+                    && media.attr_str("collection") != Some(&format!("contentId-{page}")) {
+                    return false;
                 }
                 let name = self.ctx.attachments.get(id).map(String::as_str).or_else(|| media.attr_str("__fileName"));
                 let Some(name) = name else { return false };

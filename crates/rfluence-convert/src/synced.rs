@@ -21,10 +21,9 @@ pub fn copy_resource_id(page: &str, id: &str) -> String {
 pub fn copy_ids(doc: &Node) -> Vec<String> {
     let mut ids = Vec::new();
     doc.walk(&mut |n| {
-        if let Some(r) = n.attr_str("resourceId").filter(|_| n.is("syncBlock")) {
-            if parse_copy(r).is_some() && !ids.iter().any(|i| i == r) {
-                ids.push(r.to_string());
-            }
+        if let Some(r) = n.attr_str("resourceId").filter(|_| n.is("syncBlock"))
+            && parse_copy(r).is_some() && !ids.iter().any(|i| i == r) {
+            ids.push(r.to_string());
         }
     });
     ids

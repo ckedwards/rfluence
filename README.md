@@ -16,7 +16,7 @@ rfluence treats markdown as a real way to work on Confluence pages:
 
 ## Install
 
-Prebuilt binaries for Linux, macOS and Windows will be on the [releases page](https://github.com/ckedwards/rfluence/releases) (not published yet). Until then, build it from source with Rust 1.85 or later:
+Prebuilt binaries for Linux, macOS and Windows will be on the [releases page](https://github.com/ckedwards/rfluence/releases) (not published yet). Until then, build it from source with Rust 1.88 or later:
 
 ```shell
 git clone https://github.com/ckedwards/rfluence.git

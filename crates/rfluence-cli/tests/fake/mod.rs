@@ -161,10 +161,9 @@ fn serve(stream: std::net::TcpStream, state: &Mutex<State>, base: &str) -> std::
         if header.trim().is_empty() {
             break;
         }
-        if let Some((k, v)) = header.split_once(':') {
-            if k.eq_ignore_ascii_case("content-length") {
-                length = v.trim().parse().unwrap_or(0);
-            }
+        if let Some((k, v)) = header.split_once(':')
+            && k.eq_ignore_ascii_case("content-length") {
+            length = v.trim().parse().unwrap_or(0);
         }
     }
     let mut body = vec![0; length];
