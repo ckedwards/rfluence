@@ -631,8 +631,13 @@ Use widely adopted Rust libraries where reasonable. Candidates:
 crates/
   rfluence-convert   # pure md <-> ADF conversion; no I/O; most tests live here
   rfluence-client    # Confluence API client, auth, config
-  rfluence-cli       # binary: rf
+  rfluence-cli       # binary: rfluence
+skills/
+  confluence-read    # Agent Skill: search and read pages (rfluence search, fetch --simplified)
+  confluence-write   # Agent Skill: edit, create and publish pages (fetch -o, check, upload)
 ```
+
+The skills are how LLMs learn to use rfluence: when to search, to read with `--simplified`, to keep `rf:` markers and frontmatter, that synced blocks are read-only, to run `check` and a dry run, and to get the user's go-ahead before publishing. Reading and writing are separate skills so the common case (reading) loads only a short skill, and the publishing rules load only when publishing. See `skills/README.md`.
 
 The converter is the heart of the project. Keep it pure (no network or filesystem access) and test it heavily with snapshot and round-trip property tests.
 
