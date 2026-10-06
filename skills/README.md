@@ -11,7 +11,7 @@ They're separate so that reading, the common case, loads only a short skill, and
 
 ## Installing
 
-`rfluence` must be installed and logged in (see [development.md](../development.md)). Then link the skills into your personal skills directory, so they're available in every project:
+`rfluence` must be [installed](../docs/user/installation.md) and [logged in](../docs/user/authentication.md). Then link the skills into your personal skills directory, so they're available in every project:
 
 ```shell
 mkdir -p ~/.claude/skills
