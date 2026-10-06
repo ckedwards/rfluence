@@ -1,0 +1,3 @@
+# Check text files out with \n line endings on every platform: the test fixtures (fixtures/)
+# are compared byte for byte with rfluence's output, which uses \n. Binary files are detected.
+* text=auto eol=lf

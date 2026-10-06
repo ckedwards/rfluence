@@ -63,7 +63,7 @@ impl Config {
 
     /// Read and check a config file.
     pub fn load(file: &Path) -> Result<Config, String> {
-        let text = std::fs::read_to_string(file).map_err(|e| format!("{}: {e}", file.display()))?;
+        let text = crate::text::read(file).map_err(|e| format!("{}: {e}", file.display()))?;
         let entries: Vec<Entry> =
             serde_norway::from_str(&text).map_err(|e| format!("{}: {e} (the file is a list of entries; see design.md, \"Upload config\")", file.display()))?;
         let root = file.parent().filter(|d| !d.as_os_str().is_empty()).unwrap_or(Path::new(".")).to_path_buf();

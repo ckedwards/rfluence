@@ -20,7 +20,7 @@ pub fn pages(root: &Path, from_dir: &Path, skip: &Path) -> HashMap<String, LinkT
         if path.extension().is_none_or(|e| e != "md") || same_file(path, skip) {
             continue;
         }
-        let Ok(text) = std::fs::read_to_string(path) else { continue };
+        let Ok(text) = crate::text::read(path) else { continue };
         let doc = frontmatter::split(&text);
         let Some(id) = doc.yaml.map(frontmatter::rfluence_fields).and_then(|f| f.id) else { continue };
         pages.insert(id, LinkTarget { path: relative(from_dir, path), headings: select::heading_titles(doc.body) });

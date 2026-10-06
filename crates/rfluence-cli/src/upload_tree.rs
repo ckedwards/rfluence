@@ -158,7 +158,7 @@ fn upload_tree(opts: &Options, counts: &mut Counts) -> Result<(), Failure> {
         // Forced, so that a file's other problems are found too; its check errors are
         // counted here.
         let o = upload::Options { force: true, ..file_options(opts, &path, None) };
-        let md = match std::fs::read_to_string(&path) {
+        let md = match crate::text::read(&path) {
             Ok(md) => md,
             Err(e) => return problems.push(format!("{file}: {e}")),
         };
@@ -320,7 +320,7 @@ fn upload_tree(opts: &Options, counts: &mut Counts) -> Result<(), Failure> {
         let tree = InTree { parent: parent.unwrap_or_default(), parent_title, labels: plan.labels.clone(), created };
         let o = file_options(opts, &path, Some(tree));
         let result = (|| {
-            let md = std::fs::read_to_string(&path).map_err(|e| Stop::Usage(e.to_string()))?;
+            let md = crate::text::read(&path).map_err(|e| Stop::Usage(e.to_string()))?;
             let local = upload::check_file(&o, &md)?;
             let links = upload::link_targets(local.dir, &local.body, &creds.base_url, Some(&plan.space_key), opts.dry_run.then_some(&pending))?;
             upload::update(&o, &local, &client, place.id().expect("placed in pass 1"), links)

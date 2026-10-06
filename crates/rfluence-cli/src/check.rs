@@ -20,7 +20,7 @@ struct FileDiagnostic {
 pub fn run(paths: &[PathBuf], json: bool, warnings_are_errors: bool) -> ExitCode {
     let mut all = Vec::new();
     for path in paths {
-        let md = match std::fs::read_to_string(path) {
+        let md = match crate::text::read(path) {
             Ok(md) => md,
             Err(e) => {
                 eprintln!("rfluence: {}: {e}", path.display());

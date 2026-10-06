@@ -9,6 +9,7 @@ mod plan;
 mod project;
 mod search;
 mod settings;
+mod text;
 mod upload;
 mod upload_tree;
 
