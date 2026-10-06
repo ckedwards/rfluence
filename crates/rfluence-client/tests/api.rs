@@ -241,3 +241,50 @@ fn doesnt_retry_timeouts() {
     assert!(matches!(&err, Error::Network(m) if m.starts_with(&format!("timed out waiting for 127.0.0.1:{port} to answer"))), "{err:?}");
     assert_eq!(accepted.load(std::sync::atomic::Ordering::SeqCst), 1, "one attempt");
 }
+
+/// Confluence runs requests with a bad API token as an anonymous user (verified): pages are
+/// 404, other requests 403. The client checks who it is and blames the token instead.
+#[test]
+fn reports_rejected_tokens() {
+    let mut server = mockito::Server::new();
+    server.mock("GET", "/wiki/api/v2/pages/1").match_query(Matcher::Any).with_status(404).with_body(r#"{"errors":[{"title":"Not Found"}]}"#).create();
+    let whoami = server
+        .mock("GET", "/wiki/rest/api/user/current")
+        .with_status(403)
+        .with_body(r#"{"statusCode":403,"message":"Request rejected because caller cannot access Confluence"}"#)
+        // Once for the check (then remembered), once for current_user itself.
+        .expect(2)
+        .create();
+    let c = quick(&server);
+    let err = c.page("1").unwrap_err();
+    assert!(matches!(err, Error::Auth(_)), "{err:?}");
+    let message = err.to_string();
+    assert!(
+        message.contains("Confluence didn't accept the API token for me@example.com on 127.0.0.1:")
+            && message.contains("expired, been revoked, or be mistyped")
+            && message.contains("https://id.atlassian.com/manage-profile/security/api-tokens"),
+        "{message}"
+    );
+    // Checked once per client: a second 404 doesn't ask again.
+    assert!(matches!(c.page("1"), Err(Error::Auth(_))));
+    assert!(matches!(c.current_user(), Err(Error::Auth(_))));
+    whoami.assert();
+}
+
+#[test]
+fn a_real_404_stays_not_found() {
+    let mut server = mockito::Server::new();
+    server.mock("GET", "/wiki/api/v2/pages/1").match_query(Matcher::Any).with_status(404).create();
+    server.mock("GET", "/wiki/rest/api/user/current").with_body(r#"{"type":"known","displayName":"Me"}"#).create();
+    assert!(matches!(quick(&server).page("1"), Err(Error::NotFound(_))));
+}
+
+#[test]
+fn an_anonymous_user_means_the_token_was_ignored() {
+    // Sites that allow anonymous access answer "who am I" for an anonymous user.
+    let mut server = mockito::Server::new();
+    server.mock("GET", "/wiki/rest/api/search").match_query(Matcher::Any).with_status(403).with_body(r#"{"message":"Current user not permitted to use Confluence"}"#).create();
+    server.mock("GET", "/wiki/rest/api/user/current").with_body(r#"{"type":"anonymous","displayName":"Anonymous"}"#).create();
+    let err = quick(&server).search("type = page", 1).unwrap_err();
+    assert!(err.to_string().contains("didn't accept the API token"), "{err}");
+}

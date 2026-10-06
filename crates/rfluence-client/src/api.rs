@@ -21,6 +21,10 @@ pub struct Client {
     /// The unit of retry waits: 1 s (backoff 1, 2, 4 s; `Retry-After` in seconds). Tests
     /// shorten it with `RFLUENCE_RETRY_UNIT_MS`.
     retry_unit: Duration,
+    email: String,
+    /// Whether Confluence ignored the credentials: checked once, after the first 401, 403 or
+    /// 404 (see [`Client::explain`]).
+    rejected: std::sync::OnceLock<bool>,
 }
 
 /// How many times a request is retried (design.md, "Output and errors" > "Retries").
@@ -239,7 +243,56 @@ impl Client {
             base_url: crate::auth::normalize_base_url(&creds.base_url),
             authorization: format!("Basic {basic}"),
             retry_unit: unit.unwrap_or(Duration::from_secs(1)),
+            email: creds.email.clone(),
+            rejected: std::sync::OnceLock::new(),
         }
+    }
+
+    /// Confluence doesn't refuse an expired, revoked or mistyped API token: it runs the
+    /// request as an anonymous user, so pages come back 404 and most else 403 (verified).
+    /// After such an error, ask once who Confluence thinks this is; if nobody, say the token
+    /// is the problem rather than the page or the permissions.
+    fn explain<T>(&self, result: Result<T>) -> Result<T> {
+        match result {
+            Err(Error::NotFound(_) | Error::Forbidden(_) | Error::Auth(_)) if self.credentials_rejected() => Err(self.token_rejected()),
+            r => r,
+        }
+    }
+
+    fn credentials_rejected(&self) -> bool {
+        *self.rejected.get_or_init(|| {
+            let url = format!("{}/wiki/rest/api/user/current", self.base_url);
+            let resp = self.send("GET", || {
+                self.agent.get(&url).header("Authorization", &self.authorization).header("Accept", "application/json").call()
+            });
+            match resp {
+                Ok(mut resp) => match resp.status().as_u16() {
+                    401 | 403 => true,
+                    // Sites that allow anonymous access answer for an anonymous user.
+                    200 => resp
+                        .body_mut()
+                        .read_json::<serde_json::Value>()
+                        .ok()
+                        .is_some_and(|v| v.get("type").and_then(|t| t.as_str()) == Some("anonymous")),
+                    _ => false,
+                },
+                Err(_) => false,
+            }
+        })
+    }
+
+    fn token_rejected(&self) -> Error {
+        let host = crate::auth::host(&self.base_url);
+        let from_env = std::env::var("CONFLUENCE_BASE_URL").is_ok_and(|u| crate::auth::host(&u) == host);
+        let fix = if from_env {
+            "then update CONFLUENCE_API_KEY (or unset the CONFLUENCE_* variables to use a saved login)".to_string()
+        } else {
+            format!("then run `rfluence auth login --site {host}`")
+        };
+        Error::Auth(format!(
+            "Confluence didn't accept the API token for {} on {host}: it may have expired, been revoked, or be mistyped. Create a new one at https://id.atlassian.com/manage-profile/security/api-tokens, {fix}",
+            self.email
+        ))
     }
 
     /// The same client with another retry unit (tests use a millisecond).
@@ -309,7 +362,7 @@ impl Client {
         let resp = self.send("GET", || {
             self.agent.get(&url).header("Authorization", &self.authorization).header("Accept", "application/json").call()
         });
-        read_json(resp, &url, path)
+        self.explain(read_json(resp, &url, path))
     }
 
     /// POST or PUT JSON, and read the JSON response.
@@ -322,7 +375,7 @@ impl Client {
             };
             req.header("Authorization", &self.authorization).header("Accept", "application/json").send_json(body)
         });
-        read_json(resp, &url, path)
+        self.explain(read_json(resp, &url, path))
     }
 
     /// Send a request without a body (DELETE, or PUT for moves) and check the status.
@@ -338,7 +391,7 @@ impl Client {
             return Ok(());
         }
         let body = resp.body_mut().read_to_string().unwrap_or_default();
-        Err(status_error(status, &url, path, &body))
+        self.explain(Err(status_error(status, &url, path, &body)))
     }
 
     /// POST a file as `multipart/form-data` (v1 attachment uploads), and read the JSON response.
@@ -366,7 +419,7 @@ impl Client {
                 .header("Content-Type", &format!("multipart/form-data; boundary={boundary}"))
                 .send(&body[..])
         });
-        read_json(resp, &url, path)
+        self.explain(read_json(resp, &url, path))
     }
 
     /// The signed-in user's display name (to check credentials).
@@ -609,12 +662,12 @@ impl Client {
             .map_err(|e| network_error(&url, &e))?;
         let status = resp.status().as_u16();
         if !(200..300).contains(&status) {
-            return Err(match status {
+            return self.explain(Err(match status {
                 401 => Error::Auth(format!("HTTP {status} downloading {}", attachment.title)),
                 403 => Error::Forbidden(format!("HTTP {status} downloading {}", attachment.title)),
                 404 => Error::NotFound(format!("attachment {} not found", attachment.title)),
                 _ => Error::Api { status, message: format!("downloading {}", attachment.title) },
-            });
+            }));
         }
         resp.body_mut()
             .with_config()
