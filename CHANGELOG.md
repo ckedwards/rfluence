@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1](https://github.com/ckedwards/rfluence/compare/v0.1.0...v0.1.1) - 2026-10-06
+
+### Fixed
+
+- formatting ([#2](https://github.com/ckedwards/rfluence/pull/2))
+
+### Other
+
+- switch to release-plz and trusted publishing ([#3](https://github.com/ckedwards/rfluence/pull/3))
+
 ## [0.1.0](https://github.com/ckedwards/rfluence/releases/tag/v0.1.0) - 2026-10-06
 
 The first release.
