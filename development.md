@@ -55,18 +55,17 @@ This installs to `~/.cargo/bin`; if that isn't on your `PATH`, add `export PATH=
 
 ## Credentials
 
-rfluence keeps one account per Confluence site, like `gh auth`:
+rfluence keeps one account (your email and API token, which works on every site your account is on), like `gh auth`, and a default site: the Confluence site commands use when none is named.
 
 ```shell
-rfluence auth login                     # prompts for the site, email and API token
-rfluence auth login --site other        # another site (https://other.atlassian.net)
-rfluence auth status                    # every account, the default site, and whether each works
-rfluence auth switch --site other       # change the default site
-rfluence auth token                     # print the token in use
-rfluence auth logout --site other
+rfluence auth login                             # prompts for your email and API token
+rfluence config set default-site tech-accounts11 # https://tech-accounts11.atlassian.net (checks the token there)
+rfluence auth status                            # the account, and whether the token works on the default site
+rfluence auth token                             # print the token in use
+rfluence auth logout
 ```
 
-The last site logged in to is the default. A command uses a page URL's own site, else `--site`, else `RFLUENCE_SITE`, else the default. For scripts, `--with-token` reads the token from standard input:
+A command uses a page URL's own site, else `--site`, else `RFLUENCE_SITE`, else the default site. For scripts, `--with-token` reads the token from standard input:
 
 ```shell
 printf '%s' "$TOKEN" | rfluence auth login --site example --email me@example.com --with-token
@@ -80,7 +79,7 @@ set -a; . ./.env; set +a
 
 Create API tokens at <https://id.atlassian.com/manage-profile/security/api-tokens>.
 
-`RFLUENCE_CONFIG_DIR=<dir>` keeps accounts somewhere other than `~/.config/rfluence`, and `RFLUENCE_NO_KEYRING=1` stores tokens in files instead of the system keyring; the tests use both so they never touch your real accounts. `RFLUENCE_RETRY_UNIT_MS=1` makes retry waits (1, 2, 4 s, and `Retry-After`) milliseconds instead of seconds, for tests that make Confluence (or the fake) fail on purpose.
+`RFLUENCE_CONFIG_DIR=<dir>` keeps accounts somewhere other than `~/.config/rfluence`, and `RFLUENCE_NO_KEYRING=1` stores tokens in files instead of the system keyring; the tests use both so they never touch your real accounts. `RFLUENCE_RETRY_UNIT_MS=1` makes retry waits (1, 2, 4 s, and `Retry-After`) milliseconds instead of seconds, for tests that make Confluence (or the fake) fail on purpose. `RFLUENCE_PROMPTS_FROM_STDIN=1` makes `auth login` read its answers (the token too) from standard input instead of the terminal, so tests can drive its prompts.
 
 ## Tests
 

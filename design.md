@@ -648,7 +648,7 @@ The command for retrieving Confluence pages. The intended target is to use it in
 
 ### Auth
 
-rfluence keeps one account per Confluence site, like `gh auth`. A site is identified by its host; it can be given as a name (`example`, meaning `https://example.atlassian.net`), a host, or a URL.
+rfluence keeps **one account**, like `gh auth`: an email and its API token. Atlassian tokens belong to the account, not to a site (see the token kinds below), so the token works on every Confluence site the account is on. Which site commands use when none is named (page IDs, search, new pages) is a setting, the **default site**: `rfluence config set default-site example` (meaning `https://example.atlassian.net`; a host or URL works too). Several accounts aren't supported: rare, and they'd make every command ask which account to use where.
 
 Env-based auth requires all three variables:
 
@@ -664,11 +664,31 @@ Which site a command uses, first match wins:
   2. `--site <site>`;
   3. `RFLUENCE_SITE`;
   4. the `CONFLUENCE_*` variables' site, if they are set;
-  5. the default site (the last one logged in to, or chosen with `rfluence auth switch`).
+  5. the default site (`rfluence config set default-site`).
 
-The `CONFLUENCE_*` variables are used for their own site only; any other site uses its saved account. A site with no account fails with "not logged in to <host>: run `rfluence auth login --site <host>`".
+The `CONFLUENCE_*` variables are used for their own site only; any other site uses its saved account. Without a saved account, commands fail with "not logged in: run `rfluence auth login`"; with one but no site named and no default site, with "which Confluence site? pass --site, or set a default: `rfluence config set default-site <site>`".
 
-Storage: sites, emails and the default site in `~/.config/rfluence/auth.json`; each token in the system keyring (service `rfluence`, user `<email> on <base URL>`), or, when no keyring is available, in `~/.config/rfluence/tokens/<host>` (mode 0600). `RFLUENCE_CONFIG_DIR` uses another directory, and `RFLUENCE_NO_KEYRING=1` skips the keyring (CI, sandboxes, tests). The earlier single-account `auth.json` (`{base_url, email}` with the token in `token`) is read and migrated on the next login or logout.
+Kinds of Atlassian Cloud credentials (researched 2026-10-06; Atlassian's support docs on [API tokens](https://support.atlassian.com/atlassian-account/docs/manage-api-tokens-for-your-atlassian-account/), [scoped tokens in Confluence](https://support.atlassian.com/confluence/kb/scoped-api-tokens-in-confluence-cloud/), [service accounts](https://support.atlassian.com/user-management/docs/manage-api-tokens-for-service-accounts/), and [OAuth 2.0 (3LO)](https://developer.atlassian.com/cloud/confluence/oauth-2-3lo-apps/)):
+
+  * **Classic API token** (what rfluence uses): created by a user at id.atlassian.com. It belongs to the Atlassian account, not to a site, and acts as that user on every Cloud site the account belongs to, with the user's permissions. Basic auth with email and token, at the site URL (`https://<site>.atlassian.net/wiki/...`). Expires after 1 to 365 days (tokens made since 2024-12-15; older ones expire between 2026-03-14 and 2026-05-12).
+  * **API token with scopes**: also created by the user at id.atlassian.com, for one or more apps (Confluence, Jira) and limited to the chosen scopes (read, write, delete, or granular ones). Same basic auth, but only through the API gateway: `https://api.atlassian.com/ex/confluence/<cloud id>/wiki/...`, where the cloud ID comes from `GET https://<site>/_edge/tenant_info` (no auth). Same expiry. Not supported by rfluence yet; untested which of rfluence's calls (v1 search and labels, GraphQL macro lookup, attachment downloads) scopes cover.
+  * **Service account token**: an org admin creates a non-human account and its scoped token in Atlassian Administration (5 free per org, more with Atlassian Guard). Gateway URL with the cloud ID only; same expiry rules.
+  * **OAuth 2.0 (3LO)**: an app registered in the developer console; each user consents in a browser; short-lived access tokens with refresh tokens; gateway URL; the user's sites come from `accessible-resources`. Needs a registered app and a client secret, which a CLI can't keep secret. Not planned.
+  * Data Center personal access tokens (bearer tokens): not Cloud, out of scope.
+
+Verified on the test site: a classic token works at the gateway URL too (`/ex/confluence/<cloud id>/wiki/api/v2/pages/...` and `/wiki/rest/api/user/current` return 200), so one URL scheme could serve both kinds of user token. Nothing lists the sites a token can reach without OAuth (`accessible-resources` answers 401 to basic auth), so the site always has to be given.
+
+Storage: `~/.config/rfluence/auth.json` holds `{"email": ...}`, and the token is in the system keyring (service `rfluence`, user the email), or, when no keyring is available, in `~/.config/rfluence/token` (mode 0600). Settings are in `~/.config/rfluence/config.json` (`{"default-site": "<base URL>"}`). `RFLUENCE_CONFIG_DIR` uses another directory, and `RFLUENCE_NO_KEYRING=1` skips the keyring (CI, sandboxes, tests). Earlier layouts aren't read: log in again.
+
+  * `auth login [--email E] [--with-token]`: the email (suggesting the saved one, else `git config --global user.email`) and the token. With a default site, the token is checked there first; a token that isn't accepted is asked for again ("That token isn't accepted for <email> on <site>. Try again (1 of 5 tries used)."), up to 5 tries, then "failed to authenticate after 5 tries, exiting" (exit 4); with `--with-token` (scripts) there's one try; a network error stops at once. Without a default site, login says so ("No default site is set yet. rfluence needs one to check your token."), asks for it (a bare name gets `.atlassian.net`, as with `config set`), and keeps it as the default. When no one can answer (no terminal, or `--with-token`), the token is saved unchecked, and the output says to set a default site, which checks it.
+  * `config set default-site <site>`: sets it (a bare name like `tech-accounts11` is an Atlassian Cloud site: `.atlassian.net` is added, and the output says so: "Added .atlassian.net: \"tech-accounts11\" is tech-accounts11.atlassian.net."; a host or URL is used as it is) and checks the saved token there ("Default site: example.atlassian.net. Logged in there as <name> (<email>)", or a warning). `config get default-site` prints it; `config unset default-site` removes it. Unknown settings are an error.
+  * `auth logout` forgets the email and token (the default site stays).
+  * `auth status [--site S]`: the account, where its token is, and the token checked on the default site (or `--site`); plus the `CONFLUENCE_*` variables' account, if set:
+
+    ```
+    you@example.com (token: system keyring)
+      ✓ tech-accounts11.atlassian.net (default site): logged in as Chris Edwards
+    ```
 
 ### Commands
 
@@ -698,11 +718,11 @@ Storage: sites, emails and the default site in `~/.config/rfluence/auth.json`; e
       * Local changes aren't overwritten: if the file is for the same page, its body is compared with what the version in its frontmatter converts to (fetching that version only if Confluence has a newer one). The comparison is in normalized form and ignores link destinations and image folders, which change when project files are added or the file is renamed; so a change to only a link's target isn't detected. With local changes, or a file holding another page, `fetch -o` refuses (exit 6) unless `--force`.
       * Can't be combined with `--section` or `--max-chars` (it would replace the file with part of the page). `--simplified -o` writes the simplified form and downloads nothing.
   * `rfluence auth`, modelled on `gh auth` (see "Auth"):
-    * `rfluence auth login [--site S] [--email E] [--with-token]` logs in to a site and makes it the default. It prompts for anything not given (the token without echo); `--with-token` reads the token from standard input for scripts. The credentials are checked against Confluence before anything is saved.
-    * `rfluence auth logout [--site S]` removes a site's account and token (default: the default site); another saved site becomes the default.
-    * `rfluence auth status [--site S]` lists each account (and the `CONFLUENCE_*` site, if set), marks the default, shows where its token is, and checks it against Confluence. Exits 4 if any check fails.
+    * `rfluence auth login [--email E] [--with-token]` saves your email and API token (asking for what isn't given; the token without echo). `--with-token` reads the token from standard input for scripts.
+    * `rfluence auth logout` forgets them.
+    * `rfluence auth status [--site S]` shows the account and checks the token on the default site (or `--site`). Exits 4 if a check fails.
     * `rfluence auth token [--site S]` prints the token rfluence would use.
-    * `rfluence auth switch [--site S]` changes the default site; without `--site` it switches between two saved sites.
+  * `rfluence config set|get|unset default-site [<site>]`: the Confluence site commands use when none is named (see "Auth").
   * `rfluence upload <path>` uploads an MD file to Confluence using the frontmatter data.
     * If the remote page version is newer than the `version` in the frontmatter, refuse to upload unless `--force` is passed. This prevents overwriting edits made in Confluence.
     * A file without a page ID creates a new page; see "Frontmatter" > "New pages" (`--space` / `--parent` fill in missing values). If a page with that title already exists in the space, refuse unless `--force` is passed (see Decisions).
@@ -1045,7 +1065,7 @@ Verified on the test site (folder 262167):
   * `upload --config --dry-run` prints the resolved plan as a tree: each entry's resolved ancestor (title and ID), then every file -> page title -> parent, with planned creates, updates, moves, reorders, label changes and prunes marked. This is the main way to check a config does what was intended.
   * Results go to stdout, errors go to stderr, with distinct exit codes: 0 success; 1 content problems (`rfluence check` errors, or warnings with `--warnings-are-errors`; also when `upload` refuses a file for them); 2 usage or configuration (bad arguments or page reference, missing or partial credentials); 3 not found (page, title or `--section`; also trashed pages); 4 authentication failed (HTTP 401) or permission denied (403); 5 other Confluence API or network errors; 6 the command would lose changes (`fetch -o` over local edits or a file holding another page; upload's version conflicts).
   * A 403 is reported as "permission denied: ... (the login works, but this account isn't allowed to do this; check its permissions on the space or page)", not as an authentication failure: the credentials were accepted.
-  * A bad API token (expired, revoked, mistyped, corrupted in the keyring) isn't refused by Confluence (verified): the request runs as an anonymous user, so a page comes back **404**, search and `user/current` **403** ("Current user not permitted to use Confluence"), and no header says the login failed. Only an empty token gets a 401. So after a 401, 403 or 404, the client asks once per command who Confluence thinks it is (`GET /wiki/rest/api/user/current`); if that's refused, or answered for an anonymous user (sites with anonymous access), the error becomes "authentication failed: Confluence didn't accept the API token for <email> on <site>: it may have expired, been revoked, or be mistyped. Create a new one at https://id.atlassian.com/manage-profile/security/api-tokens, then run `rfluence auth login --site <site>`" (or "update CONFLUENCE_API_KEY" when the token came from the environment), with exit 4 instead of 3. `auth login` and `auth status` report bad tokens the same way. It costs one request, only after such an error.
+  * A bad API token (expired, revoked, mistyped, corrupted in the keyring) isn't refused by Confluence (verified): the request runs as an anonymous user, so a page comes back **404**, search and `user/current` **403** ("Current user not permitted to use Confluence"), and no header says the login failed. Only an empty token gets a 401. So after a 401, 403 or 404, the client asks once per command who Confluence thinks it is (`GET /wiki/rest/api/user/current`); if that's refused, or answered for an anonymous user (sites with anonymous access), the error becomes "authentication failed: Confluence didn't accept the API token for <email> on <site>: it may have expired, been revoked, or be mistyped. Create a new one at https://id.atlassian.com/manage-profile/security/api-tokens, then run `rfluence auth login`" (or "update CONFLUENCE_API_KEY" when the token came from the environment), with exit 4 instead of 3. `auth login` and `auth status` report bad tokens the same way. It costs one request, only after such an error.
 
 #### Retries
 

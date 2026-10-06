@@ -1,7 +1,8 @@
-//! Credentials: one account per Confluence site, saved by `rfluence auth login`, or the
-//! `CONFLUENCE_*` environment variables. See design.md, "Auth".
+//! Credentials: one account (an email and its API token, which works on every site the
+//! account is on), saved by `rfluence auth login`, or given by the `CONFLUENCE_*` environment
+//! variables; and the default site (Confluence site), set by `rfluence config set
+//! default-site`. See design.md, "Auth".
 
-use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::sync::mpsc;
 use std::time::Duration;
@@ -57,13 +58,12 @@ impl std::fmt::Display for Source {
     }
 }
 
-/// A saved account: one per site.
+/// The saved account.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Account {
-    pub host: String,
-    pub base_url: String,
     pub email: String,
-    pub default: bool,
+    /// Where its token is; `None` if it has gone missing.
+    pub source: Option<Source>,
 }
 
 /// `https://x.atlassian.net/wiki/` -> `https://x.atlassian.net`.
@@ -117,123 +117,107 @@ pub fn from_env(var: impl Fn(&str) -> Option<String>) -> Result<Option<Credentia
 
 /// The credentials for a command. The site is `site` (a page URL's host, or `--site`), else
 /// `RFLUENCE_SITE`, else the `CONFLUENCE_*` variables' site, else the default site. The
-/// `CONFLUENCE_*` variables are used for their own site; other sites use saved accounts.
+/// `CONFLUENCE_*` variables are used for their own site; any other site uses the saved
+/// account, whose token works on every site the account is on (added or not).
 pub fn resolve(site: Option<&str>) -> Result<(Credentials, Source)> {
     let env = from_env(|k| std::env::var(k).ok())?;
     let requested = match site.map(str::to_string).or_else(|| std::env::var(ENV_SITE).ok().filter(|s| !s.trim().is_empty())) {
-        Some(s) => Some(host(&site_url(&s)?)),
+        Some(s) => Some(site_url(&s)?),
         None => None,
     };
     if let Some(creds) = env {
-        if requested.as_ref().is_none_or(|h| *h == creds.host()) {
+        if requested.as_ref().is_none_or(|u| host(u) == creds.host()) {
             return Ok((creds, Source::Env));
         }
     }
     let config = read_config()?;
-    let host = match requested.or(config.default.clone()) {
-        Some(h) => h,
-        None => return Err(Error::NotConfigured),
+    let Some(email) = config.email.clone() else { return Err(Error::NotConfigured) };
+    let base_url = match requested.or(default_site()?) {
+        Some(u) => u,
+        None => return Err(Error::NoSite),
     };
-    let Some(site) = config.sites.get(&host) else { return Err(Error::NotLoggedIn(host)) };
-    match read_token(&host, site, &config) {
-        Some((token, source)) => Ok((Credentials { base_url: site.base_url.clone(), email: site.email.clone(), token }, source)),
-        None => Err(Error::NotLoggedIn(host)),
+    match read_token(&email) {
+        Some((token, source)) => Ok((Credentials { base_url, email, token }, source)),
+        None => Err(Error::NotConfigured),
     }
 }
 
-/// The saved accounts, by host.
-pub fn accounts() -> Result<Vec<Account>> {
+/// The saved account, if any.
+pub fn account() -> Result<Option<Account>> {
     let config = read_config()?;
-    Ok(config
-        .sites
-        .iter()
-        .map(|(host, s)| Account {
-            host: host.clone(),
-            base_url: s.base_url.clone(),
-            email: s.email.clone(),
-            default: config.default.as_deref() == Some(host.as_str()),
-        })
-        .collect())
+    Ok(config.email.map(|email| Account { source: read_token(&email).map(|t| t.1), email }))
 }
 
-/// A saved account's token, and where it is stored.
-pub fn token(host: &str) -> Result<Option<(String, Source)>> {
-    let config = read_config()?;
-    Ok(config.sites.get(host).and_then(|site| read_token(host, site, &config)))
+/// The saved account's token, and where it is stored.
+pub fn saved_token() -> Option<(String, Source)> {
+    read_config().ok()?.email.and_then(|e| read_token(&e))
 }
 
-/// Save an account and make its site the default: site and email in the config file, the
-/// token in the system keyring, or in a token file readable only by the user when there is
-/// no keyring.
-pub fn login(creds: &Credentials) -> Result<Source> {
+/// Save the account: the email in the config file, the token in the system keyring, or in a
+/// token file readable only by the user when there is no keyring. Replaces any saved account.
+pub fn save_account(email: &str, token: &str) -> Result<Source> {
     let mut config = read_config()?;
-    let host = creds.host();
-    let site = SiteConfig { base_url: normalize_base_url(&creds.base_url), email: creds.email.clone() };
-    // A different account on the same site replaces the old one.
-    if let Some(old) = config.sites.get(&host).filter(|old| old.email != site.email) {
-        keyring_delete(old);
+    if let Some(old) = config.email.as_deref().filter(|old| *old != email) {
+        forget_token(old);
     }
-    config.sites.insert(host.clone(), site.clone());
-    config.default = Some(host.clone());
-    config.legacy_token = false;
+    config.email = Some(email.to_string());
     write_config(&config)?;
-    if keyring_set(&site, &creds.token) {
+    if keyring_set(email, token) {
         // A token file from an earlier fallback would be stale now.
-        let _ = std::fs::remove_file(token_path(&host)?);
+        let _ = std::fs::remove_file(token_path()?);
         return Ok(Source::Keyring);
     }
-    write_private(&token_path(&host)?, &creds.token)?;
+    write_private(&token_path()?, token)?;
     Ok(Source::TokenFile)
 }
 
-/// Remove a site's account and token. If it was the default, another saved site (if any)
-/// becomes the default. Returns false if there was no account for the site.
-pub fn logout(host: &str) -> Result<bool> {
-    let mut config = read_config()?;
-    let Some(site) = config.sites.remove(host) else { return Ok(false) };
-    keyring_delete(&site);
-    let _ = std::fs::remove_file(token_path(host)?);
-    if config.default.as_deref() == Some(host) {
-        config.default = config.sites.keys().next().cloned();
+/// Forget the account: its token and email. Returns the email, if there was one.
+pub fn logout() -> Result<Option<String>> {
+    let config = read_config()?;
+    if let Some(email) = &config.email {
+        forget_token(email);
     }
-    if config.legacy_token {
-        let _ = std::fs::remove_file(config_dir()?.join("token"));
-        config.legacy_token = false;
-    }
-    write_config(&config)?;
-    Ok(true)
+    write_config(&Config::default())?;
+    Ok(config.email)
 }
 
-/// Make a saved site the default.
-pub fn switch(host: &str) -> Result<()> {
-    let mut config = read_config()?;
-    if !config.sites.contains_key(host) {
-        return Err(Error::NotLoggedIn(host.to_string()));
+fn forget_token(email: &str) {
+    keyring_delete(email);
+    if let Ok(path) = token_path() {
+        let _ = std::fs::remove_file(path);
     }
-    config.default = Some(host.to_string());
-    write_config(&config)
 }
 
-/// Where tokens are saved when there is no keyring (for messages).
-pub fn token_file(host: &str) -> Result<PathBuf> {
-    token_path(host)
+/// The default site: the Confluence site commands use when none is named (base URL).
+pub fn default_site() -> Result<Option<String>> {
+    Ok(read_settings()?.default_site)
 }
 
+/// Set the default site (a site name, host or URL; stored as its base URL), or clear it.
+pub fn set_default_site(site: Option<&str>) -> Result<Option<String>> {
+    let mut settings = read_settings()?;
+    settings.default_site = site.map(site_url).transpose()?;
+    write_json("config.json", &settings)?;
+    Ok(settings.default_site)
+}
+
+/// Where the token is saved when there is no keyring (for messages).
+pub fn token_file() -> Result<PathBuf> {
+    token_path()
+}
+
+/// `auth.json`: the account's email (its token is in the keyring or the token file).
 #[derive(Debug, Default, Serialize, Deserialize)]
 struct Config {
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    default: Option<String>,
-    #[serde(default)]
-    sites: BTreeMap<String, SiteConfig>,
-    /// Migrated from the single-account format, whose token file was `token`.
-    #[serde(skip)]
-    legacy_token: bool,
+    email: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct SiteConfig {
-    base_url: String,
-    email: String,
+/// `config.json`: settings (`rfluence config`).
+#[derive(Debug, Default, Serialize, Deserialize)]
+struct Settings {
+    #[serde(default, rename = "default-site", skip_serializing_if = "Option::is_none")]
+    default_site: Option<String>,
 }
 
 fn config_dir() -> Result<PathBuf> {
@@ -245,49 +229,50 @@ fn config_dir() -> Result<PathBuf> {
         .ok_or_else(|| Error::Io("can't find the user config directory".into()))
 }
 
-fn token_path(host: &str) -> Result<PathBuf> {
-    Ok(config_dir()?.join("tokens").join(host.replace([':', '/', '\\'], "_")))
+/// The token file (when there is no keyring).
+fn token_path() -> Result<PathBuf> {
+    Ok(config_dir()?.join("token"))
 }
 
 fn read_config() -> Result<Config> {
-    let path = config_dir()?.join("auth.json");
-    let text = match std::fs::read_to_string(&path) {
-        Ok(text) => text,
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Config::default()),
-        Err(e) => return Err(Error::Io(format!("{}: {e}", path.display()))),
-    };
-    let bad = |e: serde_json::Error| Error::Io(format!("{}: {e}", path.display()));
-    let value: serde_json::Value = serde_json::from_str(&text).map_err(bad)?;
-    if value.get("sites").is_some() || value.get("base_url").is_none() {
-        return serde_json::from_value(value).map_err(bad);
-    }
-    // The single-account format: {base_url, email}, with the token in `token`.
-    let old: SiteConfig = serde_json::from_value(value).map_err(bad)?;
-    let host = host(&old.base_url);
-    Ok(Config { default: Some(host.clone()), sites: BTreeMap::from([(host, old)]), legacy_token: true })
+    read_json("auth.json")
 }
 
 fn write_config(config: &Config) -> Result<()> {
+    write_json("auth.json", config)
+}
+
+fn read_settings() -> Result<Settings> {
+    read_json("config.json")
+}
+
+/// A JSON file in the config directory (the default value if there's none).
+fn read_json<T: serde::de::DeserializeOwned + Default>(name: &str) -> Result<T> {
+    let path = config_dir()?.join(name);
+    let text = match std::fs::read_to_string(&path) {
+        Ok(text) => text,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(T::default()),
+        Err(e) => return Err(Error::Io(format!("{}: {e}", path.display()))),
+    };
+    serde_json::from_str(&text).map_err(|e| Error::Io(format!("{}: {e}", path.display())))
+}
+
+fn write_json<T: Serialize>(name: &str, value: &T) -> Result<()> {
     let dir = config_dir()?;
     std::fs::create_dir_all(&dir).map_err(|e| Error::Io(format!("{}: {e}", dir.display())))?;
-    let path = dir.join("auth.json");
-    std::fs::write(&path, serde_json::to_string_pretty(config).expect("config serializes") + "\n")
+    let path = dir.join(name);
+    std::fs::write(&path, serde_json::to_string_pretty(value).expect("settings serialize") + "\n")
         .map_err(|e| Error::Io(format!("{}: {e}", path.display())))
 }
 
-fn read_token(host: &str, site: &SiteConfig, config: &Config) -> Option<(String, Source)> {
-    if let Some(token) = keyring_get(site) {
+/// The account's token: from the keyring, else the token file.
+fn read_token(email: &str) -> Option<(String, Source)> {
+    if let Some(token) = keyring_get(email) {
         return Some((token, Source::Keyring));
     }
-    let mut files = vec![token_path(host).ok()?];
-    if config.legacy_token {
-        files.push(config_dir().ok()?.join("token"));
-    }
-    files.into_iter().find_map(|f| {
-        let token = std::fs::read_to_string(f).ok()?;
-        let token = token.trim();
-        (!token.is_empty()).then(|| (token.to_string(), Source::TokenFile))
-    })
+    let token = std::fs::read_to_string(token_path().ok()?).ok()?;
+    let token = token.trim();
+    (!token.is_empty()).then(|| (token.to_string(), Source::TokenFile))
 }
 
 fn write_private(path: &PathBuf, contents: &str) -> Result<()> {
@@ -308,11 +293,6 @@ fn write_private(path: &PathBuf, contents: &str) -> Result<()> {
     }
 }
 
-/// The keyring entry's user: email and site.
-fn keyring_user(site: &SiteConfig) -> String {
-    format!("{} on {}", site.email, site.base_url)
-}
-
 /// Run a keyring operation on a thread, giving up after [`KEYRING_TIMEOUT`].
 fn with_keyring<T: Send + 'static>(f: impl FnOnce() -> Option<T> + Send + 'static) -> Option<T> {
     if std::env::var_os(ENV_NO_KEYRING).is_some_and(|v| !v.is_empty()) {
@@ -327,18 +307,19 @@ fn with_keyring<T: Send + 'static>(f: impl FnOnce() -> Option<T> + Send + 'stati
     rx.recv_timeout(KEYRING_TIMEOUT).ok().flatten()
 }
 
-fn keyring_get(site: &SiteConfig) -> Option<String> {
-    let user = keyring_user(site);
+/// Keyring entries: service `rfluence`, user the account's email.
+fn keyring_get(email: &str) -> Option<String> {
+    let user = email.to_string();
     with_keyring(move || keyring_core::Entry::new(KEYRING_SERVICE, &user).ok()?.get_password().ok())
 }
 
-fn keyring_set(site: &SiteConfig, token: &str) -> bool {
-    let (user, token) = (keyring_user(site), token.to_string());
+fn keyring_set(email: &str, token: &str) -> bool {
+    let (user, token) = (email.to_string(), token.to_string());
     with_keyring(move || keyring_core::Entry::new(KEYRING_SERVICE, &user).ok()?.set_password(&token).ok()).is_some()
 }
 
-fn keyring_delete(site: &SiteConfig) {
-    let user = keyring_user(site);
+fn keyring_delete(email: &str) {
+    let user = email.to_string();
     with_keyring(move || keyring_core::Entry::new(KEYRING_SERVICE, &user).ok()?.delete_credential().ok());
 }
 

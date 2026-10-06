@@ -262,7 +262,9 @@ fn reports_rejected_tokens() {
     assert!(
         message.contains("Confluence didn't accept the API token for me@example.com on 127.0.0.1:")
             && message.contains("expired, been revoked, or be mistyped")
-            && message.contains("https://id.atlassian.com/manage-profile/security/api-tokens"),
+            && message.contains("https://id.atlassian.com/manage-profile/security/api-tokens")
+            && message.ends_with("then run `rfluence auth login`")
+            && !message.contains("--site"),
         "{message}"
     );
     // Checked once per client: a second 404 doesn't ask again.

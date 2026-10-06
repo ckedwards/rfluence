@@ -8,6 +8,7 @@ mod order;
 mod plan;
 mod project;
 mod search;
+mod settings;
 mod upload;
 mod upload_tree;
 
@@ -153,24 +154,28 @@ enum Command {
         #[arg(long)]
         warnings_are_errors: bool,
     },
-    /// Log in to Confluence sites: one account per site.
+    /// Log in to Confluence: your Atlassian account's email and API token.
     ///
-    /// Tokens are kept in the system keyring, or a file readable only by you if there is none.
-    /// CONFLUENCE_BASE_URL, CONFLUENCE_EMAIL and CONFLUENCE_API_KEY, if all set, are used for
-    /// their own site.
+    /// An API token works on every Confluence site your account is on; which one commands use
+    /// by default is a setting (`rfluence config set default-site`). The token is kept in the
+    /// system keyring, or a file readable only by you if there is none. CONFLUENCE_BASE_URL,
+    /// CONFLUENCE_EMAIL and CONFLUENCE_API_KEY, if all set, are used for their own site.
     Auth {
         #[command(subcommand)]
         action: AuthAction,
+    },
+    /// Settings: `default-site`, the Confluence site commands use when none is named.
+    Config {
+        #[command(subcommand)]
+        action: ConfigAction,
     },
 }
 
 #[derive(Subcommand)]
 enum AuthAction {
-    /// Log in to a site (and make it the default). Prompts for anything not given.
+    /// Log in: your email and API token (asked for if not given). The token is checked on the
+    /// default site, if one is set.
     Login {
-        /// The site: a name (`example`), a host, or a URL.
-        #[arg(long, value_name = "SITE")]
-        site: Option<String>,
         /// The Atlassian account email.
         #[arg(long)]
         email: Option<String>,
@@ -178,27 +183,28 @@ enum AuthAction {
         #[arg(long)]
         with_token: bool,
     },
-    /// Log out of a site (default: the default site).
-    Logout {
-        #[arg(long, value_name = "SITE")]
-        site: Option<String>,
-    },
-    /// Show the saved accounts and check them against Confluence.
+    /// Forget your email and token.
+    Logout,
+    /// Show the account and check the token on the default site (or --site).
     Status {
-        /// Only this site.
         #[arg(long, value_name = "SITE")]
         site: Option<String>,
     },
-    /// Print the API token for a site (default: the site rfluence would use).
+    /// Print the API token rfluence would use (for --site, if given).
     Token {
         #[arg(long, value_name = "SITE")]
         site: Option<String>,
     },
-    /// Change the default site. Without --site, switches between two saved sites.
-    Switch {
-        #[arg(long, value_name = "SITE")]
-        site: Option<String>,
-    },
+}
+
+#[derive(Subcommand)]
+enum ConfigAction {
+    /// Set a setting, e.g. `rfluence config set default-site example` (example.atlassian.net).
+    Set { key: String, value: String },
+    /// Print a setting.
+    Get { key: String },
+    /// Remove a setting.
+    Unset { key: String },
 }
 
 /// Exit codes (design.md, "Output and errors").
@@ -215,7 +221,7 @@ pub fn fail(e: &rfluence_client::Error) -> ExitCode {
     use rfluence_client::Error;
     eprintln!("rfluence: {e}");
     ExitCode::from(match e {
-        Error::NotConfigured | Error::NotLoggedIn(_) | Error::PartialEnv(_) | Error::Invalid(_) | Error::Io(_) => EXIT_USAGE,
+        Error::NotConfigured | Error::NoSite | Error::PartialEnv(_) | Error::Invalid(_) | Error::Io(_) => EXIT_USAGE,
         Error::NotFound(_) => EXIT_NOT_FOUND,
         Error::Auth(_) | Error::Forbidden(_) => EXIT_AUTH,
         Error::Conflict(_) => EXIT_CONFLICT,
@@ -264,11 +270,15 @@ fn main() -> ExitCode {
         }
         Command::Check { paths, json, warnings_are_errors } => check::run(&paths, json, warnings_are_errors),
         Command::Auth { action } => match action {
-            AuthAction::Login { site, email, with_token } => auth::login(site, email, with_token),
-            AuthAction::Logout { site } => auth::logout(site),
+            AuthAction::Login { email, with_token } => auth::login(email, with_token),
+            AuthAction::Logout => auth::logout(),
             AuthAction::Status { site } => auth::status(site),
             AuthAction::Token { site } => auth::token(site),
-            AuthAction::Switch { site } => auth::switch(site),
+        },
+        Command::Config { action } => match action {
+            ConfigAction::Set { key, value } => settings::set(&key, &value),
+            ConfigAction::Get { key } => settings::get(&key),
+            ConfigAction::Unset { key } => settings::unset(&key),
         },
     }
 }

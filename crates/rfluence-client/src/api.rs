@@ -287,7 +287,7 @@ impl Client {
         let fix = if from_env {
             "then update CONFLUENCE_API_KEY (or unset the CONFLUENCE_* variables to use a saved login)".to_string()
         } else {
-            format!("then run `rfluence auth login --site {host}`")
+            "then run `rfluence auth login`".to_string()
         };
         Error::Auth(format!(
             "Confluence didn't accept the API token for {} on {host}: it may have expired, been revoked, or be mistyped. Create a new one at https://id.atlassian.com/manage-profile/security/api-tokens, {fix}",
