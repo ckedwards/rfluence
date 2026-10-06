@@ -1,0 +1,33 @@
+# release-plz (https://release-plz.dev): opens the release PR and publishes when it's merged. See
+# .github/workflows/release.yaml and the release section of development.md.
+
+[workspace]
+# Release only when the release PR is merged, not on every push to master.
+release_always = false
+
+# The command: one changelog (at the repository root) covering all three crates, and the only
+# tag (v<version>) and GitHub release.
+[[package]]
+name = "rfluence"
+changelog_path = "CHANGELOG.md"
+changelog_include = ["rfluence-convert", "rfluence-client"]
+git_tag_name = "v{{ version }}"
+git_release_name = "rfluence v{{ version }}"
+version_group = "rfluence"
+
+# The libraries are published at the same version (the workspace version), without a changelog,
+# tag or release of their own. Semver checks still run on them: `cargo install rfluence` picks up
+# the newest compatible libraries, so a breaking change must bump the version.
+[[package]]
+name = "rfluence-convert"
+changelog_update = false
+git_tag_enable = false
+git_release_enable = false
+version_group = "rfluence"
+
+[[package]]
+name = "rfluence-client"
+changelog_update = false
+git_tag_enable = false
+git_release_enable = false
+version_group = "rfluence"

@@ -2,7 +2,7 @@
 
 ## Prebuilt binaries
 
-Releases will be on the [releases page](https://github.com/ckedwards/rfluence/releases) (none yet; build from source for now). Each has an archive per platform, with a `.sha256` checksum:
+Releases after 0.1.0 have prebuilt binaries on the [releases page](https://github.com/ckedwards/rfluence/releases) (0.1.0 is only on crates.io: install it with Cargo). Each has an archive per platform, with a `.sha256` checksum:
 
 | Platform | Archive |
 | --- | --- |
@@ -26,7 +26,7 @@ On Windows, unzip it and put `rfluence.exe` in a folder on your `PATH`. macOS ma
 You need Rust 1.88 or later ([rustup](https://rustup.rs) installs it). No other libraries are needed: HTTPS and the keyring support are built in.
 
 ```shell
-cargo install rfluence      # from crates.io (once it's published)
+cargo install rfluence      # the latest release, from crates.io
 ```
 
 Or the latest source:

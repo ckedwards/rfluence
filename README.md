@@ -16,10 +16,10 @@ rfluence treats markdown as a real way to work on Confluence pages:
 
 ## Install
 
-Prebuilt binaries for Linux, macOS and Windows will be on the [releases page](https://github.com/ckedwards/rfluence/releases), and the crate on [crates.io](https://crates.io/crates/rfluence) (neither is published yet). With Rust 1.88 or later:
+rfluence is on [crates.io](https://crates.io/crates/rfluence); prebuilt binaries for Linux, macOS and Windows will be on the [releases page](https://github.com/ckedwards/rfluence/releases) from the next release. With Rust 1.88 or later:
 
 ```shell
-cargo install rfluence                                         # once it's on crates.io
+cargo install rfluence                                         # the latest release
 cargo install --git https://github.com/ckedwards/rfluence rfluence   # the latest source
 ```
 

@@ -143,28 +143,22 @@ The captured pages, how they were made, and what each covers are described in [f
 
 ## CI and releases
 
-GitHub Actions run `.github/workflows/ci.yml` on every push to `master` and every pull request: build and tests on Linux, macOS and Windows, clippy (warnings are errors), `cargo fmt --check`, and a build with the minimum Rust version (1.88). The live tests skip themselves there.
+GitHub Actions run `.github/workflows/ci.yaml` on every push to `master` and every pull request: build and tests on Linux, macOS and Windows, clippy (warnings are errors), `cargo fmt --check`, and a build with the minimum Rust version (1.88). The live tests skip themselves there.
 
-To release:
+Releases are made by [release-plz](https://release-plz.dev), from `.github/workflows/release.yaml` and `release-plz.toml`:
 
-1. Set the new version in the root `Cargo.toml` (`[workspace.package]`, shared by all crates, and the `version` of the two `rfluence-*` entries in `[workspace.dependencies]`), run `cargo build` to update `Cargo.lock`, and commit.
-2. Tag and push the tag:
+1. On every push to `master`, release-plz opens (or updates) a release PR. It bumps the shared version in the root `Cargo.toml` (`[workspace.package]` and the two `rfluence-*` entries in `[workspace.dependencies]`) and adds the changes to `CHANGELOG.md`, from the [conventional commits](https://www.conventionalcommits.org) since the last release: `fix:` bumps the patch version, `feat:` the minor version (while we're at 0.x), and a breaking change (`feat!:`, or one `cargo-semver-checks` finds in the libraries) the minor version too. Edit the changelog in the PR if you like.
+2. Merging the release PR publishes the three crates to crates.io (with [trusted publishing](https://crates.io/docs/trusted-publishing), so there's no token in the repository), tags `v<version>`, creates the GitHub release with the changelog entry, and attaches the archives listed in [docs/user/installation.md](docs/user/installation.md).
 
-   ```shell
-   git tag v0.2.0
-   git push origin v0.2.0
-   ```
+The release PR is opened with the workflow's `GITHUB_TOKEN`, so CI doesn't run on it: close and reopen it to run CI. A `RELEASE_PLZ_TOKEN` secret (a fine-grained personal access token with read and write access to contents and pull requests on this repository) makes CI run on it automatically.
 
-`.github/workflows/release.yml` checks the tag matches the version, builds the archives listed in [docs/user/installation.md](docs/user/installation.md), and publishes a GitHub release with notes generated from the commits. To try the builds without releasing, run the workflow by hand (Actions > Release > Run workflow): the archives are uploaded as workflow artifacts.
+To try the builds without releasing, run the Release workflow by hand (Actions > Release > Run workflow): the archives are uploaded as workflow artifacts.
 
-### Publishing to crates.io
-
-The three crates are published together: `rfluence-convert` and `rfluence-client` (libraries the command depends on) and `rfluence` (the command; `cargo install rfluence`). After tagging a release:
+The crates are published together, at one version: `rfluence-convert` and `rfluence-client` (libraries the command depends on) and `rfluence` (the command; `cargo install rfluence`). The packages leave out `tests/` and `examples/`, which need `fixtures/` from the repository. To check the packages locally:
 
 ```shell
 cargo publish --workspace --dry-run    # packages each crate and builds it from the package alone
-cargo publish --workspace              # needs `cargo login` with a crates.io token
 ```
 
-Cargo publishes them in dependency order. A published version can't be replaced (only yanked), so do the dry run first. The packages leave out `tests/` and `examples/`, which need `fixtures/` from the repository.
+A new crate in the workspace has to be published by hand the first time (`cargo publish -p <crate>` with a crates.io token), because trusted publishing can't create crates; then add a trusted publisher for it on crates.io (repository `ckedwards/rfluence`, workflow `release.yaml`).
 

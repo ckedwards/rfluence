@@ -1,0 +1,149 @@
+# Releases with release-plz (https://release-plz.dev), configured in release-plz.toml.
+#
+# On every push to master, release-plz opens or updates a release PR that bumps the version and
+# updates CHANGELOG.md from the conventional commits since the last release. Merging that PR
+# publishes the crates to crates.io (trusted publishing, so no token is stored here), tags
+# v<version>, creates the GitHub release, and the jobs below attach the binaries to it.
+#
+# Running the workflow by hand (Actions > Release > Run workflow) only builds the archives, as
+# workflow artifacts, to try the builds without releasing.
+#
+# crates.io's trusted publisher for each crate must name this file: release.yaml.
+name: Release
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  release-pr:
+    name: Open the release PR
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    concurrency:
+      group: release-plz-${{ github.ref }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: release-plz/action@v0.5
+        with:
+          command: release-pr
+        env:
+          # PRs opened with GITHUB_TOKEN don't trigger CI. A RELEASE_PLZ_TOKEN secret (a personal
+          # access token) makes CI run on the release PR; without it, close and reopen the PR.
+          GITHUB_TOKEN: ${{ secrets.RELEASE_PLZ_TOKEN || secrets.GITHUB_TOKEN }}
+
+  release:
+    name: Publish the release
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: read
+      # Trusted publishing: release-plz exchanges the workflow's OIDC token for a crates.io token.
+      id-token: write
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+      - id: release-plz
+        uses: release-plz/action@v0.5
+        with:
+          command: release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # The tag of the rfluence release, or empty when nothing was released.
+      - id: tag
+        env:
+          RELEASES: ${{ steps.release-plz.outputs.releases }}
+        run: echo "tag=$(jq -r '.[] | select(.package_name == "rfluence") | .tag' <<< "${RELEASES:-[]}")" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build ${{ matrix.target }}
+    needs: release
+    # The release job is skipped on a manual run, and finds nothing to release on most pushes.
+    if: ${{ !cancelled() && !failure() && (github.event_name == 'workflow_dispatch' || needs.release.outputs.tag != '') }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Linux builds are static (musl), so they run on any distribution.
+          - { target: x86_64-unknown-linux-musl, os: ubuntu-latest }
+          - { target: aarch64-unknown-linux-musl, os: ubuntu-24.04-arm }
+          - { target: x86_64-apple-darwin, os: macos-latest }
+          - { target: aarch64-apple-darwin, os: macos-latest }
+          - { target: x86_64-pc-windows-msvc, os: windows-latest }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.release.outputs.tag || github.sha }}
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - if: contains(matrix.target, 'musl')
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+      - run: cargo build --release --locked -p rfluence --target ${{ matrix.target }}
+      - name: Package
+        shell: bash
+        run: |
+          # The workspace version (Cargo.toml, [workspace.package]).
+          version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
+          name="rfluence-$version-${{ matrix.target }}"
+          mkdir -p "dist/$name"
+          if [[ "${{ matrix.target }}" == *windows* ]]; then
+            cp "target/${{ matrix.target }}/release/rfluence.exe" "dist/$name/"
+            cp README.md LICENSE "dist/$name/"
+            (cd dist && 7z a -tzip "$name.zip" "$name" > /dev/null)
+            archive="$name.zip"
+          else
+            cp "target/${{ matrix.target }}/release/rfluence" "dist/$name/"
+            cp README.md LICENSE "dist/$name/"
+            tar -C dist -czf "dist/$name.tar.gz" "$name"
+            archive="$name.tar.gz"
+          fi
+          cd dist
+          if command -v sha256sum > /dev/null; then sha256sum "$archive" > "$archive.sha256"; else shasum -a 256 "$archive" > "$archive.sha256"; fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}
+          path: |
+            dist/*.tar.gz
+            dist/*.zip
+            dist/*.sha256
+          if-no-files-found: error
+
+  upload:
+    name: Attach the binaries to the release
+    needs: [release, build]
+    if: ${{ !cancelled() && !failure() && needs.release.outputs.tag != '' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.release.outputs.tag }}
+        run: gh release upload "$TAG" dist/* --repo "$GITHUB_REPOSITORY"
