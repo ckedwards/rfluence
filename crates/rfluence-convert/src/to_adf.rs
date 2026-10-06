@@ -49,13 +49,11 @@ impl UploadContext {
             if mermaid::is_merfluence(n) && self.mermaid.is_none() {
                 self.mermaid = n.attr_str("extensionKey").and_then(MermaidApp::from_extension_key);
             }
-            if n.is("emoji") {
-                if let (Some(short), Some(id), Some(text)) = (n.attr_str("shortName"), n.attr_str("id"), n.attr_str("text")) {
-                    if !emoji::is_emoji(text) && emoji::lookup(short).is_none() && emoji::from_id(id).is_none() {
+            if n.is("emoji")
+                && let (Some(short), Some(id), Some(text)) = (n.attr_str("shortName"), n.attr_str("id"), n.attr_str("text"))
+                    && !emoji::is_emoji(text) && emoji::lookup(short).is_none() && emoji::from_id(id).is_none() {
                         self.custom_emoji.insert(short.trim_matches(':').to_string(), id.to_string());
                     }
-                }
-            }
         });
     }
 }
@@ -162,12 +160,11 @@ pub fn local_synced_copies(md: &str) -> Vec<String> {
     let root = parse_document(&arena, md, &options());
     let mut ids = Vec::new();
     for n in root.descendants() {
-        if let Some(s) = block_comment(n).filter(|s| s.has("synced-block")) {
-            if let (Some(page), Some(id)) = (s.get("page"), s.get("id")) {
-                let r = crate::synced::copy_resource_id(page, id);
-                if !ids.contains(&r) {
-                    ids.push(r);
-                }
+        if let Some(s) = block_comment(n).filter(|s| s.has("synced-block"))
+            && let (Some(page), Some(id)) = (s.get("page"), s.get("id")) {
+            let r = crate::synced::copy_resource_id(page, id);
+            if !ids.contains(&r) {
+                ids.push(r);
             }
         }
     }
@@ -648,9 +645,9 @@ impl<'a> Reader<'a, '_> {
         if let Some(media) = self.image_paragraph(&inlines, &settings) {
             return media;
         }
-        if settings.has("card") {
-            if let [link] = inlines.as_slice() {
-                if let NodeValue::Link(l) = &link.data().value {
+        if settings.has("card")
+            && let [link] = inlines.as_slice()
+                && let NodeValue::Link(l) = &link.data().value {
                     let card = match settings.get("card") {
                         Some("embed") => {
                             let mut c = Node::new("embedCard").with_attr("url", self.href(&l.url));
@@ -666,8 +663,6 @@ impl<'a> Reader<'a, '_> {
                     };
                     return card;
                 }
-            }
-        }
         let mut p = Node::new("paragraph").with_content(self.inlines(&inlines, &[]));
         p.marks = self.block_marks(node, &settings);
         p
@@ -1179,13 +1174,12 @@ fn adf_span(html: &str) -> Option<Result<Node, String>> {
 /// Split off a trailing `rf:` comment (block settings) from a paragraph or heading.
 fn trailing_comment<'a>(node: &'a AstNode<'a>) -> (Settings, Vec<&'a AstNode<'a>>) {
     let mut kids = children(node);
-    if let Some(last) = kids.last() {
-        if let NodeValue::HtmlInline(h) = &last.data().value {
-            // `card=inline` belongs to the link before it, even at the end of a paragraph.
-            if let Some(settings) = Settings::parse_comment(h).filter(|s| s.get("card") != Some("inline")) {
-                kids.pop();
-                return (settings, kids);
-            }
+    if let Some(last) = kids.last()
+        && let NodeValue::HtmlInline(h) = &last.data().value {
+        // `card=inline` belongs to the link before it, even at the end of a paragraph.
+        if let Some(settings) = Settings::parse_comment(h).filter(|s| s.get("card") != Some("inline")) {
+            kids.pop();
+            return (settings, kids);
         }
     }
     (Settings::new(), kids)

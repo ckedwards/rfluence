@@ -139,3 +139,20 @@ The captured pages, how they were made, and what each covers are described in [f
 
   * `scripts/capture-fixtures.sh`: re-capture a page, or add one (`--new <name> <page id>`)
   * `scripts/restore-reference-pages.py`: recreate the pages in another space or site
+
+## CI and releases
+
+GitHub Actions run `.github/workflows/ci.yml` on every push to `master` and every pull request: build and tests on Linux, macOS and Windows, clippy (warnings are errors), and a build with the minimum Rust version (1.88). The live tests skip themselves there.
+
+To release:
+
+1. Set the new version in `crates/rfluence-cli/Cargo.toml` (and the other crates', to keep them together), run `cargo build` to update `Cargo.lock`, and commit.
+2. Tag and push the tag:
+
+   ```shell
+   git tag v0.2.0
+   git push origin v0.2.0
+   ```
+
+`.github/workflows/release.yml` checks the tag matches the version, builds the archives listed in [docs/user/installation.md](docs/user/installation.md), and publishes a GitHub release with notes generated from the commits. To try the builds without releasing, run the workflow by hand (Actions > Release > Run workflow): the archives are uploaded as workflow artifacts.
+

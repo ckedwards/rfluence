@@ -2,11 +2,28 @@
 
 ## Prebuilt binaries
 
-Binaries for Linux, macOS and Windows will be published on the [releases page](https://github.com/ckedwards/rfluence/releases). They aren't available yet; build from source for now.
+Releases will be on the [releases page](https://github.com/ckedwards/rfluence/releases) (none yet; build from source for now). Each has an archive per platform, with a `.sha256` checksum:
+
+| Platform | Archive |
+| --- | --- |
+| Linux, x86_64 | `rfluence-<version>-x86_64-unknown-linux-musl.tar.gz` |
+| Linux, ARM64 | `rfluence-<version>-aarch64-unknown-linux-musl.tar.gz` |
+| macOS, Apple Silicon | `rfluence-<version>-aarch64-apple-darwin.tar.gz` |
+| macOS, Intel | `rfluence-<version>-x86_64-apple-darwin.tar.gz` |
+| Windows | `rfluence-<version>-x86_64-pc-windows-msvc.zip` |
+
+The Linux builds are static, so they run on any distribution. On Linux or macOS:
+
+```shell
+tar -xzf rfluence-<version>-<platform>.tar.gz
+sudo mv rfluence-<version>-<platform>/rfluence /usr/local/bin/   # or any directory on your PATH
+```
+
+On Windows, unzip it and put `rfluence.exe` in a folder on your `PATH`. macOS may refuse to open a downloaded binary at first; allow it in System Settings > Privacy & Security, or run `xattr -d com.apple.quarantine /usr/local/bin/rfluence`.
 
 ## From source
 
-You need Rust 1.85 or later ([rustup](https://rustup.rs) installs it). No other libraries are needed: HTTPS and the keyring support are built in.
+You need Rust 1.88 or later ([rustup](https://rustup.rs) installs it). No other libraries are needed: HTTPS and the keyring support are built in.
 
 ```shell
 git clone https://github.com/ckedwards/rfluence.git

@@ -184,10 +184,9 @@ pub fn parse_page_ref(s: &str) -> Result<PageRef> {
         }
         return Err(Error::Invalid(format!("not a Confluence page URL: {s}")));
     }
-    if let Some((space, title)) = s.split_once(':') {
-        if !space.is_empty() && !title.trim().is_empty() && !space.contains(char::is_whitespace) {
-            return Ok(PageRef::Title { space_key: space.to_string(), title: title.trim().to_string() });
-        }
+    if let Some((space, title)) = s.split_once(':')
+        && !space.is_empty() && !title.trim().is_empty() && !space.contains(char::is_whitespace) {
+        return Ok(PageRef::Title { space_key: space.to_string(), title: title.trim().to_string() });
     }
     Err(Error::Invalid(format!("not a page ID, page URL or SPACE:Title: {s}")))
 }
@@ -1142,7 +1141,7 @@ fn status_error(status: u16, url: &str, path: &str, body: &str) -> Error {
 
 /// A wait, for messages: `2 s`, or `250 ms`.
 fn show_wait(d: Duration) -> String {
-    if d.as_millis() >= 1000 && d.as_millis() % 1000 == 0 { format!("{} s", d.as_secs()) } else { format!("{} ms", d.as_millis()) }
+    if d.as_millis() >= 1000 && d.as_millis().is_multiple_of(1000) { format!("{} s", d.as_secs()) } else { format!("{} ms", d.as_millis()) }
 }
 
 /// The media type for an attachment, by file extension.

@@ -145,10 +145,9 @@ fn upload_tree(opts: &Options, counts: &mut Counts) -> Result<(), Failure> {
     // Everything that can fail without Confluence, for every file, before anything is sent.
     let mut pending: HashSet<PathBuf> = HashSet::new();
     for_each_page(&plans, &mut |_, node| {
-        if let plan::Kind::Page { file, id: None } = &node.kind {
-            if let Ok(c) = config.root.join(file).canonicalize() {
-                pending.insert(c);
-            }
+        if let plan::Kind::Page { file, id: None } = &node.kind
+            && let Ok(c) = config.root.join(file).canonicalize() {
+            pending.insert(c);
         }
     });
     let mut problems = Vec::new();
@@ -392,10 +391,9 @@ fn find_page_titled(plans: &[EntryPlan], space: &str, title: &str) -> Option<Str
     for plan in plans.iter().filter(|p| p.space_key == space) {
         for n in &plan.nodes {
             n.walk(&mut |n| {
-                if let (plan::Kind::Page { file, .. }, Some(t)) = (&n.kind, &n.title) {
-                    if t == title && found.is_none() {
-                        found = Some(file.clone());
-                    }
+                if let (plan::Kind::Page { file, .. }, Some(t)) = (&n.kind, &n.title)
+                    && t == title && found.is_none() {
+                    found = Some(file.clone());
                 }
             });
         }
@@ -469,14 +467,13 @@ impl Pass<'_> {
                 }
                 plan::Kind::Page { file, .. } => {
                     self.parents.insert(file.clone(), (parent.map(str::to_string), parent_title.to_string()));
-                    if self.places[file] == Place::New {
-                        if let (Some(p), false) = (parent, self.opts.dry_run) {
-                            let path = self.config.path_of(file);
-                            let id = upload::create_empty(self.client, &path, self.space, p, &title, &self.plan.labels)
-                                .map_err(|stop| Failure::File(path.clone(), stop))?;
-                            self.places.insert(file.clone(), Place::Created(id));
-                            self.counts.created += 1;
-                        }
+                    if self.places[file] == Place::New
+                        && let (Some(p), false) = (parent, self.opts.dry_run) {
+                        let path = self.config.path_of(file);
+                        let id = upload::create_empty(self.client, &path, self.space, p, &title, &self.plan.labels)
+                            .map_err(|stop| Failure::File(path.clone(), stop))?;
+                        self.places.insert(file.clone(), Place::Created(id));
+                        self.counts.created += 1;
                     }
                     let id = self.places[file].id().map(str::to_string);
                     let title = node.title.clone().unwrap_or_else(|| file.clone());

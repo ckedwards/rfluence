@@ -45,12 +45,11 @@ pub fn page_link(url: &str, host: &str) -> Option<PageLink> {
 pub fn card_page_ids(doc: &crate::adf::Node, host: &str) -> Vec<String> {
     let mut ids = Vec::new();
     doc.walk(&mut |n| {
-        if matches!(n.kind.as_str(), "inlineCard" | "blockCard" | "embedCard") {
-            if let Some(link) = n.attr_str("url").and_then(|u| page_link(u, host)) {
-                if !ids.contains(&link.id) {
-                    ids.push(link.id);
-                }
-            }
+        if matches!(n.kind.as_str(), "inlineCard" | "blockCard" | "embedCard")
+            && let Some(link) = n.attr_str("url").and_then(|u| page_link(u, host))
+            && !ids.contains(&link.id)
+        {
+            ids.push(link.id);
         }
     });
     ids
@@ -61,10 +60,9 @@ pub fn linked_page_ids(doc: &crate::adf::Node, host: &str) -> Vec<String> {
     let mut ids = card_page_ids(doc, host);
     doc.walk(&mut |n| {
         for mark in n.marks.iter().filter(|m| m.kind == "link") {
-            if let Some(link) = mark.attr_str("href").and_then(|u| page_link(u, host)) {
-                if !ids.contains(&link.id) {
-                    ids.push(link.id);
-                }
+            if let Some(link) = mark.attr_str("href").and_then(|u| page_link(u, host))
+                && !ids.contains(&link.id) {
+                ids.push(link.id);
             }
         }
     });

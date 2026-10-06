@@ -91,10 +91,9 @@ pub fn run(opts: &Options) -> ExitCode {
             }
         }
     }
-    if let Some(max) = opts.max_chars {
-        if let Some(cut) = select::truncate(&part, max) {
-            part = cut;
-        }
+    if let Some(max) = opts.max_chars
+        && let Some(cut) = select::truncate(&part, max) {
+        part = cut;
     }
     let partial = part != body;
     let frontmatter = if partial { select::mark_partial(frontmatter) } else { frontmatter.to_string() };
@@ -285,12 +284,11 @@ fn local_changes(
 fn download_images(client: &Client, page: &Page, attachments: &[Attachment], dir: &Path) -> rfluence_client::Result<(usize, usize)> {
     let mut shown = HashSet::new();
     page.adf.walk(&mut |n: &Node| {
-        if let Some(media) = n.content.first().filter(|_| n.is("mediaSingle")) {
-            if media.attr_str("type") == Some("file") {
-                if let Some(id) = media.attr_str("id") {
-                    shown.insert(id.to_string());
-                }
-            }
+        if let Some(media) = n.content.first().filter(|_| n.is("mediaSingle"))
+            && media.attr_str("type") == Some("file")
+            && let Some(id) = media.attr_str("id")
+        {
+            shown.insert(id.to_string());
         }
     });
     let wanted: Vec<&Attachment> = attachments.iter().filter(|a| shown.contains(&a.file_id)).collect();

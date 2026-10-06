@@ -86,13 +86,12 @@ fn html_tables<'a>(arena: &'a Arena<'a>, root: &'a AstNode<'a>, diags: &mut Vec<
                     if Settings::parse_comment(&h.literal).is_some_and(|s| !(s.has("columns") || s.has("column") || s.has("end-columns"))))
             });
             let mut settings = table.settings.clone();
-            if settings.is_none() && !flags.is_empty() {
-                if let Some(next) = next {
-                    if let NodeValue::HtmlBlock(h) = &next.data().value {
-                        settings = Settings::parse_comment(&h.literal);
-                    }
-                    next.detach();
+            if settings.is_none() && !flags.is_empty()
+                && let Some(next) = next {
+                if let NodeValue::HtmlBlock(h) = &next.data().value {
+                    settings = Settings::parse_comment(&h.literal);
                 }
+                next.detach();
             }
             if !flags.is_empty() {
                 let s = settings.get_or_insert_with(Settings::new);

@@ -125,10 +125,9 @@ pub fn resolve(site: Option<&str>) -> Result<(Credentials, Source)> {
         Some(s) => Some(site_url(&s)?),
         None => None,
     };
-    if let Some(creds) = env {
-        if requested.as_ref().is_none_or(|u| host(u) == creds.host()) {
-            return Ok((creds, Source::Env));
-        }
+    if let Some(creds) = env
+        && requested.as_ref().is_none_or(|u| host(u) == creds.host()) {
+        return Ok((creds, Source::Env));
     }
     let config = read_config()?;
     let Some(email) = config.email.clone() else { return Err(Error::NotConfigured) };

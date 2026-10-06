@@ -272,11 +272,10 @@ pub fn merge_text_nodes(nodes: &mut Vec<Node>) {
         if node.is("text") && node.text.as_deref().unwrap_or("").is_empty() {
             continue;
         }
-        if let Some(prev) = out.last_mut() {
-            if node.is("text") && prev.is("text") && prev.marks == node.marks {
-                prev.text.get_or_insert_with(String::new).push_str(node.text.as_deref().unwrap_or(""));
-                continue;
-            }
+        if let Some(prev) = out.last_mut()
+            && node.is("text") && prev.is("text") && prev.marks == node.marks {
+            prev.text.get_or_insert_with(String::new).push_str(node.text.as_deref().unwrap_or(""));
+            continue;
         }
         out.push(node);
     }

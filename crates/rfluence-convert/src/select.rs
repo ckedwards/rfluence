@@ -9,12 +9,11 @@ use crate::markdown::{inline_text, options};
 
 /// Split `---` frontmatter (including its closing line and the blank line after) from the body.
 pub fn split_frontmatter(md: &str) -> (&str, &str) {
-    if let Some(rest) = md.strip_prefix("---\n") {
-        if let Some(end) = rest.find("\n---\n") {
-            let split = 4 + end + 5;
-            let body_start = if md[split..].starts_with('\n') { split + 1 } else { split };
-            return (&md[..split], &md[body_start..]);
-        }
+    if let Some(rest) = md.strip_prefix("---\n")
+        && let Some(end) = rest.find("\n---\n") {
+        let split = 4 + end + 5;
+        let body_start = if md[split..].starts_with('\n') { split + 1 } else { split };
+        return (&md[..split], &md[body_start..]);
     }
     ("", md)
 }
@@ -136,15 +135,14 @@ fn comparable(md: &str) -> String {
             for child in link.children().collect::<Vec<_>>() {
                 child.detach();
             }
-            if let Some(c) = card_comment {
-                if let NodeValue::HtmlInline(h) = &mut c.data_mut().value {
-                    // Keep the kind of card (block, embed), drop its text-dependent form.
-                    let mut settings = crate::settings::Settings::parse_comment(h).unwrap_or_default();
-                    if settings.get("card") == Some("inline") {
-                        settings = crate::settings::Settings::new();
-                    }
-                    *h = if settings.is_empty() { String::new() } else { settings.to_comment() };
+            if let Some(c) = card_comment
+                && let NodeValue::HtmlInline(h) = &mut c.data_mut().value {
+                // Keep the kind of card (block, embed), drop its text-dependent form.
+                let mut settings = crate::settings::Settings::parse_comment(h).unwrap_or_default();
+                if settings.get("card") == Some("inline") {
+                    settings = crate::settings::Settings::new();
                 }
+                *h = if settings.is_empty() { String::new() } else { settings.to_comment() };
             }
         }
     }
