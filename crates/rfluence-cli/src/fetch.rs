@@ -56,9 +56,14 @@ pub fn run(opts: &Options) -> ExitCode {
         Ok(r) => r,
         Err(e) => return fail(&e),
     };
-    let titles = card_titles(&client, &page);
+    // Both need the page's body: requested together, after it.
+    let (titles, synced_copies) = std::thread::scope(|s| {
+        let synced = s.spawn(|| client.synced_copies(&rfluence_convert::synced::copy_ids(&page.adf)));
+        let titles = card_titles(&client, &page);
+        (titles, synced.join().expect("synced blocks thread doesn't panic"))
+    });
     if let Some(path) = &opts.output {
-        return write_file(opts, &client, &page, &attachments, titles, path);
+        return write_file(opts, &client, &page, &attachments, titles, synced_copies, path);
     }
 
     let ctx = FetchContext {
@@ -70,6 +75,7 @@ pub fn run(opts: &Options) -> ExitCode {
         simplified: opts.simplified,
         site_host: Some(auth::host(&page.meta.url)),
         titles,
+        synced_copies,
         ..Default::default()
     };
     let markdown = page_markdown(&page.adf, &page.meta, &ctx);
@@ -133,6 +139,7 @@ fn write_file(
     page: &Page,
     attachments: &[Attachment],
     titles: HashMap<String, String>,
+    synced_copies: HashMap<String, Vec<Node>>,
     path: &Path,
 ) -> ExitCode {
     let dir = path.parent().filter(|d| !d.as_os_str().is_empty()).unwrap_or(Path::new("."));
@@ -151,6 +158,7 @@ fn write_file(
         site_host: Some(auth::host(&page.meta.url)),
         links: project::pages(&root, dir, path),
         titles,
+        synced_copies,
     };
     let fetched = page_markdown(&page.adf, &page.meta, &ctx);
     let fetched_doc = frontmatter::split(&fetched);

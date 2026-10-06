@@ -290,13 +290,7 @@ impl Client {
         if more {
             labels = self.labels(id)?;
         }
-        let space_key = raw
-            .links
-            .webui
-            .strip_prefix("/spaces/")
-            .and_then(|r| r.split('/').next())
-            .unwrap_or_default()
-            .to_string();
+        let space_key = space_key_of(&raw.links.webui);
         let adf: Node = serde_json::from_str(&raw.body.atlas_doc_format.value)
             .map_err(|e| Error::Api { status: 200, message: format!("page {id} body isn't valid ADF: {e}") })?;
         Ok(Page {
@@ -363,6 +357,46 @@ impl Client {
             }
         }
         Ok(titles)
+    }
+
+    /// The bodies of published pages, by ID: one request per 250 pages. Drafts, and pages
+    /// that don't exist or aren't visible, are missing from the result.
+    pub fn page_bodies(&self, ids: &[String]) -> Result<HashMap<String, Node>> {
+        #[derive(Deserialize)]
+        struct WithBody {
+            id: String,
+            body: RawBody,
+        }
+        let mut bodies = HashMap::new();
+        for chunk in ids.chunks(250) {
+            let mut path = format!("/wiki/api/v2/pages?limit=250&body-format=atlas_doc_format&id={}", chunk.join(","));
+            loop {
+                let page: Paged<WithBody> = self.get(&path)?;
+                for p in page.results {
+                    if let Ok(doc) = serde_json::from_str(&p.body.atlas_doc_format.value) {
+                        bodies.insert(p.id, doc);
+                    }
+                }
+                match page.links.and_then(|l| l.next) {
+                    Some(next) => path = format!("/wiki{next}"),
+                    None => break,
+                }
+            }
+        }
+        Ok(bodies)
+    }
+
+    /// The content of synced block copies, by `resourceId`, read from their source pages
+    /// (one request). Best effort: copies whose source can't be read are missing.
+    pub fn synced_copies(&self, ids: &[String]) -> HashMap<String, Vec<Node>> {
+        let mut pages: Vec<String> = ids.iter().filter_map(|r| rfluence_convert::synced::parse_copy(r)).map(|(p, _)| p.to_string()).collect();
+        pages.sort();
+        pages.dedup();
+        if pages.is_empty() {
+            return HashMap::new();
+        }
+        let sources = self.page_bodies(&pages).unwrap_or_default();
+        rfluence_convert::synced::copy_contents(ids, &sources)
     }
 
     /// Search with CQL (v1 search: v2 has none). One request, labels included.
@@ -518,6 +552,25 @@ pub struct Updated {
     pub parent: Option<String>,
 }
 
+/// A space: what creating a page in it needs.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+pub struct Space {
+    pub id: String,
+    pub key: String,
+    #[serde(rename = "homepageId")]
+    pub homepage_id: Option<String>,
+}
+
+/// A Forge macro installed on the site.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+pub struct InstalledMacro {
+    #[serde(rename = "appId")]
+    pub app_id: String,
+    #[serde(rename = "environmentId")]
+    pub environment_id: String,
+    pub key: String,
+}
+
 /// A content property (`rfluence` on managed pages; design.md, "Renames and deletions").
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct Property {
@@ -555,6 +608,108 @@ impl Client {
             e => page_not_found(e, id),
         })?;
         Ok(Updated { version: raw.version.number, title: raw.title, parent: raw.parent_id })
+    }
+
+    /// The space with this key.
+    pub fn space(&self, key: &str) -> Result<Space> {
+        let found: Paged<Space> = self.get(&format!("/wiki/api/v2/spaces?keys={}", encode(key)))?;
+        found
+            .results
+            .into_iter()
+            .find(|s| s.key == key)
+            .ok_or_else(|| Error::NotFound(format!("no space with key {key} (or not visible to this account)")))
+    }
+
+    /// Create a page (version 1) under `parent` (a page or folder ID) in a space.
+    pub fn create_page(&self, space_id: &str, parent: &str, title: &str, adf: &Node) -> Result<PageMeta> {
+        #[derive(Deserialize)]
+        struct Raw {
+            id: String,
+            title: String,
+            #[serde(rename = "parentId")]
+            parent_id: Option<String>,
+            version: RawVersion,
+            #[serde(rename = "_links")]
+            links: RawLinks,
+        }
+        let body = serde_json::json!({
+            "spaceId": space_id,
+            "status": "current",
+            "title": title,
+            "parentId": parent,
+            "body": { "representation": "atlas_doc_format", "value": serde_json::to_string(adf).expect("ADF serializes") },
+        });
+        let raw: Raw = self.send_json("POST", "/wiki/api/v2/pages", &body)?;
+        let space_key = space_key_of(&raw.links.webui);
+        Ok(PageMeta {
+            url: format!("{}/spaces/{space_key}/pages/{}", raw.links.base, raw.id),
+            id: raw.id,
+            title: raw.title,
+            space_key,
+            parent: raw.parent_id,
+            version: raw.version.number,
+            updated: raw.version.created_at,
+            labels: Vec::new(),
+        })
+    }
+
+    /// The Forge macros installed on the site, with their app and environment IDs: the query
+    /// the editor uses for its macro menu (design.md, "Mermaid diagrams on sites without
+    /// merfluence"). Two requests: the site's cloud ID, then the GraphQL query.
+    pub fn installed_macros(&self) -> Result<Vec<InstalledMacro>> {
+        #[derive(Deserialize)]
+        struct Tenant {
+            #[serde(rename = "cloudId")]
+            cloud_id: String,
+        }
+        #[derive(Deserialize)]
+        struct Response {
+            data: Option<Data>,
+            #[serde(default)]
+            errors: Vec<serde_json::Value>,
+        }
+        #[derive(Deserialize)]
+        struct Data {
+            #[serde(rename = "extensionContexts")]
+            contexts: Vec<Context>,
+        }
+        #[derive(Deserialize)]
+        struct Context {
+            #[serde(rename = "extensionsByType")]
+            extensions: Vec<InstalledMacro>,
+        }
+        let tenant: Tenant = self.get("/_edge/tenant_info")?;
+        let query = "query rfluence_macros($contextIds: [ID!]!, $type: String!) { extensionContexts(contextIds: $contextIds) { extensionsByType(type: $type) { appId environmentId key } } }";
+        let body = serde_json::json!({
+            "operationName": "rfluence_macros",
+            "query": query,
+            "variables": { "contextIds": [format!("ari:cloud:confluence::site/{}", tenant.cloud_id)], "type": "xen:macro" },
+        });
+        let response: Response = self.send_json("POST", "/gateway/api/graphql", &body)?;
+        if let Some(error) = response.errors.first() {
+            let message = error.get("message").and_then(|m| m.as_str()).unwrap_or("GraphQL error").to_string();
+            return Err(Error::Api { status: 200, message });
+        }
+        Ok(response.data.map(|d| d.contexts.into_iter().flat_map(|c| c.extensions).collect()).unwrap_or_default())
+    }
+
+    /// Move a page to the trash (it can be restored from there).
+    pub fn trash_page(&self, id: &str) -> Result<()> {
+        let url = format!("{}/wiki/api/v2/pages/{id}", self.base_url);
+        let resp = self.agent.delete(&url).header("Authorization", &self.authorization).call();
+        let mut resp = resp.map_err(|e| Error::Network(format!("{url}: {e}")))?;
+        match resp.status().as_u16() {
+            200..=299 => Ok(()),
+            status => {
+                let body = resp.body_mut().read_to_string().unwrap_or_default();
+                let message = error_message(&body).unwrap_or(body);
+                Err(match status {
+                    401 | 403 => Error::Auth(format!("HTTP {status} trashing page {id}: {message}")),
+                    404 => Error::NotFound(format!("page {id} not found")),
+                    _ => Error::Api { status, message },
+                })
+            }
+        }
     }
 
     /// Attach a new file to a page (v1: v2 can't upload). Doesn't create a page version.
@@ -684,6 +839,11 @@ fn media_type(file_name: &str) -> &'static str {
 /// fileId -> file name, for [`rfluence_convert::FetchContext::attachments`].
 pub fn file_names(attachments: &[Attachment]) -> HashMap<String, String> {
     attachments.iter().map(|a| (a.file_id.clone(), a.title.clone())).collect()
+}
+
+/// The space key in a page's `webui` link (`/spaces/<KEY>/pages/...`).
+fn space_key_of(webui: &str) -> String {
+    webui.strip_prefix("/spaces/").and_then(|r| r.split('/').next()).unwrap_or_default().to_string()
 }
 
 fn page_not_found(e: Error, id: &str) -> Error {

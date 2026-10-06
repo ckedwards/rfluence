@@ -1,0 +1,151 @@
+{
+  "type": "doc",
+  "content": [
+    {
+      "type": "expand",
+      "attrs": {
+        "title": "Diagram 1",
+        "localId": "3c1f98c4-663d-4f5f-bec7-e1bdd07506ac"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "type": "codeBlock",
+          "attrs": {
+            "localId": "3dba29f51cc1"
+          },
+          "content": [
+            {
+              "text": "\n\n\n\nflowchart TD\n    A[Start] --> B{Works?}\n    B -- yes --> C[Done]",
+              "type": "text"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "extension",
+      "attrs": {
+        "layout": "default",
+        "extensionType": "com.atlassian.ecosystem",
+        "extensionKey": "23392b90-4271-4239-98ca-a3e96c663cbb/63d4d207-ac2f-4273-865c-0240d37f044a/static/mermaid-diagram",
+        "text": "Mermaid diagram",
+        "parameters": {
+          "layout": "extension",
+          "guestParams": "",
+          "forgeEnvironment": "PRODUCTION",
+          "embeddedMacroContext": {
+            "accountId": "712020:05eb3148-b0e1-450d-a60d-67073e3cc131",
+            "cloudId": "148c5f37-a54d-48b2-bc8c-15a51bbd0f0d",
+            "contextIds": [
+              "ari:cloud:confluence:148c5f37-a54d-48b2-bc8c-15a51bbd0f0d:workspace/9c9dfd69-b8df-440b-a68f-59311c16ceda"
+            ],
+            "extensionData": {
+              "type": "macro",
+              "content": {
+                "id": "1966084",
+                "type": "page",
+                "version": 1
+              },
+              "space": {
+                "id": "753705",
+                "key": "rfluencete"
+              }
+            }
+          },
+          "localId": "8b265b99-77ad-4699-af73-13fa517a39a1",
+          "extensionId": "ari:cloud:ecosystem::extension/23392b90-4271-4239-98ca-a3e96c663cbb/63d4d207-ac2f-4273-865c-0240d37f044a/static/mermaid-diagram",
+          "extensionTitle": "Mermaid diagram"
+        },
+        "localId": "8b265b99-77ad-4699-af73-13fa517a39a1"
+      }
+    },
+    {
+      "type": "paragraph",
+      "attrs": {
+        "localId": "c8826146c05b"
+      },
+      "content": [
+        {
+          "text": "Diagram2",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "localId": "88f0077e7920"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "text": "flowchart TD\n    A[Start] --> B{Works?}\n    B -- yes --> C[Done]",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "type": "extension",
+      "attrs": {
+        "layout": "default",
+        "extensionType": "com.atlassian.ecosystem",
+        "extensionKey": "23392b90-4271-4239-98ca-a3e96c663cbb/63d4d207-ac2f-4273-865c-0240d37f044a/static/mermaid-diagram",
+        "text": "Mermaid diagram",
+        "parameters": {
+          "layout": "extension",
+          "guestParams": {
+            "index": 0
+          },
+          "forgeEnvironment": "PRODUCTION",
+          "embeddedMacroContext": {
+            "accountId": "712020:05eb3148-b0e1-450d-a60d-67073e3cc131",
+            "cloudId": "148c5f37-a54d-48b2-bc8c-15a51bbd0f0d",
+            "contextIds": [
+              "ari:cloud:confluence:148c5f37-a54d-48b2-bc8c-15a51bbd0f0d:workspace/9c9dfd69-b8df-440b-a68f-59311c16ceda"
+            ],
+            "extensionData": {
+              "type": "macro",
+              "content": {
+                "id": "1966084",
+                "type": "page",
+                "version": 1
+              },
+              "space": {
+                "id": "753705",
+                "key": "rfluencete"
+              }
+            }
+          },
+          "localId": "1cffb0ff-d4a7-4892-b0cd-27375da1c2ca",
+          "extensionId": "ari:cloud:ecosystem::extension/23392b90-4271-4239-98ca-a3e96c663cbb/63d4d207-ac2f-4273-865c-0240d37f044a/static/mermaid-diagram",
+          "extensionTitle": "Mermaid diagram"
+        },
+        "localId": "1cffb0ff-d4a7-4892-b0cd-27375da1c2ca"
+      }
+    },
+    {
+      "type": "paragraph",
+      "attrs": {
+        "localId": "91785a03d1a4"
+      }
+    }
+  ],
+  "version": 1
+}

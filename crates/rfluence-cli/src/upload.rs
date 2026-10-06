@@ -4,11 +4,13 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-use rfluence_client::{Attachment, Client, Page, Property, auth};
+use rfluence_client::{Attachment, Client, InstalledMacro, Page, Property, auth};
 use rfluence_convert::adf::Node;
 use rfluence_convert::annotations::{self, Reanchored};
+use rfluence_convert::mermaid;
 use rfluence_convert::{
-    FetchContext, LinkTarget, PageMeta, PageRef, Severity, UploadContext, adf_to_markdown, frontmatter, labels, local_images, local_links,
+    FetchContext, LinkTarget, MermaidApp, PageMeta, PageRef, Severity, UploadContext, adf_to_markdown, frontmatter, labels, local_images,
+    local_links, local_synced_copies,
     markdown_to_adf, select, starts_with_h1, upload_title,
 };
 use serde::Serialize;
@@ -20,6 +22,10 @@ pub struct Options {
     pub dry_run: bool,
     pub force: bool,
     pub site: Option<String>,
+    /// For a new page: the space, if the file has no `space_key`.
+    pub space: Option<String>,
+    /// For a new page: the parent page or folder, if the file has no `parent`.
+    pub parent: Option<String>,
     pub json: bool,
 }
 
@@ -89,10 +95,13 @@ struct Json<'a> {
     title: &'a str,
     url: &'a str,
     dry_run: bool,
+    /// A new page was (or would be) created.
+    created: bool,
     /// The body or title changed, so there is (or would be) a new version.
     changed: bool,
     version: u64,
-    previous_version: u64,
+    /// The version before the upload (none for a new page).
+    previous_version: Option<u64>,
     images_uploaded: Vec<&'a str>,
     images_updated: Vec<&'a str>,
     labels_added: &'a [String],
@@ -100,10 +109,43 @@ struct Json<'a> {
     comments_detached: &'a [String],
 }
 
+/// The file, checked: everything that can fail without asking Confluence has.
+struct Local<'a> {
+    md: &'a str,
+    yaml: Option<&'a str>,
+    /// The body as written (with any title H1).
+    file_body: &'a str,
+    fields: frontmatter::RfluenceFields,
+    /// Normalized.
+    labels: Vec<String>,
+    /// From `title` or the leading H1.
+    title: Option<String>,
+    /// The body to upload (without the title H1), with blank lines in place of the
+    /// frontmatter and title, so that line numbers in messages are the file's.
+    body: String,
+    dir: &'a Path,
+}
+
 fn upload(opts: &Options) -> Result<(), Stop> {
+    let md = std::fs::read_to_string(&opts.path).map_err(|e| Stop::Usage(e.to_string()))?;
+    let local = check_file(opts, &md)?;
+    match local.fields.id.clone() {
+        Some(id) => {
+            // The page's site: its URL's, else --site, else the default.
+            let url = local.fields.url.as_deref();
+            let site = url.and_then(rfluence_client::page_ref_site).or_else(|| opts.site.clone());
+            let (creds, _) = auth::resolve(site.as_deref())?;
+            let space = local.fields.space_key.clone().or_else(|| space_key(url?));
+            let pages = link_targets(local.dir, &local.body, &creds.base_url, space.as_deref())?;
+            update(opts, &local, &Client::new(&creds), &id, pages)
+        }
+        None => create(opts, &local),
+    }
+}
+
+fn check_file<'a>(opts: &'a Options, md: &'a str) -> Result<Local<'a>, Stop> {
     let path = &opts.path;
-    let md = std::fs::read_to_string(path).map_err(|e| Stop::Usage(e.to_string()))?;
-    let doc = frontmatter::split(&md);
+    let doc = frontmatter::split(md);
     let yaml = doc.yaml.unwrap_or_default();
     let unknown = frontmatter::unknown_keys(yaml);
     if !unknown.is_empty() {
@@ -116,19 +158,16 @@ fn upload(opts: &Options) -> Result<(), Stop> {
     if fields.partial {
         return Err(Stop::Usage("holds part of a page (--section / --max-chars), which can't be uploaded; fetch the whole page".into()));
     }
-    let Some(id) = fields.id.clone() else {
-        return Err(Stop::Usage("has no page ID (`rfluence.id`); creating pages isn't supported yet".into()));
-    };
-    let mut wanted_labels: Vec<String> = Vec::new();
+    let mut labels: Vec<String> = Vec::new();
     for label in &fields.labels {
         let l = labels::normalize_label(label).map_err(Stop::Usage)?;
-        if !wanted_labels.contains(&l) {
-            wanted_labels.push(l);
+        if !labels.contains(&l) {
+            labels.push(l);
         }
     }
 
     // The same checks as `rfluence check`, before anything is sent.
-    let diags = rfluence_convert::check(&md);
+    let diags = rfluence_convert::check(md);
     for d in &diags {
         eprintln!("{}:{}: {}: {}", path.display(), d.line, d.severity, d.message);
     }
@@ -143,20 +182,24 @@ fn upload(opts: &Options) -> Result<(), Stop> {
     }
 
     let (title, body) = upload_title(doc.body, fields.title.as_deref());
+    let body = "\n".repeat(md[..md.len() - body.len()].matches('\n').count()) + body;
     let dir = path.parent().filter(|d| !d.as_os_str().is_empty()).unwrap_or(Path::new("."));
-    let pages = link_targets(dir, body, fields.url.as_deref())?;
+    Ok(Local { md, yaml: doc.yaml, file_body: doc.body, fields, labels, title, body, dir })
+}
 
-    // The page's site: its URL's, else --site, else the default.
-    let site = fields.url.as_deref().and_then(rfluence_client::page_ref_site).or_else(|| opts.site.clone());
-    let (creds, _) = auth::resolve(site.as_deref())?;
-    let client = Client::new(&creds);
-    let (remote, attachments, property) = std::thread::scope(|s| {
-        let property = s.spawn(|| client.property(&id, PROPERTY));
-        let both = client.page_with_attachments(&id);
+/// Upload to an existing page.
+fn update(opts: &Options, local: &Local, client: &Client, id: &str, pages: HashMap<String, PageRef>) -> Result<(), Stop> {
+    let path = &opts.path;
+    let (remote, attachments, property, detected) = std::thread::scope(|s| {
+        let property = s.spawn(|| client.property(id, PROPERTY));
+        let detected = has_mermaid(&local.body).then(|| s.spawn(|| client.installed_macros()));
+        let both = client.page_with_attachments(id);
         let property = property.join().expect("property thread doesn't panic");
-        both.and_then(|(page, attachments)| Ok((page, attachments, property?)))
+        let detected = detected.map(|d| d.join().expect("macros thread doesn't panic"));
+        both.and_then(|(page, attachments)| Ok((page, attachments, property?, detected)))
     })?;
 
+    let fields = &local.fields;
     if remote.meta.version > fields.version.unwrap_or(0) && !opts.force {
         return Err(Stop::Conflict(match fields.version {
             Some(v) => format!(
@@ -166,50 +209,55 @@ fn upload(opts: &Options) -> Result<(), Stop> {
             None => "has no version in its frontmatter, so changes made in Confluence can't be ruled out; use --force to upload anyway".into(),
         }));
     }
-    if let (Some(local), Some(current)) = (fields.parent.as_deref(), remote.meta.parent.as_deref()) {
-        if local != current {
+    if let (Some(wanted), Some(current)) = (fields.parent.as_deref(), remote.meta.parent.as_deref()) {
+        if wanted != current {
             eprintln!(
-                "rfluence: {}: warning: `parent` is {local}, but the page is under {current}; single-file upload doesn't move pages",
+                "rfluence: {}: warning: `parent` is {wanted}, but the page is under {current}; single-file upload doesn't move pages",
                 path.display()
             );
         }
     }
 
-    let mut images = plan_images(&client, dir, body, &attachments)?;
-    let title = title.unwrap_or_else(|| remote.meta.title.clone());
-    let mut ctx = UploadContext { page_id: Some(id.clone()), pages, ..Default::default() };
+    let mut images = plan_images(client, local.dir, &local.body, &attachments)?;
+    let title = local.title.clone().unwrap_or_else(|| remote.meta.title.clone());
+    let mut ctx = UploadContext { page_id: Some(id.to_string()), pages, ..Default::default() };
+    // A diagram already on the page decides the Mermaid app; else the site's apps do.
     ctx.learn_from(&remote.adf);
-    if ctx.mermaid.is_none() && body.contains("```mermaid") {
-        eprintln!(
-            "rfluence: {}: warning: Mermaid diagrams are uploaded as code blocks; the merfluence app's IDs are read from a diagram already on the page",
-            path.display()
-        );
+    // Synced block copies on the page and in the file, to check their content wasn't changed.
+    let mut copies = rfluence_convert::synced::copy_ids(&remote.adf);
+    copies.extend(local_synced_copies(&local.body).into_iter().filter(|r| !copies.contains(r)).collect::<Vec<_>>());
+    ctx.synced_copies = client.synced_copies(&copies);
+    if ctx.mermaid.is_none() {
+        ctx.mermaid = mermaid_app(opts, detected);
     }
 
     // Convert before sending anything, so unresolved links fail the upload early. Images
     // still to be uploaded get stand-in IDs until they are.
     ctx.media = media(&images);
-    let mut new_doc = markdown_to_adf(body, &ctx).map_err(|e| Stop::Usage(e.to_string()))?.doc;
+    let mut new_doc = convert(&local.body, &ctx)?;
     if !opts.dry_run && images.iter().any(|i| i.action != Action::Reuse) {
-        for image in images.iter_mut().filter(|i| i.action != Action::Reuse) {
-            let data = image.data.as_deref().unwrap_or_default();
-            let uploaded = match &image.attachment {
-                Some(existing) => client.update_attachment(&id, existing, data)?,
-                None => client.upload_attachment(&id, &image.name, data)?,
-            };
-            image.file_id = Some(uploaded.file_id);
-        }
+        upload_images(client, id, &mut images)?;
         ctx.media = media(&images);
-        new_doc = markdown_to_adf(body, &ctx).map_err(|e| Stop::Usage(e.to_string()))?.doc;
+        new_doc = convert(&local.body, &ctx)?;
     }
     let comments = annotations::reanchor(&remote.adf, &mut new_doc);
+    let kept = rfluence_convert::synced::originals(&new_doc);
+    for id in rfluence_convert::synced::originals(&remote.adf).keys().filter(|id| !kept.contains_key(*id)) {
+        eprintln!(
+            "rfluence: {}: warning: synced block {id} {} removed from the page; copies of it on other pages may stop showing its content",
+            path.display(),
+            if opts.dry_run { "would be" } else { "is" }
+        );
+    }
 
+    let mut ctx_copies = ctx.synced_copies.clone();
     let mut changed = title != remote.meta.title || images.iter().any(|i| i.action != Action::Reuse) || {
         // Compared as fetch would show them: ignores what Confluence adds on save.
-        let ctx = compare_ctx(&remote, &new_doc, &attachments);
+        let mut ctx = compare_ctx(&remote, &new_doc, &attachments);
+        ctx.synced_copies = std::mem::take(&mut ctx_copies);
         adf_to_markdown(&remote.adf, &ctx) != adf_to_markdown(&new_doc, &ctx)
     };
-    let labels_added: Vec<String> = wanted_labels.iter().filter(|l| !remote.meta.labels.contains(l)).cloned().collect();
+    let labels_added: Vec<String> = local.labels.iter().filter(|l| !remote.meta.labels.contains(l)).cloned().collect();
     let previous = remote.meta.version;
     let mut meta = remote.meta.clone();
     if changed {
@@ -220,36 +268,170 @@ fn upload(opts: &Options) -> Result<(), Stop> {
 
     if !opts.dry_run {
         if changed {
-            let updated = client.update_page(&id, &title, &new_doc, previous + 1)?;
+            let updated = client.update_page(id, &title, &new_doc, previous + 1)?;
             // Confluence makes no new version if the body is the same after its rewrites.
             changed = updated.version != previous;
             meta.version = updated.version;
             meta.title = updated.title;
             meta.parent = updated.parent.or(meta.parent);
         }
-        client.add_labels(&id, &labels_added)?;
         // Only pages rfluence created have the property (they're the ones `--prune` may
         // trash); keep its version current.
-        if let Some(existing) = property.as_ref().filter(|_| changed) {
-            let value = property_value(&project_path(dir, path), meta.version, existing);
-            client.set_property(&id, PROPERTY, value, Some(existing))?;
-        }
-        write_back(path, &md, doc.yaml, doc.body, &new_doc, &meta, fields.title.is_some())?;
+        let property = property.as_ref().filter(|_| changed);
+        let value = property.map(|p| property_value(&project_path(local.dir, path), meta.version, Some(p)));
+        labels_and_property(client, id, &labels_added, value.map(|v| (v, property)))?;
+        write_back(path, local, &new_doc, &meta)?;
     }
 
-    let summary = Summary { meta: &meta, previous: &remote.meta, changed, images: &images, labels_added: &labels_added, comments: &comments };
-    if opts.json {
-        print_json(opts, &summary);
-    } else {
-        print_text(opts, &summary);
+    report(opts, &Summary { meta: &meta, previous: Some(&remote.meta), changed, images: &images, labels_added: &labels_added, comments: &comments });
+    Ok(())
+}
+
+/// Create a page for a file without a page ID (design.md, "Frontmatter" > "New pages").
+fn create(opts: &Options, local: &Local) -> Result<(), Stop> {
+    let path = &opts.path;
+    let Some(title) = local.title.clone() else {
+        return Err(Stop::Usage("has no title for the new page: start it with `# Title`, or set `title` under `rfluence:`".into()));
+    };
+    let Some(space_key) = local.fields.space_key.clone().or_else(|| opts.space.clone()) else {
+        return Err(Stop::Usage("has no page ID, and no space to create the page in: set `space_key` under `rfluence:`, or pass --space".into()));
+    };
+    let (creds, _) = auth::resolve(opts.site.as_deref())?;
+    let pages = link_targets(local.dir, &local.body, &creds.base_url, Some(&space_key))?;
+    let client = Client::new(&creds);
+    // A new page has no attachments: every image is uploaded, and must exist.
+    let mut images = plan_images(&client, local.dir, &local.body, &[])?;
+    let mut ctx = UploadContext { pages, ..Default::default() };
+    ctx.synced_copies = client.synced_copies(&local_synced_copies(&local.body));
+    ctx.media = media(&images);
+    // Before asking Confluence anything, so unresolved links fail early.
+    convert(&local.body, &ctx)?;
+
+    let (space, existing, detected) = std::thread::scope(|s| {
+        let existing = s.spawn(|| client.page_id_by_title(&space_key, &title));
+        let detected = has_mermaid(&local.body).then(|| s.spawn(|| client.installed_macros()));
+        let space = client.space(&space_key);
+        let detected = detected.map(|d| d.join().expect("macros thread doesn't panic"));
+        let existing = match existing.join().expect("title lookup thread doesn't panic") {
+            Ok(id) => Ok(Some(id)),
+            Err(rfluence_client::Error::NotFound(_)) => Ok(None),
+            Err(e) => Err(e),
+        };
+        space.and_then(|space| Ok((space, existing?, detected)))
+    })?;
+    ctx.mermaid = mermaid_app(opts, detected);
+    let mut doc = convert(&local.body, &ctx)?;
+
+    // The file lost its link to the page (or never had one): never create a duplicate.
+    if let Some(id) = existing {
+        if !opts.force {
+            return Err(Stop::Conflict(format!(
+                "has no page ID, but space {space_key} already has a page titled {title:?} (page {id}). If this file is that page, add `id: \"{id}\"` under `rfluence:` and fetch it to see its changes, or use --force to overwrite it; otherwise change the title"
+            )));
+        }
+        eprintln!("rfluence: {}: overwriting page {id} {title:?} (--force)", path.display());
+        let pages = std::mem::take(&mut ctx.pages);
+        return update(opts, local, &client, &id, pages);
+    }
+
+    let parent = local.fields.parent.clone().or_else(|| opts.parent.clone()).or(space.homepage_id.clone());
+    let Some(parent) = parent else {
+        return Err(Stop::Usage(format!("space {space_key} has no homepage to put the page under: set `parent` under `rfluence:`, or pass --parent")));
+    };
+    let mut meta = PageMeta { title: title.clone(), space_key: space.key.clone(), parent: Some(parent.clone()), version: 1, ..Default::default() };
+
+    if !opts.dry_run {
+        meta = if images.is_empty() {
+            client.create_page(&space.id, &parent, &title, &doc)?
+        } else {
+            // Files can only be attached to a page that exists: create it empty, record its
+            // ID in the file (so a failure from here on can't lead to a duplicate), attach
+            // the images, then write the body.
+            let created = client.create_page(&space.id, &parent, &title, &Node::doc(Vec::new()))?;
+            write_back(path, local, &Node::doc(Vec::new()), &created)?;
+            upload_images(&client, &created.id, &mut images)?;
+            ctx.page_id = Some(created.id.clone());
+            ctx.media = media(&images);
+            doc = convert(&local.body, &ctx)?;
+            let updated = client.update_page(&created.id, &title, &doc, created.version + 1)?;
+            PageMeta { version: updated.version, title: updated.title, ..created }
+        };
+        let value = property_value(&project_path(local.dir, path), meta.version, None);
+        labels_and_property(&client, &meta.id, &local.labels, Some((value, None)))?;
+        meta.labels = local.labels.clone();
+        write_back(path, local, &doc, &meta)?;
+    }
+
+    let comments = Reanchored::default();
+    report(opts, &Summary { meta: &meta, previous: None, changed: true, images: &images, labels_added: &local.labels, comments: &comments });
+    Ok(())
+}
+
+/// Add labels and set the `rfluence` property (if given), in parallel.
+fn labels_and_property(
+    client: &Client,
+    id: &str,
+    labels: &[String],
+    property: Option<(serde_json::Value, Option<&Property>)>,
+) -> Result<(), Stop> {
+    std::thread::scope(|s| {
+        let labels = s.spawn(|| client.add_labels(id, labels));
+        if let Some((value, existing)) = property {
+            client.set_property(id, PROPERTY, value, existing)?;
+        }
+        labels.join().expect("labels thread doesn't panic")
+    })?;
+    Ok(())
+}
+
+fn convert(body: &str, ctx: &UploadContext) -> Result<Node, Stop> {
+    Ok(markdown_to_adf(body, ctx).map_err(|e| Stop::Usage(e.to_string()))?.doc)
+}
+
+/// Does the body have a Mermaid fence? (Only then is the site asked for its Mermaid app.)
+fn has_mermaid(body: &str) -> bool {
+    body.lines().any(|l| {
+        let l = l.trim_start();
+        (l.starts_with("```") || l.starts_with("~~~")) && l.trim_start_matches(['`', '~']).trim_start().starts_with("mermaid")
+    })
+}
+
+/// The Mermaid app to upload diagrams for, from the site's installed macros: merfluence,
+/// else Mermaid Diagrams Viewer, else none (code blocks). See design.md, "Mermaid diagrams on
+/// sites without merfluence".
+fn mermaid_app(opts: &Options, detected: Option<rfluence_client::Result<Vec<InstalledMacro>>>) -> Option<MermaidApp> {
+    let macros = match detected? {
+        Ok(m) => m,
+        Err(e) => {
+            eprintln!(
+                "rfluence: {}: warning: couldn't find out which Mermaid app the site has ({e}); Mermaid diagrams are uploaded as code blocks",
+                opts.path.display()
+            );
+            return None;
+        }
+    };
+    let find = |app: &str| macros.iter().find(|m| m.app_id == app && m.key == "mermaid-diagram");
+    let found = find(mermaid::MERFLUENCE_APP_ID).or_else(|| find(mermaid::VIEWER_APP_ID))?;
+    Some(MermaidApp::new(&found.app_id, &found.environment_id))
+}
+
+/// Upload the images that are new or changed, keeping their new `fileId`s.
+fn upload_images(client: &Client, page_id: &str, images: &mut [Image]) -> Result<(), Stop> {
+    for image in images.iter_mut().filter(|i| i.action != Action::Reuse) {
+        let data = image.data.as_deref().unwrap_or_default();
+        let uploaded = match &image.attachment {
+            Some(existing) => client.update_attachment(page_id, existing, data)?,
+            None => client.upload_attachment(page_id, &image.name, data)?,
+        };
+        image.file_id = Some(uploaded.file_id);
     }
     Ok(())
 }
 
-/// The pages relative links point at, from the linked files' frontmatter: their URLs on the
-/// site of `page_url`, and their headings for anchors. Links to files without a page ID fail
-/// the upload (design.md, "Links" > "Upload").
-fn link_targets(dir: &Path, body: &str, page_url: Option<&str>) -> Result<HashMap<String, PageRef>, Stop> {
+/// The pages relative links point at, from the linked files' frontmatter: their URLs (on
+/// `site`, in `space` unless the files say otherwise), and their headings for anchors. Links
+/// to files without a page ID fail the upload (design.md, "Links" > "Upload").
+fn link_targets(dir: &Path, body: &str, site: &str, space: Option<&str>) -> Result<HashMap<String, PageRef>, Stop> {
     let mut pages = HashMap::new();
     let mut unresolved = Vec::new();
     for (line, link) in local_links(body) {
@@ -263,9 +445,9 @@ fn link_targets(dir: &Path, body: &str, page_url: Option<&str>) -> Result<HashMa
         };
         let target = frontmatter::split(&text);
         let fields = target.yaml.map(frontmatter::rfluence_fields).unwrap_or_default();
-        let site = fields.url.as_deref().or(page_url).and_then(rfluence_client::page_ref_site);
-        let space = fields.space_key.clone().or_else(|| space_key(fields.url.as_deref()?)).or_else(|| space_key(page_url?));
-        let (Some(id), Some(site), Some(space)) = (fields.id, site, space) else {
+        let site = fields.url.as_deref().and_then(rfluence_client::page_ref_site).unwrap_or_else(|| site.to_string());
+        let space = fields.space_key.clone().or_else(|| space_key(fields.url.as_deref()?)).or_else(|| space.map(str::to_string));
+        let (Some(id), Some(space)) = (fields.id, space) else {
             unresolved.push((line, link, "no page ID yet; upload it first"));
             continue;
         };
@@ -385,8 +567,8 @@ fn project_path(dir: &Path, path: &Path) -> String {
 }
 
 /// The property after an upload: the new version and path, the rest kept.
-fn property_value(path: &str, version: u64, existing: &Property) -> serde_json::Value {
-    let mut value = existing.value.clone();
+fn property_value(path: &str, version: u64, existing: Option<&Property>) -> serde_json::Value {
+    let mut value = existing.map(|p| p.value.clone()).unwrap_or_default();
     if !value.is_object() {
         value = serde_json::json!({ "managed": true, "config_labels": [] });
     }
@@ -397,10 +579,10 @@ fn property_value(path: &str, version: u64, existing: &Property) -> serde_json::
 
 /// Rewrite the file's `rfluence:` block to what `rfluence fetch` would write for the page
 /// now (design.md, "Frontmatter" > "Reading and writing"). The body is left as it is.
-fn write_back(path: &Path, md: &str, yaml: Option<&str>, body: &str, doc: &Node, meta: &PageMeta, title_set: bool) -> Result<(), Stop> {
-    let fetched = rfluence_convert::frontmatter(meta, title_set || starts_with_h1(doc));
-    let output = format!("{}\n{body}", frontmatter::merge(yaml, &fetched));
-    if output != md {
+fn write_back(path: &Path, local: &Local, doc: &Node, meta: &PageMeta) -> Result<(), Stop> {
+    let fetched = rfluence_convert::frontmatter(meta, local.fields.title.is_some() || starts_with_h1(doc));
+    let output = format!("{}\n{}", frontmatter::merge(local.yaml, &fetched), local.file_body);
+    if output != local.md {
         fetch::write_atomically(path, &output).map_err(|e| Stop::Usage(format!("writing the new version back: {e}")))?;
     }
     Ok(())
@@ -408,7 +590,8 @@ fn write_back(path: &Path, md: &str, yaml: Option<&str>, body: &str, doc: &Node,
 
 struct Summary<'a> {
     meta: &'a PageMeta,
-    previous: &'a PageMeta,
+    /// The page before the upload; none for a new page.
+    previous: Option<&'a PageMeta>,
     changed: bool,
     images: &'a [Image],
     labels_added: &'a [String],
@@ -421,6 +604,14 @@ impl Summary<'_> {
     }
 }
 
+fn report(opts: &Options, s: &Summary) {
+    if opts.json {
+        print_json(opts, s);
+    } else {
+        print_text(opts, s);
+    }
+}
+
 fn print_json(opts: &Options, s: &Summary) {
     let json = Json {
         path: opts.path.display().to_string(),
@@ -428,9 +619,10 @@ fn print_json(opts: &Options, s: &Summary) {
         title: &s.meta.title,
         url: &s.meta.url,
         dry_run: opts.dry_run,
+        created: s.previous.is_none(),
         changed: s.changed,
         version: s.meta.version,
-        previous_version: s.previous.version,
+        previous_version: s.previous.map(|p| p.version),
         images_uploaded: s.images(Action::Upload),
         images_updated: s.images(Action::NewVersion),
         labels_added: s.labels_added,
@@ -441,14 +633,21 @@ fn print_json(opts: &Options, s: &Summary) {
 }
 
 fn print_text(opts: &Options, s: &Summary) {
-    let (m, p) = (s.meta, s.previous);
-    let head = match (opts.dry_run, s.changed) {
-        (true, true) => format!("Dry run: would update page {} {:?} (version {} -> {})", m.id, p.title, p.version, m.version),
-        (false, true) => format!("Uploaded {} to page {} {:?} (version {} -> {})", opts.path.display(), m.id, m.title, p.version, m.version),
-        (_, false) => format!("{}: page {} {:?} is up to date (version {})", opts.path.display(), m.id, m.title, m.version),
-    };
-    println!("{head}\n  {}", m.url);
-    if m.title != p.title {
+    let m = s.meta;
+    let file = opts.path.display();
+    match (s.previous, opts.dry_run, s.changed) {
+        (None, true, _) => println!(
+            "Dry run: would create page {:?} in space {} under {}",
+            m.title,
+            m.space_key,
+            m.parent.as_deref().unwrap_or_default()
+        ),
+        (None, false, _) => println!("Created page {} {:?} in space {} from {file} (version {})\n  {}", m.id, m.title, m.space_key, m.version, m.url),
+        (Some(p), true, true) => println!("Dry run: would update page {} {:?} (version {} -> {})\n  {}", m.id, p.title, p.version, m.version, m.url),
+        (Some(p), false, true) => println!("Uploaded {file} to page {} {:?} (version {} -> {})\n  {}", m.id, m.title, p.version, m.version, m.url),
+        (Some(_), _, false) => println!("{file}: page {} {:?} is up to date (version {})\n  {}", m.id, m.title, m.version, m.url),
+    }
+    if let Some(p) = s.previous.filter(|p| p.title != m.title) {
         println!("  title: {:?} -> {:?}", p.title, m.title);
     }
     let verb = |done: &'static str, todo: &'static str| if opts.dry_run { todo } else { done };

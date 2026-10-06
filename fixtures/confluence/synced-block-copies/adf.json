@@ -1,0 +1,38 @@
+{
+  "type": "doc",
+  "content": [
+    {
+      "type": "syncBlock",
+      "attrs": {
+        "resourceId": "confluence-page/2392065/b7229247-1d30-4ce9-84dc-accb011d4a6b",
+        "localId": "66a97854-60bb-4739-b692-e92343e0c0ce"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ]
+    },
+    {
+      "type": "syncBlock",
+      "attrs": {
+        "resourceId": "confluence-page/2195459/4bb04ea9-8c47-4d63-b490-2de190f770b5",
+        "localId": "b7da86a9-5a89-4508-b71e-09120085c583"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ]
+    }
+  ],
+  "version": 1
+}

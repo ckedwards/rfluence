@@ -103,7 +103,8 @@ impl Settings {
 const KEY_ORDER: &[&str] = &[
     "card", "columns", "layout", "breakout", "width", "width-type", "colwidths", "numbered", "no-header-row",
     "header-column", "align", "indent", "border", "border-color", "caption", "theme", "mermaidVersion",
-    "useMaxWidth", "column", "end-columns",
+    "useMaxWidth", "column", "end-columns", "tabs", "tab", "title", "end-tabs", "synced-block", "id", "page", "read-only",
+    "unavailable", "end-synced-block",
 ];
 
 fn key_rank(key: &str) -> usize {

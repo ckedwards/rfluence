@@ -57,8 +57,17 @@ pub fn fetch_ctx(name: &str) -> FetchContext {
         attachments: attachments(name),
         site_host: Some("tech-accounts11.atlassian.net".into()),
         titles: titles(),
+        synced_copies: synced_copies(name),
         ..Default::default()
     }
+}
+
+/// The content of a page's synced block copies, from the captured pages they come from (as
+/// a client reads them from the source pages).
+pub fn synced_copies(name: &str) -> HashMap<String, Vec<Node>> {
+    let doc = page_adf(name, "adf.json");
+    let sources: HashMap<String, Node> = pages().into_iter().map(|p| (page_id(&p), page_adf(&p, "adf.json"))).collect();
+    rfluence_convert::synced::copy_contents(&rfluence_convert::synced::copy_ids(&doc), &sources)
 }
 
 /// Every captured page's title, by page ID.
@@ -92,7 +101,7 @@ pub fn page_meta(name: &str) -> rfluence_convert::PageMeta {
 /// the merfluence app from its diagrams, and its custom emoji.
 pub fn upload_ctx(name: &str, doc: &Node) -> UploadContext {
     let media = attachments(name).into_iter().map(|(file_id, name)| (format!("attachments/{name}"), file_id)).collect();
-    let mut ctx = UploadContext { page_id: Some(page_id(name)), media, ..Default::default() };
+    let mut ctx = UploadContext { page_id: Some(page_id(name)), media, synced_copies: synced_copies(name), ..Default::default() };
     ctx.learn_from(doc);
     ctx
 }

@@ -12,6 +12,7 @@ use crate::inline::{self, Item, Leaf, MdMark};
 use crate::diagnostics::{Diagnostic, Severity};
 use crate::markdown::{self, options};
 use crate::settings::Settings;
+use crate::mermaid::{self, MermaidApp, MermaidKind};
 use crate::{approx, emoji, html_table, language};
 
 /// What upload needs to know beyond the markdown.
@@ -23,20 +24,29 @@ pub struct UploadContext {
     pub media: HashMap<String, String>,
     /// Custom emoji on the site: name (without colons) -> emoji `id`.
     pub custom_emoji: HashMap<String, String>,
-    /// The merfluence app, for turning ```` ```mermaid ```` fences into diagrams. Without
-    /// it, Mermaid fences are uploaded as code blocks.
+    /// The Mermaid app (merfluence or Mermaid Diagrams Viewer), for turning ```` ```mermaid ````
+    /// fences into diagrams. Without it, Mermaid fences are uploaded as code blocks.
     pub mermaid: Option<MermaidApp>,
     /// Pages that relative links point at, by path as written in the markdown and
     /// percent-decoded (`./setup.md`), see [`local_links`].
     pub pages: HashMap<String, PageRef>,
+    /// The page's own synced blocks as Confluence has them, by `resourceId`: upload sends
+    /// these, never the markdown (design.md, "Tabs and synced blocks").
+    pub synced_blocks: HashMap<String, Node>,
+    /// The content of synced block copies, by `resourceId` (`confluence-page/<page>/<id>`),
+    /// to check the markdown didn't change it.
+    pub synced_copies: HashMap<String, Vec<Node>>,
 }
 
 impl UploadContext {
     /// Learn what a page in Confluence knows: the merfluence app (from its diagrams) and its
     /// custom emoji, so that a fetched page uploads back the same.
     pub fn learn_from(&mut self, doc: &Node) {
+        for (id, block) in crate::synced::originals(doc) {
+            self.synced_blocks.entry(id).or_insert(block);
+        }
         doc.walk(&mut |n| {
-            if crate::to_md::is_merfluence(n) && self.mermaid.is_none() {
+            if mermaid::is_merfluence(n) && self.mermaid.is_none() {
                 self.mermaid = n.attr_str("extensionKey").and_then(MermaidApp::from_extension_key);
             }
             if n.is("emoji") {
@@ -57,22 +67,6 @@ pub struct PageRef {
     pub url: String,
     /// The headings of the file's body (without the title H1), to translate anchors.
     pub headings: Vec<String>,
-}
-
-/// The merfluence Forge app's IDs (design.md, "Mermaid diagrams (merfluence)").
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct MermaidApp {
-    pub app_id: String,
-    pub environment_id: String,
-}
-
-impl MermaidApp {
-    /// Read the IDs from an existing diagram's `extensionKey` (`<app>/<env>/static/<module>`).
-    pub fn from_extension_key(key: &str) -> Option<MermaidApp> {
-        let mut parts = key.split('/');
-        let (app, env) = (parts.next()?, parts.next()?);
-        (parts.next() == Some("static")).then(|| MermaidApp { app_id: app.into(), environment_id: env.into() })
-    }
 }
 
 /// The converted page body, and what couldn't be converted exactly.
@@ -97,6 +91,8 @@ pub struct Error {
     pub images: Vec<String>,
     /// Links to markdown files with no page in [`UploadContext::pages`].
     pub links: Vec<String>,
+    /// Synced blocks that can't be uploaded as written (changed content, or not on the page).
+    pub synced: Vec<String>,
 }
 
 impl std::fmt::Display for Error {
@@ -108,6 +104,7 @@ impl std::fmt::Display for Error {
         if !self.links.is_empty() {
             parts.push(format!("links to files without a page: {}", self.links.join(", ")));
         }
+        parts.extend(self.synced.iter().cloned());
         write!(f, "{}", parts.join("; "))
     }
 }
@@ -117,7 +114,7 @@ impl std::error::Error for Error {}
 /// Convert markdown (frontmatter is ignored) to a page body.
 pub fn markdown_to_adf(md: &str, ctx: &UploadContext) -> Result<Upload, Error> {
     let (doc, diagnostics, error) = convert(md, ctx, false);
-    if !error.images.is_empty() || !error.links.is_empty() {
+    if !error.images.is_empty() || !error.links.is_empty() || !error.synced.is_empty() {
         return Err(error);
     }
     Ok(Upload { doc, diagnostics })
@@ -127,7 +124,7 @@ pub fn markdown_to_adf(md: &str, ctx: &UploadContext) -> Result<Upload, Error> {
 /// needing the page's attachments or the merfluence app.
 pub fn check(md: &str) -> Vec<Diagnostic> {
     let ctx = UploadContext {
-        mermaid: Some(MermaidApp { app_id: "check".into(), environment_id: "check".into() }),
+        mermaid: Some(MermaidApp::new("check", "check")),
         ..Default::default()
     };
     convert(md, &ctx, true).1
@@ -156,6 +153,25 @@ pub fn local_links(md: &str) -> Vec<(usize, String)> {
             _ => None,
         })
         .collect()
+}
+
+/// The `resourceId`s of the synced block copies the markdown has (markers with `page=`), whose
+/// sources upload reads to check their content.
+pub fn local_synced_copies(md: &str) -> Vec<String> {
+    let arena = Arena::new();
+    let root = parse_document(&arena, md, &options());
+    let mut ids = Vec::new();
+    for n in root.descendants() {
+        if let Some(s) = block_comment(n).filter(|s| s.has("synced-block")) {
+            if let (Some(page), Some(id)) = (s.get("page"), s.get("id")) {
+                let r = crate::synced::copy_resource_id(page, id);
+                if !ids.contains(&r) {
+                    ids.push(r);
+                }
+            }
+        }
+    }
+    ids
 }
 
 /// A link to a local markdown file: its path (percent-decoded) and anchor.
@@ -188,8 +204,11 @@ fn convert(md: &str, ctx: &UploadContext, check_only: bool) -> (Node, Vec<Diagno
         check_only,
         anchors: Anchors::new(headings.iter().map(String::as_str)),
         diags,
-        unresolved: Error { images: Vec::new(), links: Vec::new() },
+        unresolved: Error { images: Vec::new(), links: Vec::new(), synced: Vec::new() },
+        source: md.to_string(),
+        tab_ids: 0,
         place: Place::Top,
+        diagrams: 0,
     };
     let content = r.blocks_of(&children(root));
     let mut doc = Node::doc(content);
@@ -220,6 +239,12 @@ struct Reader<'a, 'c> {
     diags: Vec<Diagnostic>,
     unresolved: Error,
     place: Place,
+    /// Viewer diagrams so far, for their macros' `localId`s.
+    diagrams: u64,
+    /// The markdown, to compare synced blocks' content with Confluence's.
+    source: String,
+    /// Tabs so far, for their IDs.
+    tab_ids: u64,
 }
 
 fn children<'a>(node: &'a AstNode<'a>) -> Vec<&'a AstNode<'a>> {
@@ -234,10 +259,11 @@ fn is_details_close(literal: &str) -> bool {
     literal.trim().eq_ignore_ascii_case("</details>")
 }
 
-/// Column layout markers. (`layout=` is a different setting: tables', images' and cards'
-/// Confluence `layout` attribute.)
+/// Markers of layouts, tabs and synced blocks, which aren't the settings of the table before
+/// them. (`layout=` is a different setting: tables', images' and cards' Confluence `layout`
+/// attribute.)
 fn is_layout_marker(s: &Settings) -> bool {
-    s.has("columns") || s.has("column") || s.has("end-columns")
+    ["columns", "column", "end-columns", "tabs", "tab", "end-tabs", "synced-block", "end-synced-block"].iter().any(|k| s.has(k))
 }
 
 /// An `rf:` comment that is a block of its own.
@@ -315,8 +341,26 @@ impl<'a> Reader<'a, '_> {
                             out.push(self.layout(node, &settings, &nodes[i + 1..j]));
                             // Without an end marker, the next layout marker starts the next layout.
                             i = if closed { j } else { j - 1 };
+                        } else if settings.has("tabs") {
+                            let (j, closed) = marker_end(nodes, i, "tabs", "end-tabs");
+                            if !closed {
+                                self.error(node, "tabs without `<!-- rf: end-tabs -->`");
+                            }
+                            out.extend(self.tabs(node, &settings, &nodes[i + 1..j]));
+                            i = if closed { j } else { j - 1 };
+                        } else if settings.has("synced-block") {
+                            let (j, closed) = marker_end(nodes, i, "synced-block", "end-synced-block");
+                            if !closed {
+                                self.error(node, "synced block without `<!-- rf: end-synced-block -->`");
+                            }
+                            out.extend(self.synced(node, &settings, &nodes[i + 1..j]));
+                            i = if closed { j } else { j - 1 };
                         } else if settings.has("column") || settings.has("end-columns") {
                             self.error(node, "`rf:` layout marker outside a layout");
+                        } else if settings.has("tab") || settings.has("end-tabs") {
+                            self.error(node, "`rf:` tab marker outside `<!-- rf: tabs -->`");
+                        } else if settings.has("end-synced-block") {
+                            self.error(node, "`<!-- rf: end-synced-block -->` without a synced block");
                         } else {
                             self.warn(node, "`rf:` comment not attached to a table; ignored");
                         }
@@ -394,6 +438,118 @@ impl<'a> Reader<'a, '_> {
             section.content.push(Node::new("layoutColumn").with_attr("width", width).with_content(content));
         }
         section
+    }
+
+    /// `<!-- rf: tabs -->`, `<!-- rf: tab title="..." -->` before each tab, `<!-- rf: end-tabs -->`.
+    fn tabs(&mut self, node: &AstNode, settings: &Settings, body: &[&'a AstNode<'a>]) -> Option<Node> {
+        if !matches!(self.place, Place::Top | Place::LayoutColumn) {
+            self.error(node, "tabs are only allowed at the top level and in layout columns");
+        }
+        for key in settings.keys().filter(|k| *k != "tabs") {
+            self.warn(node, format!("unknown tabs setting `{key}` ignored"));
+        }
+        let mut tabs: Vec<(String, Vec<&'a AstNode<'a>>)> = Vec::new();
+        for &n in body {
+            match block_comment(n).filter(|s| s.has("tab")) {
+                Some(s) => tabs.push((s.get("title").unwrap_or_default().to_string(), vec![])),
+                None => match tabs.last_mut() {
+                    Some((_, content)) => content.push(n),
+                    None => self.error(n, "content in tabs before the first `<!-- rf: tab title=\"...\" -->`"),
+                },
+            }
+        }
+        if tabs.is_empty() {
+            self.error(node, "tabs without a `<!-- rf: tab title=\"...\" -->`");
+            return None;
+        }
+        let mut params = Vec::new();
+        let mut frames = Vec::new();
+        for (title, content) in &tabs {
+            self.tab_ids += 1;
+            params.push(json!({ "id": format!("rf{:04}", self.tab_ids), "title": title }));
+            // What tabs allow inside isn't documented; treated like a layout column.
+            let mut blocks = self.blocks_in(content, Place::LayoutColumn);
+            if blocks.is_empty() {
+                blocks.push(Node::new("paragraph"));
+            }
+            frames.push(Node::new("extensionFrame").with_content(blocks));
+        }
+        Some(
+            Node::new("multiBodiedExtension")
+                .with_attr("layout", "default")
+                .with_attr("extensionType", "com.atlassian.confluence.native")
+                .with_attr("extensionKey", "native-tabs")
+                .with_attr("parameters", json!({ "tabs": params, "applyToAll": false, "extensionTitle": "Tabs" }))
+                .with_content(frames),
+        )
+    }
+
+    /// `<!-- rf: synced-block id=... [page=...] read-only -->` ... `<!-- rf: end-synced-block -->`:
+    /// the page's own synced block (as Confluence has it), or a copy of one from another page.
+    /// The content between the markers must be unchanged, or empty (design.md, "Tabs and
+    /// synced blocks").
+    fn synced(&mut self, node: &AstNode, settings: &Settings, body: &[&'a AstNode<'a>]) -> Option<Node> {
+        let Some(id) = settings.get("id").filter(|i| !i.is_empty()) else {
+            self.error(node, "synced block without `id=`: synced blocks can only be created in Confluence's editor");
+            return None;
+        };
+        for key in settings.keys() {
+            if !matches!(key, "synced-block" | "id" | "page" | "read-only" | "unavailable") {
+                self.warn(node, format!("unknown synced block setting `{key}` ignored"));
+            }
+        }
+        let markdown = self.text_of(body);
+        let at = line(node);
+        let edited = |content: &[Node]| {
+            let current = crate::to_md::adf_to_markdown(&Node::doc(content.to_vec()), &crate::to_md::FetchContext::default());
+            !markdown.trim().is_empty() && !crate::select::same_content(&markdown, &current)
+        };
+        let changed = format!(
+            "line {at}: the content of synced block {id} was changed. Synced blocks can only be edited in Confluence's editor, which also updates their copies on other pages: undo the change, or leave nothing between its markers to keep it as it is"
+        );
+        match settings.get("page") {
+            None => {
+                if self.check_only {
+                    return None;
+                }
+                let Some(block) = self.ctx.synced_blocks.get(id).cloned() else {
+                    self.unresolved.synced.push(format!(
+                        "line {at}: synced block {id} isn't on this page, and synced blocks can only be created in Confluence's editor (to show a synced block from another page, add `page=<its page ID>` to the marker)"
+                    ));
+                    return None;
+                };
+                if edited(&block.content) {
+                    self.unresolved.synced.push(changed);
+                }
+                Some(block)
+            }
+            Some(page) => {
+                let resource_id = crate::synced::copy_resource_id(page, id);
+                if crate::synced::parse_copy(&resource_id).is_none() {
+                    self.error(node, format!("synced block `page={page}` isn't a page ID"));
+                    return None;
+                }
+                if !self.check_only && !markdown.trim().is_empty() {
+                    match self.ctx.synced_copies.get(&resource_id) {
+                        Some(content) if !edited(content) => {}
+                        Some(_) => self.unresolved.synced.push(changed),
+                        None => self.unresolved.synced.push(format!(
+                            "line {at}: synced block {id} from page {page} couldn't be read to check its content: leave nothing between its markers"
+                        )),
+                    }
+                }
+                Some(Node::new("syncBlock").with_attr("resourceId", resource_id))
+            }
+        }
+    }
+
+    /// The markdown of some blocks (dedented, for blocks inside list items).
+    fn text_of(&self, body: &[&'a AstNode<'a>]) -> String {
+        let (Some(first), Some(last)) = (body.first(), body.last()) else { return String::new() };
+        let (start, end) = (first.data().sourcepos.start.line, last.data().sourcepos.end.line);
+        let lines: Vec<&str> = self.source.lines().skip(start.saturating_sub(1)).take(end + 1 - start).collect();
+        let indent = lines.iter().filter(|l| !l.trim().is_empty()).map(|l| l.len() - l.trim_start().len()).min().unwrap_or(0);
+        lines.iter().map(|l| l.get(indent..).unwrap_or("").to_string() + "\n").collect()
     }
 
     /// A `breakout` mark from `breakout=` / `width=` settings.
@@ -584,6 +740,15 @@ impl<'a> Reader<'a, '_> {
         Some(single)
     }
 
+    /// Can a Mermaid fence here be a diagram? Viewer diagrams need an expand, which only
+    /// the top level and layout columns allow; elsewhere they stay code blocks.
+    fn mermaid_here(&self) -> bool {
+        match &self.ctx.mermaid {
+            None => false,
+            Some(app) => app.kind == MermaidKind::Merfluence || matches!(self.place, Place::Top | Place::LayoutColumn),
+        }
+    }
+
     fn code(&mut self, node: &AstNode, info: &str, literal: &str) -> Vec<Node> {
         let (lang, rest) = markdown::split_info(info);
         let settings = Settings::parse(rest);
@@ -597,8 +762,15 @@ impl<'a> Reader<'a, '_> {
                     vec![]
                 }
             },
-            Some("mermaid") if self.ctx.mermaid.is_some() => {
-                vec![merfluence(self.ctx.mermaid.as_ref().expect("checked"), text, &settings)]
+            Some("mermaid") if self.mermaid_here() => {
+                let app = self.ctx.mermaid.as_ref().expect("checked");
+                if app.kind == MermaidKind::Viewer {
+                    for key in settings.keys() {
+                        self.warn(node, format!("Mermaid setting `{key}` dropped: only merfluence has it, and this site uses Mermaid Diagrams Viewer"));
+                    }
+                }
+                self.diagrams += 1;
+                app.diagram(text, &settings, &format!("00000000-0000-4000-8000-{:012x}", self.diagrams))
             }
             _ => {
                 let marks: Vec<Mark> = self.breakout(node, &settings).into_iter().collect();
@@ -936,6 +1108,19 @@ fn matching_details(nodes: &[&AstNode], open: usize) -> Option<usize> {
     None
 }
 
+/// Where the block opened by the marker at `start` ends: the index of its `end` marker
+/// (`true`), or of the next `open` marker or the end of the blocks (`false`).
+fn marker_end(nodes: &[&AstNode], start: usize, open: &str, end: &str) -> (usize, bool) {
+    for (j, n) in nodes.iter().enumerate().skip(start + 1) {
+        match block_comment(n) {
+            Some(s) if s.has(end) => return (j, true),
+            Some(s) if s.has(open) => return (j, false),
+            _ => {}
+        }
+    }
+    (nodes.len(), false)
+}
+
 /// Where the layout at `start` ends: the index of its `end-columns` marker (`true`), or of
 /// the next layout marker or the end of the blocks (`false`).
 fn layout_end(nodes: &[&AstNode], start: usize) -> (usize, bool) {
@@ -1030,37 +1215,6 @@ fn parse_adf_block(text: &str) -> Result<Vec<Node>, String> {
         adf::strip_noise(node);
     }
     Ok(nodes)
-}
-
-/// A minimal merfluence node: the source plus the app IDs, no cached SVGs
-/// (design.md, "Mermaid diagrams (merfluence)").
-fn merfluence(app: &MermaidApp, source: &str, settings: &Settings) -> Node {
-    let key = format!("{}/{}/static/mermaid-diagram", app.app_id, app.environment_id);
-    let mut guest = serde_json::Map::new();
-    guest.insert("source".into(), source.into());
-    for key in ["theme", "mermaidVersion"] {
-        if let Some(v) = settings.get(key) {
-            guest.insert(key.into(), v.into());
-        }
-    }
-    if settings.get("useMaxWidth") == Some("false") {
-        guest.insert("useMaxWidth".into(), false.into());
-    }
-    Node::new("extension")
-        .with_attr("layout", "default")
-        .with_attr("extensionType", "com.atlassian.ecosystem")
-        .with_attr("extensionKey", key.clone())
-        .with_attr("text", "Merfluence")
-        .with_attr(
-            "parameters",
-            json!({
-                "layout": "extension",
-                "guestParams": guest,
-                "forgeEnvironment": "PRODUCTION",
-                "extensionId": format!("ari:cloud:ecosystem::extension/{key}"),
-                "extensionTitle": "Merfluence",
-            }),
-        )
 }
 
 fn sorted(mut marks: Vec<Mark>) -> Vec<Mark> {

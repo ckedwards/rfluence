@@ -6,6 +6,7 @@ mod common;
 use std::collections::HashMap;
 
 use common::*;
+use rfluence_convert::adf::Node;
 use rfluence_convert::{
     Diagnostic, FetchContext, LinkTarget, MermaidApp, PageRef, Severity, UploadContext, adf_to_markdown, check, local_links,
     markdown_to_adf, normalize,
@@ -39,6 +40,7 @@ fn corpus_ctx(name: &str, md: &str) -> (UploadContext, FetchContext) {
         custom_emoji: HashMap::new(),
         mermaid: MermaidApp::from_extension_key(MERMAID),
         pages,
+        ..Default::default()
     };
     let fetch = FetchContext {
         page_id: Some("1".into()),
@@ -228,4 +230,105 @@ fn relative_links_upload_as_page_urls() {
     assert_eq!(err.links, ["./missing.md", "../x/missing.md"]);
     assert!(err.to_string().contains("links to files without a page: ./missing.md, ../x/missing.md"), "{err}");
     assert!(check("[a](./missing.md)\n").is_empty());
+}
+
+/// On a site with Mermaid Diagrams Viewer (and no merfluence), a Mermaid fence uploads as its
+/// source in a collapsed expand plus the viewer's macro, and fetches back as the same fence.
+#[test]
+fn mermaid_viewer_diagrams_round_trip() {
+    let md = "```mermaid\nflowchart TD\n  A --> B\n```\n\n<!-- rf: columns=50,50 -->\n\n```mermaid\nsequenceDiagram\n  A->>B: hi\n```\n\n<!-- rf: column -->\n\ntext\n\n<!-- rf: end-columns -->\n\n- In a list, an expand isn't allowed:\n\n  ```mermaid\n  graph LR\n    x --> y\n  ```\n";
+    let ctx = UploadContext {
+        mermaid: Some(MermaidApp::new(rfluence_convert::mermaid::VIEWER_APP_ID, "63d4d207-ac2f-4273-865c-0240d37f044a")),
+        ..Default::default()
+    };
+    let upload = markdown_to_adf(md, &ctx).unwrap();
+    assert!(upload.diagnostics.is_empty(), "{:#?}", upload.diagnostics);
+    let doc = &upload.doc;
+    let kinds: Vec<&str> = doc.content.iter().map(|n| n.kind.as_str()).collect();
+    assert_eq!(kinds, ["expand", "extension", "layoutSection", "bulletList"]);
+    assert_eq!(doc.content[0].attr_str("title"), Some("Mermaid source"));
+    let code = &doc.content[0].content[0];
+    assert_eq!((code.attr_str("language"), code.plain_text().as_str()), (Some("mermaid"), "flowchart TD\n  A --> B"));
+    let column: Vec<&str> = doc.content[2].content[0].content.iter().map(|n| n.kind.as_str()).collect();
+    assert_eq!(column, ["expand", "extension"]);
+    // Each macro has its own localId, also in its parameters (the viewer needs it).
+    let ids: Vec<&str> = [&doc.content[1], &doc.content[2].content[0].content[1]].iter().map(|m| m.attr_str("localId").unwrap()).collect();
+    assert_ne!(ids[0], ids[1]);
+    assert_eq!(doc.content[1].attrs["parameters"]["localId"], ids[0]);
+    assert_eq!(adf_to_markdown(doc, &FetchContext::default()), normalize(md));
+
+    // merfluence-only settings are dropped, with a warning.
+    let upload = markdown_to_adf("```mermaid theme=dark\ngraph LR\n  a --> b\n```\n", &ctx).unwrap();
+    assert_reported(&upload.diagnostics, Severity::Warning, &["Mermaid setting `theme` dropped"]);
+}
+
+/// Tabs written by hand upload as Confluence's tabs and fetch back the same.
+#[test]
+fn tabs_round_trip() {
+    let md = "<!-- rf: tabs -->\n\n<!-- rf: tab title=\"Install\" -->\n\nRun `make`.\n\n<!-- rf: tab title=\"Use\" -->\n\n- one\n- two\n\n<!-- rf: tab title=\"Empty\" -->\n\n<!-- rf: end-tabs -->\n";
+    let upload = markdown_to_adf(md, &UploadContext::default()).unwrap();
+    assert!(upload.diagnostics.is_empty(), "{:#?}", upload.diagnostics);
+    let tabs = &upload.doc.content[0];
+    assert_eq!((tabs.kind.as_str(), tabs.attr_str("extensionKey")), ("multiBodiedExtension", Some("native-tabs")));
+    let titles: Vec<&str> = tabs.attrs["parameters"]["tabs"].as_array().unwrap().iter().map(|t| t["title"].as_str().unwrap()).collect();
+    assert_eq!(titles, ["Install", "Use", "Empty"]);
+    assert!(tabs.content.iter().all(|f| f.is("extensionFrame") && !f.content.is_empty()));
+    assert_eq!(adf_to_markdown(&upload.doc, &FetchContext::default()), normalize(md));
+
+    for (md, expected) in [
+        ("<!-- rf: tab title=\"x\" -->\n", "tab marker outside"),
+        ("<!-- rf: tabs -->\n\nstray\n\n<!-- rf: tab title=\"x\" -->\n\n<!-- rf: end-tabs -->\n", "content in tabs before the first"),
+        ("<!-- rf: tabs -->\n\n<!-- rf: tab title=\"x\" -->\n", "tabs without `<!-- rf: end-tabs -->`"),
+        ("- <!-- rf: tabs -->\n  <!-- rf: tab title=\"x\" -->\n  <!-- rf: end-tabs -->\n", "only allowed at the top level"),
+    ] {
+        assert_reported(&check(md), Severity::Error, &[expected]);
+    }
+}
+
+/// Synced blocks are read-only: upload sends Confluence's version of the page's own block and
+/// a reference for a copy, and refuses content that differs from Confluence's.
+#[test]
+fn synced_blocks_are_read_only() {
+    let original: Node = serde_json::from_value(serde_json::json!({
+        "type": "bodiedSyncBlock", "attrs": { "resourceId": "r-1", "localId": "l-1" },
+        "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "Shared text" }] }],
+    }))
+    .unwrap();
+    let mut ctx = UploadContext::default();
+    ctx.learn_from(&Node::doc(vec![original.clone()]));
+    ctx.synced_copies.insert(
+        "confluence-page/22/r-2".into(),
+        vec![serde_json::from_value(serde_json::json!({ "type": "paragraph", "content": [{ "type": "text", "text": "From page 22" }] })).unwrap()],
+    );
+    let block = |attrs: &str, content: &str| format!("<!-- rf: synced-block {attrs} read-only -->\n\n{content}<!-- rf: end-synced-block -->\n");
+
+    // Unchanged (or left empty): sent as Confluence has it.
+    for content in ["Shared text\n\n", ""] {
+        let doc = markdown_to_adf(&block("id=r-1", content), &ctx).unwrap().doc;
+        assert_eq!(doc.content, std::slice::from_ref(&original));
+    }
+    // A copy: a reference to its source, whose content is checked too.
+    for content in ["From page 22\n\n", ""] {
+        let doc = markdown_to_adf(&block("id=r-2 page=22", content), &ctx).unwrap().doc;
+        assert_eq!(doc.content[0].kind, "syncBlock");
+        assert_eq!(doc.content[0].attr_str("resourceId"), Some("confluence-page/22/r-2"));
+    }
+
+    // Refused: changed content, a block that isn't on the page, a copy whose source couldn't
+    // be read.
+    for (md, expected) in [
+        (block("id=r-1", "Edited text\n\n"), "the content of synced block r-1 was changed"),
+        (block("id=r-2 page=22", "Edited\n\n"), "the content of synced block r-2 was changed"),
+        (block("id=new-id", "Text\n\n"), "synced block new-id isn't on this page"),
+        (block("id=r-3 page=33", "Text\n\n"), "couldn't be read to check its content"),
+    ] {
+        let err = markdown_to_adf(&md, &ctx).unwrap_err();
+        assert!(err.to_string().contains(expected), "{expected}: {err}");
+    }
+    assert!(markdown_to_adf(&block("id=r-1", "Edited\n\n"), &ctx).unwrap_err().to_string().contains("can only be edited in Confluence's editor"));
+
+    // Offline, `check` can only check the markers.
+    assert!(check(&block("id=r-1", "Edited\n\n")).is_empty());
+    assert_reported(&check(&block("", "Text\n\n")), Severity::Error, &["synced block without `id=`"]);
+    assert_eq!(rfluence_convert::local_synced_copies(&(block("id=r-1", "") + "\n" + &block("id=r-2 page=22", ""))), ["confluence-page/22/r-2"]);
 }

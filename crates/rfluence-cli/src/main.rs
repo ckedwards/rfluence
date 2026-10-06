@@ -52,12 +52,14 @@ enum Command {
         #[arg(long)]
         force: bool,
     },
-    /// Upload a markdown file to its page (the page ID is in its frontmatter).
+    /// Upload a markdown file to its page, or create a page for it.
     ///
-    /// Refuses if the page changed in Confluence since the file was fetched, or if the file has
-    /// content Confluence can't store (see `rfluence check`); --force overrides both. Local
-    /// images are attached, links to other markdown files become page links, and inline
-    /// comments stay on their text. Afterwards the file's frontmatter has the new version.
+    /// The page ID is in the file's frontmatter; a file without one creates a page (titled by
+    /// its leading `# Title`), unless the space already has a page with that title. Refuses if the
+    /// page changed in Confluence since the file was fetched, or if the file has content
+    /// Confluence can't store (see `rfluence check`); --force overrides these. Local images
+    /// are attached, links to other markdown files become page links, and inline comments stay
+    /// on their text. Afterwards the file's frontmatter has the page ID and new version.
     Upload {
         /// The markdown file.
         path: PathBuf,
@@ -71,6 +73,13 @@ enum Command {
         /// The site to use (default: the site in the file's `url`, or the default site).
         #[arg(long, value_name = "SITE")]
         site: Option<String>,
+        /// For a new page: the space to create it in, if the file has no `space_key`.
+        #[arg(long, value_name = "KEY")]
+        space: Option<String>,
+        /// For a new page: the parent page or folder ID, if the file has no `parent`
+        /// (default: the space's homepage).
+        #[arg(long, value_name = "ID")]
+        parent: Option<String>,
         /// Print the result as JSON.
         #[arg(long)]
         json: bool,
@@ -189,7 +198,9 @@ fn main() -> ExitCode {
         Command::Fetch { page, simplified, section, max_chars, json, site, output, force } => {
             fetch::run(&fetch::Options { page, simplified, section, max_chars, json, site, output, force })
         }
-        Command::Upload { path, dry_run, force, site, json } => upload::run(&upload::Options { path, dry_run, force, site, json }),
+        Command::Upload { path, dry_run, force, site, space, parent, json } => {
+            upload::run(&upload::Options { path, dry_run, force, site, space, parent, json })
+        }
         Command::Search { query, space, label, cql, limit, site, json } => {
             search::run(&search::Options { query, space, label, cql, limit, site, json })
         }

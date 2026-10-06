@@ -55,10 +55,75 @@ impl Site {
             .match_query(Matcher::UrlEncoded("key".into(), "rfluence".into()))
             .with_body(json!({ "results": property.into_iter().collect::<Vec<_>>(), "_links": {} }).to_string())
             .create();
+        Site::bare(name, server)
+    }
+
+    /// A mock site serving nothing yet, and an empty project directory.
+    fn bare(name: &str, server: mockito::ServerGuard) -> Site {
         let dir = std::env::temp_dir().join(format!("rfluence-upload-{name}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         Site { server, dir }
+    }
+
+    /// A site with space ENG (homepage 100), where `existing` is the page titled "New page".
+    fn with_space(name: &str, existing: Option<&str>) -> Site {
+        let mut server = mockito::Server::new();
+        server
+            .mock("GET", "/wiki/api/v2/spaces")
+            .match_query(Matcher::UrlEncoded("keys".into(), "ENG".into()))
+            .with_body(json!({ "results": [{ "id": "9", "key": "ENG", "homepageId": "100" }], "_links": {} }).to_string())
+            .create();
+        let found: Vec<_> = existing.iter().map(|id| json!({ "id": id })).collect();
+        server
+            .mock("GET", "/wiki/rest/api/content")
+            .match_query(Matcher::AllOf(vec![
+                Matcher::UrlEncoded("spaceKey".into(), "ENG".into()),
+                Matcher::UrlEncoded("title".into(), "New page".into()),
+            ]))
+            .with_body(json!({ "results": found }).to_string())
+            .create();
+        Site::bare(name, server)
+    }
+
+    /// The v2 response for page 500 in ENG.
+    fn created(&self, version: u64) -> String {
+        json!({
+            "id": "500", "title": "New page", "parentId": "100", "spaceId": "9",
+            "version": { "number": version, "createdAt": "2026-10-05T10:00:00.000Z" },
+            "_links": { "webui": "/spaces/ENG/pages/500/New+page", "base": format!("{}/wiki", self.server.url()) },
+        })
+        .to_string()
+    }
+
+    fn expect_labels_and_property(&mut self, labels: serde_json::Value, version: u64, path: &str) -> (mockito::Mock, mockito::Mock) {
+        let label = self
+            .server
+            .mock("POST", "/wiki/rest/api/content/500/label")
+            .match_body(Matcher::Json(labels))
+            .with_body(json!({ "results": [] }).to_string())
+            .create();
+        let property = self
+            .server
+            .mock("POST", "/wiki/api/v2/pages/500/properties")
+            .match_body(Matcher::Json(json!({
+                "key": "rfluence",
+                "value": { "managed": true, "version": version, "path": path, "config_labels": [] },
+            })))
+            .with_body("{}")
+            .create();
+        (label, property)
+    }
+
+    fn write_file(&self, file: &str, md: &str) {
+        std::fs::write(self.path(file), md).unwrap();
+    }
+
+    fn upload_file(&self, file: &str, extra: &[&str]) -> Output {
+        let path = self.path(file);
+        let mut args = vec!["upload", path.to_str().unwrap()];
+        args.extend(extra);
+        self.rf(&args)
     }
 
     fn path(&self, file: &str) -> PathBuf {
@@ -293,19 +358,201 @@ fn stops_before_sending_anything() {
     let site = Site::new("stops", None, 2, None);
     site.fetch();
     let md = site.read();
+    // Line numbers are the file's (frontmatter and title included).
+    let appended = md.lines().count() + 2;
+    let green = md.lines().position(|l| l.contains("](page.assets/green.png)")).unwrap() + 1;
     let cases = [
         // `rfluence check` errors.
-        (md.clone() + "\nA footnote[^1].\n\n[^1]: Note.\n", 1, "2 errors (content Confluence can't store), nothing uploaded"),
-        (md.clone() + "\n[setup](./setup.md)\n", 2, "links to files without a Confluence page: line"),
-        (md.replace("  labels: []", "  labels: [\"a.b\"]"), 2, "contains '.'"),
-        (md.replace("  version: 2", "  verison: 2"), 2, "unknown keys under `rfluence:` in the frontmatter: verison"),
-        (md.replace("  id: \"131074\"\n", ""), 2, "has no page ID"),
-        (md.replace("](page.assets/green.png)", "](page.assets/missing.png)"), 2, "image files not found"),
+        (md.clone() + "\nA footnote[^1].\n\n[^1]: Note.\n", 1, "2 errors (content Confluence can't store), nothing uploaded".to_string()),
+        (md.clone() + "\n[setup](./setup.md)\n", 2, format!("links to files without a Confluence page: line {appended}: ./setup.md (no such file)")),
+        (md.replace("  labels: []", "  labels: [\"a.b\"]"), 2, "contains '.'".to_string()),
+        (md.replace("  version: 2", "  verison: 2"), 2, "unknown keys under `rfluence:` in the frontmatter: verison".to_string()),
+        (md.replacen("](page.assets/green.png)", "](page.assets/missing.png)", 1), 2, format!("image files not found, and the page has no attachment with their names: line {green}: page.assets/missing.png")),
     ];
     for (file, code, message) in cases {
+        let message = message.as_str();
         site.write(&file);
         let o = site.upload(&[]);
         assert_eq!(o.status.code(), Some(code), "{message}: {}", err(&o));
         assert!(err(&o).contains(message), "{message}: {}", err(&o));
+    }
+}
+
+#[test]
+fn creates_a_page_and_records_it_in_the_file() {
+    let mut site = Site::with_space("create", None);
+    let md = "---\ntags: [kept]\nrfluence:\n  space_key: ENG\n  labels: [Docs]\n---\n\n# New page\n\nHello.\n";
+    site.write_file("new.md", md);
+    let create = site
+        .server
+        .mock("POST", "/wiki/api/v2/pages")
+        .match_body(Matcher::AllOf(vec![
+            Matcher::PartialJson(json!({ "spaceId": "9", "parentId": "100", "title": "New page", "status": "current" })),
+            sent_body_contains(r#""text":"Hello.""#),
+        ]))
+        .with_body(site.created(1))
+        .create();
+    let (label, property) = site.expect_labels_and_property(json!([{ "prefix": "global", "name": "docs" }]), 1, "new.md");
+
+    let o = site.upload_file("new.md", &[]);
+    assert!(o.status.success(), "{}", err(&o));
+    create.assert();
+    label.assert();
+    property.assert();
+    let url = format!("{}/wiki/spaces/ENG/pages/500", site.server.url());
+    assert_eq!(out(&o), format!("Created page 500 \"New page\" in space ENG from {} (version 1)\n  {url}\n  labels added: docs\n", site.path("new.md").display()));
+    let expected = format!(
+        "---\ntags: [kept]\nrfluence:\n  id: \"500\"\n  space_key: ENG\n  parent: \"100\"\n  version: 1\n  url: {url}\n  labels: [docs]\n---\n\n# New page\n\nHello.\n"
+    );
+    similar_asserts::assert_eq!(std::fs::read_to_string(site.path("new.md")).unwrap(), expected);
+}
+
+#[test]
+fn creates_a_page_with_images_then_attaches_them() {
+    let mut site = Site::with_space("create-images", None);
+    // No frontmatter at all: --space and --parent say where.
+    site.write_file("new.md", "# New page\n\n![box](new.assets/box.png)\n");
+    std::fs::create_dir_all(site.path("new.assets")).unwrap();
+    std::fs::write(site.path("new.assets/box.png"), b"\x89PNG box").unwrap();
+    let create = site
+        .server
+        .mock("POST", "/wiki/api/v2/pages")
+        .match_body(Matcher::PartialJson(json!({ "parentId": "42", "title": "New page" })))
+        .with_body(site.created(1))
+        .create();
+    let attach = site
+        .server
+        .mock("POST", "/wiki/rest/api/content/500/child/attachment")
+        .match_body(Matcher::Regex(r#"filename="box.png""#.into()))
+        .with_body(json!({ "results": [{ "id": "att1", "title": "box.png", "extensions": { "fileId": "box-file" } }] }).to_string())
+        .create();
+    let body = site
+        .server
+        .mock("PUT", "/wiki/api/v2/pages/500")
+        .match_body(Matcher::AllOf(vec![
+            Matcher::PartialJson(json!({ "version": { "number": 2 } })),
+            sent_body_contains(r#""collection":"contentId-500""#),
+            sent_body_contains(r#""id":"box-file""#),
+        ]))
+        .with_body(site.created(2))
+        .create();
+    let (label, property) = site.expect_labels_and_property(json!([]), 2, "new.md");
+    let label = label.expect(0);
+
+    let o = site.upload_file("new.md", &["--space", "ENG", "--parent", "42"]);
+    assert!(o.status.success(), "{}", err(&o));
+    create.assert();
+    attach.assert();
+    body.assert();
+    label.assert();
+    property.assert();
+    assert!(out(&o).contains("(version 2)") && out(&o).contains("images uploaded: box.png"), "{}", out(&o));
+    let written = std::fs::read_to_string(site.path("new.md")).unwrap();
+    assert!(written.starts_with("---\nrfluence:\n  id: \"500\"\n  space_key: ENG\n  parent: \"100\"\n  version: 2\n"), "{written}");
+    assert!(written.ends_with("---\n\n# New page\n\n![box](new.assets/box.png)\n"), "{written}");
+}
+
+#[test]
+fn never_creates_a_duplicate_title() {
+    let mut site = Site::with_space("duplicate", Some("321"));
+    site.write_file("new.md", "---\nrfluence:\n  space_key: ENG\n---\n\n# New page\n\nRewritten by an LLM that dropped the ID.\n");
+    let post = site.server.mock("POST", Matcher::Any).expect(0).create();
+    let o = site.upload_file("new.md", &[]);
+    assert_eq!(o.status.code(), Some(6), "{}", err(&o));
+    assert!(err(&o).contains("space ENG already has a page titled \"New page\" (page 321)"), "{}", err(&o));
+    post.assert();
+
+    // --force overwrites that page, and the file gets its ID.
+    let page = json!({
+        "id": "321", "title": "New page", "parentId": "100",
+        "version": { "number": 4 }, "labels": { "results": [] },
+        "body": { "atlas_doc_format": { "value": r#"{"type":"doc","version":1,"content":[]}"# } },
+        "_links": { "webui": "/spaces/ENG/pages/321", "base": format!("{}/wiki", site.server.url()) },
+    });
+    site.server.mock("GET", "/wiki/api/v2/pages/321").match_query(Matcher::Any).with_body(page.to_string()).create();
+    site.server.mock("GET", "/wiki/api/v2/pages/321/attachments").match_query(Matcher::Any).with_body(r#"{"results":[]}"#).create();
+    site.server.mock("GET", "/wiki/api/v2/pages/321/properties").match_query(Matcher::Any).with_body(r#"{"results":[]}"#).create();
+    let mut updated = page.clone();
+    updated["version"]["number"] = 5.into();
+    let put = site
+        .server
+        .mock("PUT", "/wiki/api/v2/pages/321")
+        .match_body(Matcher::AllOf(vec![Matcher::PartialJson(json!({ "version": { "number": 5 } })), sent_body_contains("dropped the ID")]))
+        .with_body(updated.to_string())
+        .create();
+    let o = site.upload_file("new.md", &["--force"]);
+    assert!(o.status.success(), "{}", err(&o));
+    put.assert();
+    assert!(std::fs::read_to_string(site.path("new.md")).unwrap().contains("  id: \"321\"\n  space_key: ENG\n  parent: \"100\"\n  version: 5\n"));
+}
+
+#[test]
+fn dry_run_create_and_what_a_new_page_needs() {
+    let mut site = Site::with_space("create-checks", None);
+    let post = site.server.mock("POST", Matcher::Any).expect(0).create();
+    site.write_file("new.md", "# New page\n\nText.\n");
+    let o = site.upload_file("new.md", &["--space", "ENG", "--dry-run"]);
+    assert!(o.status.success(), "{}", err(&o));
+    assert_eq!(out(&o), "Dry run: would create page \"New page\" in space ENG under 100\n");
+    assert_eq!(std::fs::read_to_string(site.path("new.md")).unwrap(), "# New page\n\nText.\n");
+
+    let o = site.upload_file("new.md", &[]);
+    assert_eq!(o.status.code(), Some(2));
+    assert!(err(&o).contains("no space to create the page in"), "{}", err(&o));
+    site.write_file("untitled.md", "Text without a title.\n");
+    let o = site.upload_file("untitled.md", &["--space", "ENG"]);
+    assert_eq!(o.status.code(), Some(2));
+    assert!(err(&o).contains("has no title for the new page"), "{}", err(&o));
+    site.write_file("new.md", "# New page\n\n![](missing.png)\n");
+    let o = site.upload_file("new.md", &["--space", "ENG"]);
+    assert_eq!(o.status.code(), Some(2));
+    assert!(err(&o).contains("image files not found"), "{}", err(&o));
+    post.assert();
+}
+
+/// A Mermaid fence becomes a merfluence diagram if the site has merfluence, else a Mermaid
+/// Diagrams Viewer diagram (source expand + macro), else a code block.
+#[test]
+fn uploads_mermaid_for_the_apps_the_site_has() {
+    const MERFLUENCE: (&str, &str) = ("5321c3d1-955d-42ac-9f09-d4d6f0802224", "04b85365-6260-47d9-9f03-8f42e258aab7");
+    const VIEWER: (&str, &str) = ("23392b90-4271-4239-98ca-a3e96c663cbb", "63d4d207-ac2f-4273-865c-0240d37f044a");
+    /// (case, the site's Mermaid apps (none: the lookup fails), what the new page's body has)
+    type Case<'a> = (&'a str, Option<Vec<(&'a str, &'a str)>>, Vec<&'a str>);
+    let cases: [Case; 4] = [
+        ("both", Some(vec![VIEWER, MERFLUENCE]), vec![r#""extensionKey":"5321c3d1-955d-42ac-9f09-d4d6f0802224/04b85365"#, r#""source":"graph LR\n  a --> b""#]),
+        ("viewer", Some(vec![VIEWER]), vec![r#""title":"Mermaid source""#, r#""extensionKey":"23392b90-4271-4239-98ca-a3e96c663cbb/63d4d207"#]),
+        ("neither", Some(vec![]), vec![r#"{"type":"codeBlock","attrs":{"language":"mermaid"}"#]),
+        ("lookup fails", None, vec![r#"{"type":"codeBlock","attrs":{"language":"mermaid"}"#]),
+    ];
+    for (name, installed, sent) in cases {
+        let mut site = Site::with_space(&format!("mermaid-{}", name.replace(' ', "-")), None);
+        site.write_file("new.md", "# New page\n\n```mermaid\ngraph LR\n  a --> b\n```\n");
+        site.server.mock("GET", "/_edge/tenant_info").with_body(r#"{"cloudId":"cloud-1"}"#).create();
+        let graphql = site.server.mock("POST", "/gateway/api/graphql").match_body(Matcher::PartialJson(json!({
+            "operationName": "rfluence_macros",
+            "variables": { "contextIds": ["ari:cloud:confluence::site/cloud-1"], "type": "xen:macro" },
+        })));
+        let graphql = match &installed {
+            Some(apps) => {
+                let macros: Vec<_> = apps.iter().map(|(app, env)| json!({ "appId": app, "environmentId": env, "key": "mermaid-diagram" })).collect();
+                graphql.with_body(json!({ "data": { "extensionContexts": [{ "extensionsByType": macros }] } }).to_string())
+            }
+            None => graphql.with_body(json!({ "errors": [{ "message": "Not allowed" }] }).to_string()),
+        }
+        .create();
+        let create = site
+            .server
+            .mock("POST", "/wiki/api/v2/pages")
+            .match_body(Matcher::AllOf(sent.iter().map(|s| sent_body_contains(s)).collect()))
+            .with_body(site.created(1))
+            .create();
+        site.server.mock("POST", "/wiki/api/v2/pages/500/properties").with_body("{}").create();
+
+        let o = site.upload_file("new.md", &["--space", "ENG"]);
+        assert!(o.status.success(), "{name}: {}", err(&o));
+        graphql.assert();
+        create.assert();
+        let warned = err(&o).contains("couldn't find out which Mermaid app the site has (Confluence returned HTTP 200: Not allowed)");
+        assert_eq!(warned, installed.is_none(), "{name}: {}", err(&o));
     }
 }

@@ -37,6 +37,9 @@ with `PUT /wiki/rest/api/content/{id}/move/append/{new parent id}`) and re-captu
 | `links-and-anchors` | 295349 | rfluence link API test | API | Page links (text, URL with title, smart link) and heading anchors (punctuation, Unicode, duplicates, extra spaces) |
 | `mermaid-api` | 458755 | rfluence merfluence API test | API | Diagrams A (source only), B (source + default settings), C (changed source + stale cached SVGs: shows the old diagram) |
 | `mermaid-editor` | 295341 | merfluence | Editor | A diagram inserted in the editor: the full merfluence node with cached SVGs and `embeddedMacroContext` |
+| `mermaid-viewer-editor` | 1966084 | Mermaid Diagrams Viewer | Editor | Two Mermaid Diagrams Viewer macros inserted in the editor: one after a code block in an expand (paired automatically, `guestParams: ""`), one after a plain code block with the code block picked in its settings (`guestParams: {"index": 0}`, which counts all code blocks, so it shows the first diagram's source). The code blocks have no `language` |
+| `tabs-and-synced-block` | 2392065 | rfluence tabs and synced block | Editor | Tabs (three tabs, the first holding a table), a synced block (the original), and two empty layouts |
+| `synced-block-copies` | 1605660 | rfluence sync block destination | Editor | Two copies of synced blocks: one from `tabs-and-synced-block`, one from an unpublished draft (page 2195459, so it shows as unavailable) |
 | `space-homepage` | 295257 | Software development | Confluence space template | A page made by people: layouts, expands, panels, images, smart links |
 
 ### `adf-reference`

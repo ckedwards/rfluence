@@ -5,7 +5,7 @@
 //! ```` ```adf ```` fences, inline nodes as `<span data-adf='...'>` (design.md, "Content
 //! Confluence has that markdown doesn't").
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use comrak::nodes::{
     AlertType, AstNode, ListDelimType, ListType, NodeAlert, NodeCodeBlock, NodeHeading, NodeHtmlBlock, NodeLink,
@@ -19,7 +19,7 @@ use crate::anchors::Anchors;
 use crate::inline::{self, Item, Leaf, MdMark};
 use crate::markdown::append;
 use crate::settings::{Settings, fmt_num};
-use crate::{emoji, normalize};
+use crate::{emoji, mermaid, normalize};
 
 /// What fetch needs to know beyond the page body.
 #[derive(Debug, Clone, Default)]
@@ -41,6 +41,10 @@ pub struct FetchContext {
     /// Titles of pages on this site, by page ID: smart links to them are written as
     /// `[Title](url)` (design.md, "Links" > "Smart links").
     pub titles: HashMap<String, String>,
+    /// The content of the synced block copies on the page, by `resourceId`
+    /// (`confluence-page/<page>/<id>`), read from their source pages. Copies that aren't
+    /// here are written as unavailable (design.md, "Tabs and synced blocks").
+    pub synced_copies: HashMap<String, Vec<Node>>,
 }
 
 /// A local markdown file for a page.
@@ -62,7 +66,8 @@ pub fn adf_to_markdown(doc: &Node, ctx: &FetchContext) -> String {
             headings.push(n.plain_text());
         }
     });
-    let w = Writer { arena: &arena, ctx, anchors: Anchors::new(headings.iter().map(String::as_str)) };
+    let viewer = if ctx.simplified { mermaid::viewer_sources(doc) } else { Default::default() };
+    let w = Writer { arena: &arena, ctx, anchors: Anchors::new(headings.iter().map(String::as_str)), viewer };
     w.blocks(root, &doc.content);
     if ctx.simplified {
         // Never compared in a round trip, so no normalize pass (it would escape the
@@ -77,19 +82,43 @@ struct Writer<'a, 'c> {
     arena: &'a Arena<'a>,
     ctx: &'c FetchContext,
     anchors: Anchors,
+    /// Simplified output: what each viewer macro draws, and the code blocks they draw from.
+    viewer: (HashMap<*const Node, String>, HashSet<*const Node>),
 }
 
 impl<'a> Writer<'a, '_> {
     fn blocks(&self, parent: &'a AstNode<'a>, nodes: &[Node]) {
-        for node in nodes {
-            self.block(parent, node);
+        let mut i = 0;
+        while i < nodes.len() {
+            // A viewer diagram as rfluence uploads it: source expand, then the macro.
+            if let Some(source) = mermaid::viewer_pair(&nodes[i], nodes.get(i + 1)).filter(|_| !self.simple()) {
+                self.code(parent, "mermaid".into(), format!("{source}\n"));
+                i += 2;
+                continue;
+            }
+            self.block(parent, &nodes[i]);
+            i += 1;
         }
+    }
+
+    /// Simplified output: a viewer macro as the diagram it draws.
+    fn viewer_diagram(&self, parent: &'a AstNode<'a>, node: &Node) -> bool {
+        let Some(source) = self.viewer.0.get(&(node as *const Node)) else { return false };
+        self.code(parent, "mermaid".into(), format!("{source}\n"));
+        true
+    }
+
+    /// Simplified output: a code block a viewer macro draws (shown as the diagram instead).
+    fn drawn(&self, node: &Node) -> bool {
+        self.simple() && self.viewer.1.contains(&(node as *const Node))
     }
 
     fn block(&self, parent: &'a AstNode<'a>, node: &Node) {
         let converted = match node.kind.as_str() {
             "paragraph" => self.paragraph(parent, node),
             "heading" => self.heading(parent, node),
+            "codeBlock" if self.drawn(node) => true,
+            "expand" if !node.content.is_empty() && node.content.iter().all(|n| self.drawn(n)) => true,
             "codeBlock" => self.code_block(parent, node),
             "blockquote" if node.marks.is_empty() => {
                 let quote = append(self.arena, parent, NodeValue::BlockQuote);
@@ -105,10 +134,14 @@ impl<'a> Writer<'a, '_> {
             "panel" => self.panel(parent, node),
             "mediaSingle" => self.media_single(parent, node),
             "blockCard" | "embedCard" => self.card(parent, node),
-            "extension" if is_merfluence(node) => self.mermaid(parent, node),
+            "extension" if mermaid::is_merfluence(node) => self.mermaid(parent, node),
+            "extension" if self.simple() && mermaid::is_viewer(node) => self.viewer_diagram(parent, node),
             "table" => self.table(parent, node),
             "expand" | "nestedExpand" => self.expand(parent, node),
             "layoutSection" => self.layout(parent, node),
+            "multiBodiedExtension" => self.tabs(parent, node),
+            "bodiedSyncBlock" => self.synced_original(parent, node),
+            "syncBlock" => self.synced_copy(parent, node),
             _ => false,
         };
         if !converted {
@@ -357,6 +390,87 @@ impl<'a> Writer<'a, '_> {
         let mut end = Settings::new();
         end.flag("end-columns");
         self.html_block(parent, end.to_comment());
+        true
+    }
+
+    fn marker_comment(&self, parent: &'a AstNode<'a>, build: impl FnOnce(&mut Settings)) {
+        let mut settings = Settings::new();
+        build(&mut settings);
+        self.html_block(parent, settings.to_comment());
+    }
+
+    /// Tabs as `<!-- rf: tabs -->`, each tab after `<!-- rf: tab title="..." -->`, then
+    /// `<!-- rf: end-tabs -->` (design.md, "Tabs and synced blocks").
+    fn tabs(&self, parent: &'a AstNode<'a>, node: &Node) -> bool {
+        let Some(titles) = tab_titles(node) else { return false };
+        if self.simple() {
+            // Each tab's title as a bold line, then its content.
+            for (title, frame) in titles.iter().zip(&node.content) {
+                if !title.is_empty() {
+                    let p = append(self.arena, parent, NodeValue::Paragraph);
+                    let strong = append(self.arena, p, NodeValue::Strong);
+                    append(self.arena, strong, NodeValue::Text(title.clone().into()));
+                }
+                self.blocks(parent, &frame.content);
+            }
+            return true;
+        }
+        self.marker_comment(parent, |s| s.flag("tabs"));
+        for (title, frame) in titles.iter().zip(&node.content) {
+            self.marker_comment(parent, |s| {
+                s.flag("tab");
+                s.set("title", title);
+            });
+            self.blocks(parent, &frame.content);
+        }
+        self.marker_comment(parent, |s| s.flag("end-tabs"));
+        true
+    }
+
+    /// A synced block on its own page: its content between markers carrying its ID. The
+    /// content is read-only (upload sends Confluence's version).
+    fn synced_original(&self, parent: &'a AstNode<'a>, node: &Node) -> bool {
+        let Some(id) = node.attr_str("resourceId") else { return false };
+        if self.simple() {
+            self.blocks(parent, &node.content);
+            return true;
+        }
+        self.marker_comment(parent, |s| {
+            s.flag("synced-block");
+            s.set("id", id);
+            s.flag("read-only");
+        });
+        self.blocks(parent, &node.content);
+        self.marker_comment(parent, |s| s.flag("end-synced-block"));
+        true
+    }
+
+    /// A copy of a synced block: the source's content (read-only) between markers carrying
+    /// the source page and block ID, or `unavailable` if the source couldn't be read.
+    fn synced_copy(&self, parent: &'a AstNode<'a>, node: &Node) -> bool {
+        let Some(resource_id) = node.attr_str("resourceId") else { return false };
+        let Some((page, id)) = crate::synced::parse_copy(resource_id) else { return false };
+        let content = self.ctx.synced_copies.get(resource_id);
+        if self.simple() {
+            match content {
+                Some(c) => self.blocks(parent, c),
+                None => self.marker(parent, &format!("[Synced block from page {page}: not available]")),
+            }
+            return true;
+        }
+        self.marker_comment(parent, |s| {
+            s.flag("synced-block");
+            s.set("id", id);
+            s.set("page", page);
+            s.flag("read-only");
+            if content.is_none() {
+                s.flag("unavailable");
+            }
+        });
+        if let Some(c) = content {
+            self.blocks(parent, c);
+        }
+        self.marker_comment(parent, |s| s.flag("end-synced-block"));
         true
     }
 
@@ -1096,11 +1210,32 @@ fn iso_date(ms: i64) -> String {
     format!("{y:04}-{m:02}-{d:02}")
 }
 
-/// A merfluence diagram: `extensionType` `com.atlassian.ecosystem` and a key ending in
-/// `/static/mermaid-diagram` (design.md, "Mermaid diagrams (merfluence)").
-pub fn is_merfluence(node: &Node) -> bool {
-    node.attr_str("extensionType") == Some("com.atlassian.ecosystem")
-        && node.attr_str("extensionKey").is_some_and(|k| k.ends_with("/static/mermaid-diagram"))
+/// The tab titles of a tabs node, if rfluence can write it: the editor's node with one
+/// `extensionFrame` per tab and default settings.
+fn tab_titles(node: &Node) -> Option<Vec<String>> {
+    if node.attr_str("extensionType") != Some("com.atlassian.confluence.native") || node.attr_str("extensionKey") != Some("native-tabs") {
+        return None;
+    }
+    let attrs_ok = node.attrs.iter().all(|(k, v)| match k.as_str() {
+        "extensionType" | "extensionKey" | "parameters" | "localId" => true,
+        "layout" => v == "default",
+        k => k.starts_with("__"),
+    });
+    let params = node.attrs.get("parameters")?.as_object()?;
+    let params_ok = params.iter().all(|(k, v)| match k.as_str() {
+        "tabs" => true,
+        "applyToAll" => v == &Value::Bool(false),
+        "extensionTitle" => v == "Tabs",
+        _ => false,
+    });
+    let marks_ok = node.marks.iter().all(|m| m.kind == "breakout" && adf::is_default_breakout(m));
+    let tabs = params.get("tabs")?.as_array()?;
+    let frames_ok = tabs.len() == node.content.len()
+        && node.content.iter().all(|f| f.is("extensionFrame") && f.marks.is_empty() && f.attrs.keys().all(|k| k == "localId" || k.starts_with("__")));
+    if !(attrs_ok && params_ok && marks_ok && frames_ok) {
+        return None;
+    }
+    tabs.iter().map(|t| t.get("title").and_then(Value::as_str).map(str::to_string)).collect()
 }
 
 #[cfg(test)]

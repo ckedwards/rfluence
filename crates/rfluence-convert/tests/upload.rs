@@ -40,6 +40,7 @@ fn corpus_as_adf() {
             custom_emoji: HashMap::new(),
             mermaid: MermaidApp::from_extension_key(MERMAID),
             pages,
+            ..Default::default()
         };
         let upload = markdown_to_adf(&md, &ctx).unwrap();
         let json = serde_json::to_string_pretty(&upload.doc).unwrap();

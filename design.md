@@ -224,10 +224,128 @@ Merfluence is a Forge app. A diagram is a single `extension` node (not `bodiedEx
   * Fetch: `guestParams.source` becomes a ```` ```mermaid ```` fence. Never output `svgLight` / `svgDark`; they are ~19 KB each per diagram and would flood an LLM's context.
   * Non-default `theme`, `mermaidVersion` and `useMaxWidth` values go in the fence info string, e.g. ```` ```mermaid theme=dark ```` (see "Confluence-only settings in markdown").
   * `source` has no trailing newline; markdown fence content does. Normalize this.
-  * Upload: building the node requires the app and environment IDs. Read them from config or discover them from an existing page rather than hard-coding them.
+  * Upload: building the node requires the app and environment IDs. The environment ID isn't public, so both are discovered from the site (see "Mermaid diagrams on sites without merfluence" > "Finding which Mermaid app a site has"); only the app ID, from merfluence's manifest, is built in.
   * Upload a minimal node: `guestParams.source` plus the IDs, with no cached SVGs and no `embeddedMacroContext` / `localId`. Verified on test page 458755: merfluence renders this correctly, and Confluence stores it as sent. Viewing the page does not write cached SVGs back.
   * **Never send cached SVGs with a changed `source`.** Verified: when `source` changes but the old `svgLight` / `svgDark` are kept, merfluence shows the old diagram. Simplest rule: always strip `svgLight`, `svgDark`, `renderedVersion` and `cacheV` on upload. Keeping them for unchanged diagrams is a possible later optimization.
   * `embeddedMacroContext` holds page-specific data (page ID, version, space, account). Don't send it on upload.
+
+### Mermaid diagrams on sites without merfluence
+
+A ```` ```mermaid ```` fence is uploaded as the best form the site supports:
+
+  1. merfluence is installed: a merfluence diagram (above).
+  2. Otherwise, [Mermaid Diagrams Viewer](https://marketplace.atlassian.com/apps/1232887/mermaid-diagrams-viewer) (Atlassian Labs, [source](https://github.com/atlassian-labs/mermaid-diagrams-viewer)) is installed: the source in a collapsed expand, followed by the viewer's macro, which draws the diagram from that code block.
+  3. Neither: a code block with language `mermaid`. No warning: it's the honest form, it round-trips, and a viewer installed later can use it.
+
+How Mermaid Diagrams Viewer works (from its source, and the editor-made page in fixture `mermaid-viewer-editor`):
+
+  * The macro (`extension`, key `mermaid-diagram`) holds no diagram. It reads the page's ADF and shows a code block's text. With no setting (`guestParams` empty), the nth viewer macro on the page shows the nth Mermaid code block: language `mermaid` (the editor can't set it, but the API can), or text Mermaid recognises. With a code block picked in its settings (`guestParams: {"index": n}`), it shows the nth code block of **any** language, which breaks as soon as a code block is added above it. rfluence never sets `index`.
+  * The viewer needs `parameters.localId` (it throws without one) to find its own position.
+
+Upload form (verified on a temporary test page, since trashed: two diagrams with a Python code block between them rendered correctly, and the expands start collapsed):
+
+```json
+{"type": "expand", "attrs": {"title": "Mermaid source"}, "content": [
+  {"type": "codeBlock", "attrs": {"language": "mermaid"}, "content": [{"type": "text", "text": "flowchart TD\n  A --> B"}]}]},
+{"type": "extension", "attrs": {
+  "extensionType": "com.atlassian.ecosystem",
+  "extensionKey": "<app id>/<environment id>/static/mermaid-diagram",
+  "text": "Mermaid diagram", "layout": "default", "localId": "<uuid>",
+  "parameters": {"localId": "<same uuid>", "extensionId": "ari:cloud:ecosystem::extension/<app id>/<environment id>/static/mermaid-diagram", "extensionTitle": "Mermaid diagram"}}}
+```
+
+  * No `guestParams`, `forgeEnvironment` or `embeddedMacroContext` are needed. Confluence stores the nodes as sent, including `language: "mermaid"`.
+  * The expand keeps the source out of the way on the page; the viewer still finds the code block inside it.
+  * Fence settings that only merfluence has (`theme=`, ...) are dropped, with a warning.
+
+Fetch:
+
+  * Exactly that pair (an expand titled `Mermaid source` holding only a `mermaid` code block, directly followed by a viewer macro without `index`) becomes a ```` ```mermaid ```` fence, so it round-trips.
+  * Anything else stays lossless: the expand as `<details>`, the code block as a fence, the macro as ```` ```adf ````. That includes viewer diagrams made in the editor (another expand title, no expand, no language, or an `index` setting), since rfluence can't upload them back in the same form.
+  * `--simplified` (for reading only) writes every viewer macro as the ```` ```mermaid ```` fence of the code block it shows, and leaves out the code block it was drawn from.
+
+Choosing the app on upload (implemented):
+
+  * A merfluence diagram already on the page decides (its app, which may be a fork). Otherwise, only when the body has a Mermaid fence, the site's macros are listed (GraphQL, below; two requests in parallel with the page fetch): merfluence wins over the viewer. If the lookup fails, diagrams are uploaded as code blocks, with a warning.
+  * A viewer diagram needs an expand, which is only allowed at the top level and in layout columns; elsewhere (lists, tables, quotes, ...) a Mermaid fence stays a code block.
+  * Each viewer macro gets its own `localId` (`00000000-0000-4000-8000-<n>`, numbered within the page).
+  * The viewer counts every macro whose key ends in `mermaid-diagram`, merfluence's included, when pairing macros with code blocks. Upload uses one app for the whole page, so the two don't mix on pages it writes.
+  * An app that forks merfluence or the viewer has another app ID, so the lookup doesn't find it; a per-site setting could cover that later (see Future considerations).
+  * Verified: the live upload test (merfluence installed) uploads a Mermaid fence as a merfluence diagram and fetches it back unchanged. The viewer form was verified separately (above), since the test site has both apps.
+
+Finding which Mermaid app a site has (verified on the test site):
+
+  * App IDs are in each app's Forge manifest, so they're stable unless the app is forked: merfluence `5321c3d1-955d-42ac-9f09-d4d6f0802224` ([manifest](https://github.com/edlopez000/merfluence/blob/main/manifest.yml)), Mermaid Diagrams Viewer `23392b90-4271-4239-98ca-a3e96c663cbb` ([manifest](https://github.com/atlassian-labs/mermaid-diagrams-viewer/blob/main/app/manifest.yml)). Both apps' macro key is `mermaid-diagram`.
+  * The environment ID in `extensionKey` isn't in the manifest (Forge assigns it on deploy), so it has to be discovered.
+  * The GraphQL gateway lists the macros installed on a site, with app and environment IDs, in one call (about 0.2 s). It's the query the editor uses for its macro menu; it works with an API token (basic auth). Needs the site's cloud ID, from `GET /_edge/tenant_info` (no auth). The operation must be named, and the macro extension type is `xen:macro` (`confluence:macro` and `macro` return nothing):
+
+    ```graphql
+    query rfluence_macros($contextIds: [ID!]!, $type: String!) {
+      extensionContexts(contextIds: $contextIds) {
+        extensionsByType(type: $type) { id appId environmentId environmentType key properties }
+      }
+    }
+    ```
+
+    with `{"contextIds": ["ari:cloud:confluence::site/<cloud id>"], "type": "xen:macro"}`, sent to `POST /gateway/api/graphql`. On the test site it returns merfluence: `appId` `5321c3d1-…`, `environmentId` `04b85365-…`, `environmentType` `PRODUCTION`, `key` `mermaid-diagram`, `id` `ari:cloud:ecosystem::extension/<app>/<env>/static/mermaid-diagram`. After installing Mermaid Diagrams Viewer it also returns the viewer: `appId` `23392b90-4271-4239-98ca-a3e96c663cbb` (matching its manifest), `environmentId` `63d4d207-ac2f-4273-865c-0240d37f044a`, `PRODUCTION`, `key` `mermaid-diagram`, title "Mermaid diagram". Both apps' macros have the same key, so they're told apart by app ID. Not yet checked: whether an account without site admin rights sees the same list.
+
+### Tabs and synced blocks
+
+Observed on editor-made pages (fixtures `tabs-and-synced-block`, page 2392065, and `synced-block-copies`, page 1605660):
+
+  * **Tabs** are a `multiBodiedExtension` (`extensionType: "com.atlassian.confluence.native"`, `extensionKey: "native-tabs"`). `parameters.tabs` lists each tab's `{id, title}` (`id` is 6 random characters), plus `applyToAll` and `extensionTitle: "Tabs"`. Each tab's content is an `extensionFrame` child, in the same order.
+  * **A synced block** (the original) is a `bodiedSyncBlock` with `attrs.resourceId` (a UUID) and its content inline.
+  * **A copy** of it, on any page, is a `syncBlock` with no content: `attrs.resourceId` is `confluence-page/<source page id>/<resourceId>`. Showing it means reading the source page. The source can be a draft (page 2195459, readable with `get-draft=true` by its author); the editor then shows "Synced content will display when the page is published". Not checked: what a reader without access to the source page sees.
+
+What the API accepts (verified on temporary pages, since trashed):
+
+  * Tabs created with the API (the editor's node without `localId`s) render correctly.
+  * A `syncBlock` copy created with the API, pointing at an editor-made synced block, shows that block's content. Confluence stores it with `localId: ""` added.
+  * A `bodiedSyncBlock` with a new `resourceId` is stored and its content shows on its own page, but it isn't a synced block: a copy pointing at it shows "We're unable to display this synced block as it's not available on this site". Synced blocks are registered outside the page body when the editor creates them, so rfluence can reference existing ones but not create new ones.
+  * Editing an existing synced block's content through the API (page 2392065 version 2, `resourceId` unchanged; restored in version 3) changes only the source page: it showed the new text, while both copies (on page 1605660 and a temporary page) kept showing the old text. The copies still worked, so the block stayed registered. The content copies show is kept outside the page body and only the editor updates it, so a synced block's content must be treated as read-only by rfluence: uploading an edit would silently make the source page and its copies disagree.
+
+Markdown forms (fixtures `tabs-and-synced-block` and `synced-block-copies` show them):
+
+  * **Tabs** round-trip, with markers like layouts:
+
+    ```markdown
+    <!-- rf: tabs -->
+
+    <!-- rf: tab title=Install -->
+
+    Run `make install`.
+
+    <!-- rf: tab title="Getting started" -->
+
+    - one
+
+    <!-- rf: end-tabs -->
+    ```
+
+    Only the editor's form is written this way (default settings, one `extensionFrame` per tab); anything else stays ```` ```adf ````. Upload allows tabs at the top level and in layout columns, treats a tab's content like a layout column's, gives an empty tab an empty paragraph, and numbers the tab IDs (`rf0001`, `rf0002`, ...; the editor uses 6 random characters). Verified on a temporary page uploaded by `rfluence upload` (since trashed): tabs with these IDs render and switch. `--simplified` writes each tab's title as a bold line, then its content.
+  * **Synced blocks** are read-only, between markers that carry their ID; the `read-only` flag is there for LLMs reading the markdown:
+
+    ```markdown
+    <!-- rf: synced-block id=b7229247-1d30-4ce9-84dc-accb011d4a6b read-only -->
+
+    This is a sync block
+
+    <!-- rf: end-synced-block -->
+    ```
+
+    * The page's own synced block has `id=` only. Upload sends the block as Confluence has it (from the page it already reads), never the markdown.
+    * A copy also has `page=<source page ID>`. Fetch reads the source pages' bodies in one request (`GET /wiki/api/v2/pages?id=...&body-format=atlas_doc_format`, which returns only published pages) and writes the source block's content between the markers; a copy whose source can't be read (no access, deleted, a draft) gets the `unavailable` flag and no content. Upload sends a `syncBlock` reference. Adding a copy of an existing synced block works: write the markers with `page=` and `id=`, with nothing between them.
+    * Upload refuses (exit 2, before anything is sent) when the content between the markers differs from Confluence's (compared like `fetch -o`'s check for local edits, so link destinations and image folders don't count), when a block without `page=` isn't on the page (synced blocks can't be created through the API), and when a copy has content but its source can't be read to check it. Leaving nothing between the markers always means "as it is". The message says how to fix it: edit the block in Confluence's editor, then fetch again.
+    * Removing the page's own synced block from the markdown removes it from the page; upload warns that its copies may stop showing its content (not verified what they show).
+    * `rfluence check` (offline) checks only the markers: `id=` present, markers balanced.
+    * `--simplified` writes the content without markers, and `[Synced block from page <id>: not available]` for an unreadable copy.
+  * The rfluence skill should tell LLMs that synced block content is read-only, and that `<!-- rf: ... -->` markers must be kept.
+
+Verified end to end on the same temporary page: a copy added from empty markers (`page=` and `id=` only) shows the source block's content, and fetching the page gives the tabs and the copy's content back.
+
+An outage worth knowing about when live tests fail strangely: on 2026-10-06, for a few hours, creating pages on the test site failed in the browser and the API alike. A new page got an ID, then every request for it returned "Page not found" (404), while reading and updating existing pages worked. The page tree kept entries for those pages, and the browser left untitled drafts; `DELETE /wiki/api/v2/pages/{id}` (with `?draft=true` for drafts) removed them even though they couldn't be read. Atlassian's status page showed no incident.
+
+Before this, fetch kept tabs and synced blocks as ```` ```adf ```` blocks (lossless, but unreadable); `--simplified` ran the tabs' content together without their titles, and wrote nothing for a copy, so a page of copies read as empty.
 
 ### Emoji
 
@@ -687,6 +805,16 @@ A file without `id` creates a page. It needs:
 
 Flags only fill in missing values; they don't override frontmatter.
 
+How a page is created (`rfluence upload`, implemented):
+
+  * Before anything is sent, the same local checks as for updates, plus: a title, a space, and every image file present (there are no attachments to reuse).
+  * The space (`GET /wiki/api/v2/spaces?keys=<KEY>`, for its ID and homepage) and a page with the same title in it (v1 `content?spaceKey=&title=`) are looked up in parallel. If the title is taken, upload refuses (exit 6) and names the page, since the file may have lost its `id` (see "Page links are tracked in frontmatter, with a title fallback"); with `--force` it updates that page instead, as if the file had its `id` (the version check is skipped, and the page doesn't get the `rfluence` property: `rfluence` didn't create it).
+  * Without images: one `POST /wiki/api/v2/pages` with the body (version 1).
+  * With images: create the page with an empty body, write its `id` and version to the file straight away (so if a later step fails, the next upload updates that page instead of refusing over its title), attach the images, then write the body (version 2). Verified: an empty `doc` is accepted as a page body.
+  * Then labels and the `rfluence` property (in parallel), and the `rfluence:` block is written back as for updates.
+  * Mermaid diagrams: as for updates, the form depends on the apps installed on the site (see "Mermaid diagrams on sites without merfluence"); the lookup runs in parallel with the space and title lookups.
+  * Measured on the test site: about 3 s to create a page with an image and a label (lookups, create, attach, body, then labels and property).
+
 #### Relation to the content property
 
 The `rfluence` content property on the page (see "Renames and deletions") records the version `rfluence` last uploaded. Right after an upload it equals the frontmatter `version`. If the remote page version is later higher than both, the page was edited in Confluence.
@@ -912,7 +1040,7 @@ None currently.
 
   1. Build `rfluence-convert` and its test corpus.
   2. `rfluence fetch` and `rfluence search`.
-  3. `rfluence upload` with version checks (done for existing pages), then creating pages, then `rfluence upload --config`.
+  3. `rfluence upload` with version checks and creating pages (done), then `rfluence upload --config`.
 
 ## Future considerations
 
@@ -946,24 +1074,14 @@ Inline comments are left out of fetched markdown (see "Inline comments"), but th
 
 Each error in "Checking markdown" could get a mapping if it turns out to be common in LLM-written pages. Footnotes are the likeliest: e.g. superscript reference numbers plus a "Footnotes" section, written back as markdown footnotes on fetch.
 
+### Mermaid apps with other IDs
+
+Upload recognises merfluence and Mermaid Diagrams Viewer by their app IDs (see "Mermaid diagrams on sites without merfluence"). A fork, or another Mermaid app with the same macro form, has a different app ID. Users won't know app IDs, so this would be a setting made once per site (e.g. stored with the site's account in the config directory, or an environment variable such as `RFLUENCE_MERMAID_APP=<app id>`), with detection still the default.
+
 ### Jira content
 
 The test site has no Jira, so Jira issue macros, Jira smart links and Jira issue lists haven't been observed. Until then they are handled like any other unsupported node (preserved as ```` ```adf ```` blocks; smart links as `inlineCard` / `blockCard`). With a Jira-connected test site: capture each form, decide whether any deserve a markdown form (e.g. `[PROJ-123](<issue url>)` for an inline issue link), and check what an LLM most needs from them on fetch (issue key, summary, status).
 
-### rfluence-desktop
+## support natural language search
 
-A testing application. The goal is to be able to fetch the Confluence page as markdown and view the rendered output. Use gpui-kit (verify the crate name; `gpui-component` is the known gpui component library).
-
-  * Rendering Mermaid natively is the hard part; there's no mature Rust Mermaid renderer, so this likely needs a webview or shelling out to `mmdc`.
-  * Keep it out of the workspace `default-members` so gpui compile times don't slow down CLI work.
-  * `rfluence preview` (below) may cover the same need with much less effort.
-
-### `rfluence preview`
-
-Render markdown to an HTML page and open it in the browser. Mermaid diagrams are rendered by mermaid.js in the browser, so no Rust Mermaid renderer is needed. Could replace rfluence-desktop.
-
-  * `rfluence preview <path>` renders a local MD file (comrak -> HTML, Mermaid blocks -> `<pre class="mermaid">`), writes it to a temp file, and opens it.
-  * `rfluence preview <path> --roundtrip` runs the file through the converter offline (md -> ADF -> md) and shows the original and round-tripped output side by side with a text diff. Most useful for checking round-trip fidelity.
-  * `rfluence preview <page> --remote` compares against Confluence's rendered HTML (`body-format=view`). Mermaid app diagrams likely won't appear there since apps render client-side, and `view` uses an older renderer that differs from the browser (e.g. heading anchor IDs), so `rfluence open <page>` (open the page URL) may be more practical.
-  * Load mermaid.js from a CDN by default (optional `--offline` to embed it). Put `preview` behind a cargo feature so it doesn't add weight to the fast fetch/search path.
-  * A `--watch` mode with live reload (`notify` + a small local server) would help while authoring.
+Investigate and see if the api support getting search results using Confluence's Rovo. If it is, add a --nl option to the search.

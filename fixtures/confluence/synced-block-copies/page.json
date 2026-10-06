@@ -1,0 +1,37 @@
+{
+  "_links": {
+    "base": "https://tech-accounts11.atlassian.net/wiki",
+    "editui": "/pages/resumedraft.action?draftId=1605660",
+    "edituiv2": "/spaces/rfluencete/pages/edit-v2/1605660",
+    "tinyui": "/x/HIAY",
+    "webui": "/spaces/rfluencete/pages/1605660/rfluence+sync+block+destination"
+  },
+  "authorId": "712020:05eb3148-b0e1-450d-a60d-67073e3cc131",
+  "createdAt": "2026-10-06T00:56:54.229Z",
+  "id": "1605660",
+  "labels": {
+    "_links": {
+      "self": "/api/v2/pages/1605660/labels"
+    },
+    "meta": {
+      "hasMore": false
+    },
+    "results": []
+  },
+  "lastOwnerId": null,
+  "ownerId": "712020:05eb3148-b0e1-450d-a60d-67073e3cc131",
+  "parentId": "753877",
+  "parentType": "page",
+  "position": 54803777,
+  "spaceId": "753705",
+  "status": "current",
+  "title": "rfluence sync block destination",
+  "version": {
+    "authorId": "712020:05eb3148-b0e1-450d-a60d-67073e3cc131",
+    "createdAt": "2026-10-06T00:58:34.862Z",
+    "message": "",
+    "minorEdit": false,
+    "ncsStepVersion": "9",
+    "number": 2
+  }
+}

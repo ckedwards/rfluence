@@ -1,0 +1,328 @@
+{
+  "type": "doc",
+  "content": [
+    {
+      "type": "multiBodiedExtension",
+      "attrs": {
+        "layout": "default",
+        "extensionType": "com.atlassian.confluence.native",
+        "extensionKey": "native-tabs",
+        "parameters": {
+          "tabs": [
+            {
+              "id": "q0rpcs",
+              "title": "Tab 1"
+            },
+            {
+              "id": "bu7mh4",
+              "title": "Tab 2"
+            },
+            {
+              "id": "2mpwlx",
+              "title": "Tab 3"
+            }
+          ],
+          "applyToAll": false,
+          "extensionTitle": "Tabs"
+        },
+        "localId": "d8e8501e-5ab3-4b58-a341-7a0519ff6df9"
+      },
+      "content": [
+        {
+          "type": "extensionFrame",
+          "content": [
+            {
+              "type": "table",
+              "attrs": {
+                "layout": "default",
+                "width": 760.0,
+                "localId": "04624ce4-fbb6-4e5a-963d-1bb69466ec07"
+              },
+              "content": [
+                {
+                  "type": "tableRow",
+                  "attrs": {
+                    "localId": "afdb75596573"
+                  },
+                  "content": [
+                    {
+                      "type": "tableHeader",
+                      "attrs": {
+                        "colspan": 1,
+                        "rowspan": 1,
+                        "localId": "90d9ce44158d"
+                      },
+                      "content": [
+                        {
+                          "type": "paragraph",
+                          "attrs": {
+                            "localId": "f3baaa07b09c"
+                          },
+                          "content": [
+                            {
+                              "text": "Simple",
+                              "type": "text",
+                              "marks": [
+                                {
+                                  "type": "strong"
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "tableHeader",
+                      "attrs": {
+                        "colspan": 1,
+                        "rowspan": 1,
+                        "localId": "87ff908802a6"
+                      },
+                      "content": [
+                        {
+                          "type": "paragraph",
+                          "attrs": {
+                            "localId": "1ad7335b4b5a"
+                          },
+                          "content": [
+                            {
+                              "text": "Table",
+                              "type": "text",
+                              "marks": [
+                                {
+                                  "type": "strong"
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "tableRow",
+                  "attrs": {
+                    "localId": "f41e45186a0d"
+                  },
+                  "content": [
+                    {
+                      "type": "tableCell",
+                      "attrs": {
+                        "colspan": 1,
+                        "rowspan": 1,
+                        "localId": "dabafb880f03"
+                      },
+                      "content": [
+                        {
+                          "type": "paragraph",
+                          "attrs": {
+                            "localId": "9ea9844ae966"
+                          },
+                          "content": [
+                            {
+                              "text": "yes",
+                              "type": "text"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "tableCell",
+                      "attrs": {
+                        "colspan": 1,
+                        "rowspan": 1,
+                        "localId": "92e3d395cd7e"
+                      },
+                      "content": [
+                        {
+                          "type": "paragraph",
+                          "attrs": {
+                            "localId": "1cdf13f169d1"
+                          },
+                          "content": [
+                            {
+                              "text": "no",
+                              "type": "text"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "extensionFrame",
+          "content": [
+            {
+              "type": "paragraph",
+              "attrs": {
+                "localId": "3036bf2d244c"
+              },
+              "content": [
+                {
+                  "text": "Second Tab",
+                  "type": "text"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "extensionFrame",
+          "content": [
+            {
+              "type": "paragraph",
+              "attrs": {
+                "localId": "586fff927f32"
+              },
+              "content": [
+                {
+                  "text": "Third tab",
+                  "type": "text"
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "attrs": {
+                "localId": "0f206186c712"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "bodiedSyncBlock",
+      "attrs": {
+        "resourceId": "b7229247-1d30-4ce9-84dc-accb011d4a6b",
+        "localId": "15049a42-3bdd-4e54-8e96-0015742c3d7f"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "type": "paragraph",
+          "attrs": {
+            "localId": "9dca78b5c14b"
+          },
+          "content": [
+            {
+              "text": "This is a sync block",
+              "type": "text"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "layoutSection",
+      "attrs": {
+        "localId": "5bc5f57b9bfd"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "type": "layoutColumn",
+          "attrs": {
+            "width": 50.0,
+            "localId": "d00551989b35"
+          },
+          "content": [
+            {
+              "type": "paragraph",
+              "attrs": {
+                "localId": "3bf3cbd41672"
+              }
+            }
+          ]
+        },
+        {
+          "type": "layoutColumn",
+          "attrs": {
+            "width": 50.0,
+            "localId": "40871d1ef2e6"
+          },
+          "content": [
+            {
+              "type": "paragraph",
+              "attrs": {
+                "localId": "8c1f72fd96f7"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "layoutSection",
+      "attrs": {
+        "localId": "21087a9a388b"
+      },
+      "marks": [
+        {
+          "type": "breakout",
+          "attrs": {
+            "mode": "wide",
+            "width": 760
+          }
+        }
+      ],
+      "content": [
+        {
+          "type": "layoutColumn",
+          "attrs": {
+            "width": 50.0,
+            "localId": "ddadbe99dda5"
+          },
+          "content": [
+            {
+              "type": "paragraph",
+              "attrs": {
+                "localId": "6cdb6a80a507"
+              }
+            }
+          ]
+        },
+        {
+          "type": "layoutColumn",
+          "attrs": {
+            "width": 50.0,
+            "localId": "ed5432452e44"
+          },
+          "content": [
+            {
+              "type": "paragraph",
+              "attrs": {
+                "localId": "b53e8047b74b"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "version": 1
+}
