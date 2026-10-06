@@ -18,18 +18,37 @@ pub struct Move {
 /// they're always put in place. Existing children are only moved if `move_existing`: the
 /// longest run of them already in the right relative order stays, and the rest move.
 /// Returns the moves, and the existing children that are out of order but weren't moved.
-pub fn moves(desired: &[String], current: &[String], new: &HashSet<String>, move_existing: bool) -> (Vec<Move>, Vec<String>) {
+pub fn moves(
+    desired: &[String],
+    current: &[String],
+    new: &HashSet<String>,
+    move_existing: bool,
+) -> (Vec<Move>, Vec<String>) {
     let wanted: HashSet<&String> = desired.iter().collect();
     // Our children as they are now.
-    let mut order: Vec<String> = current.iter().filter(|id| wanted.contains(id)).cloned().collect();
-    let rank = |id: &String| desired.iter().position(|d| d == id).expect("filtered to desired");
+    let mut order: Vec<String> = current
+        .iter()
+        .filter(|id| wanted.contains(id))
+        .cloned()
+        .collect();
+    let rank = |id: &String| {
+        desired
+            .iter()
+            .position(|d| d == id)
+            .expect("filtered to desired")
+    };
     // Existing children: keep the longest run in the right order.
     let existing: Vec<&String> = order.iter().filter(|id| !new.contains(*id)).collect();
-    let keep: HashSet<String> = longest_increasing(&existing.iter().map(|id| rank(id)).collect::<Vec<_>>())
-        .into_iter()
-        .map(|i| existing[i].clone())
+    let keep: HashSet<String> =
+        longest_increasing(&existing.iter().map(|id| rank(id)).collect::<Vec<_>>())
+            .into_iter()
+            .map(|i| existing[i].clone())
+            .collect();
+    let out_of_order: Vec<String> = existing
+        .iter()
+        .filter(|id| !keep.contains(**id))
+        .map(|id| (*id).clone())
         .collect();
-    let out_of_order: Vec<String> = existing.iter().filter(|id| !keep.contains(**id)).map(|id| (*id).clone()).collect();
     let mut moving: HashSet<&String> = new.iter().collect();
     if move_existing {
         moving.extend(out_of_order.iter());
@@ -40,30 +59,47 @@ pub fn moves(desired: &[String], current: &[String], new: &HashSet<String>, move
         if !moving.contains(id) {
             continue;
         }
-        let Some(pos) = order.iter().position(|o| o == id) else { continue };
+        let Some(pos) = order.iter().position(|o| o == id) else {
+            continue;
+        };
         let mv = match i.checked_sub(1).map(|p| &desired[p]) {
             // After its predecessor (which is in place: earlier in the desired order).
             Some(prev) if order.contains(prev) => {
                 if pos > 0 && &order[pos - 1] == prev {
                     continue;
                 }
-                Move { id: id.clone(), after: true, target: prev.clone() }
+                Move {
+                    id: id.clone(),
+                    after: true,
+                    target: prev.clone(),
+                }
             }
             // The first (or its predecessor isn't under this parent): before everything else.
             _ => {
                 let first_other = order.iter().find(|o| *o != id).cloned();
                 match first_other {
-                    Some(target) if pos != 0 => Move { id: id.clone(), after: false, target },
+                    Some(target) if pos != 0 => Move {
+                        id: id.clone(),
+                        after: false,
+                        target,
+                    },
                     _ => continue,
                 }
             }
         };
         order.remove(pos);
-        let at = order.iter().position(|o| *o == mv.target).expect("target is in order");
+        let at = order
+            .iter()
+            .position(|o| *o == mv.target)
+            .expect("target is in order");
         order.insert(if mv.after { at + 1 } else { at }, id.clone());
         moves.push(mv);
     }
-    let unmoved = if move_existing { Vec::new() } else { out_of_order };
+    let unmoved = if move_existing {
+        Vec::new()
+    } else {
+        out_of_order
+    };
     (moves, unmoved)
 }
 
@@ -80,7 +116,9 @@ fn longest_increasing(values: &[usize]) -> Vec<usize> {
             }
         }
     }
-    let Some(mut i) = (0..n).max_by_key(|&i| (length[i], usize::MAX - i)) else { return Vec::new() };
+    let Some(mut i) = (0..n).max_by_key(|&i| (length[i], usize::MAX - i)) else {
+        return Vec::new();
+    };
     let mut out = vec![i];
     while previous[i] != usize::MAX {
         i = previous[i];
@@ -109,7 +147,12 @@ mod tests {
         order
     }
 
-    fn check(desired: &str, current: &str, new: &str, move_existing: bool) -> (Vec<Move>, Vec<String>, Vec<String>) {
+    fn check(
+        desired: &str,
+        current: &str,
+        new: &str,
+        move_existing: bool,
+    ) -> (Vec<Move>, Vec<String>, Vec<String>) {
         let (desired, current) = (ids(desired), ids(current));
         let new: HashSet<String> = ids(new).into_iter().collect();
         let (moves, unmoved) = moves(&desired, &current, &new, move_existing);
@@ -144,7 +187,11 @@ mod tests {
     fn moves_existing_children_only_when_asked() {
         let (moves, unmoved, result) = check("a b c d", "a c b d", "", false);
         assert!(moves.is_empty());
-        assert_eq!(unmoved.len(), 1, "one of b or c is out of order: {unmoved:?}");
+        assert_eq!(
+            unmoved.len(),
+            1,
+            "one of b or c is out of order: {unmoved:?}"
+        );
         assert_eq!(result, ids("a c b d"));
         let (moves, unmoved, result) = check("a b c d", "a c b d", "", true);
         assert_eq!((moves.len(), unmoved.len()), (1, 0));

@@ -36,6 +36,17 @@ jobs:
       # All test binaries, even after a failure, so one run shows every problem.
       - run: cargo test --workspace --locked --no-fail-fast
 
+  fmt:
+    name: Formatting
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      # Fix with `cargo fmt --all`.
+      - run: cargo fmt --all --check
+
   clippy:
     name: Clippy
     runs-on: ubuntu-latest

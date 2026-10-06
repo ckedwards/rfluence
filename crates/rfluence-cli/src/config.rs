@@ -47,7 +47,9 @@ fn string_or_number<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<Str
         serde_norway::Value::Null => Ok(None),
         serde_norway::Value::String(s) => Ok(Some(s)),
         serde_norway::Value::Number(n) => Ok(Some(n.to_string())),
-        other => Err(serde::de::Error::custom(format!("expected a page or folder ID, got {other:?}"))),
+        other => Err(serde::de::Error::custom(format!(
+            "expected a page or folder ID, got {other:?}"
+        ))),
     }
 }
 
@@ -58,18 +60,38 @@ impl Config {
     /// A file's path from the current directory (files in the config are relative to the
     /// project root).
     pub fn path_of(&self, file: &str) -> PathBuf {
-        if self.root == Path::new(".") { PathBuf::from(file) } else { self.root.join(file) }
+        if self.root == Path::new(".") {
+            PathBuf::from(file)
+        } else {
+            self.root.join(file)
+        }
     }
 
     /// Read and check a config file.
     pub fn load(file: &Path) -> Result<Config, String> {
         let text = crate::text::read(file).map_err(|e| format!("{}: {e}", file.display()))?;
-        let entries: Vec<Entry> =
-            serde_norway::from_str(&text).map_err(|e| format!("{}: {e} (the file is a list of entries; see design.md, \"Upload config\")", file.display()))?;
-        let root = file.parent().filter(|d| !d.as_os_str().is_empty()).unwrap_or(Path::new(".")).to_path_buf();
-        let config = Config { file: file.to_path_buf(), root, entries };
+        let entries: Vec<Entry> = serde_norway::from_str(&text).map_err(|e| {
+            format!(
+                "{}: {e} (the file is a list of entries; see design.md, \"Upload config\")",
+                file.display()
+            )
+        })?;
+        let root = file
+            .parent()
+            .filter(|d| !d.as_os_str().is_empty())
+            .unwrap_or(Path::new("."))
+            .to_path_buf();
+        let config = Config {
+            file: file.to_path_buf(),
+            root,
+            entries,
+        };
         let errors = config.check();
-        if errors.is_empty() { Ok(config) } else { Err(errors.join("\n")) }
+        if errors.is_empty() {
+            Ok(config)
+        } else {
+            Err(errors.join("\n"))
+        }
     }
 
     /// What's wrong with the entries, one message each.
@@ -79,12 +101,15 @@ impl Config {
             errors.push(format!("{}: no entries", self.file.display()));
         }
         for (i, e) in self.entries.iter().enumerate() {
-            let mut err = |m: String| errors.push(format!("{}: entry {}: {m}", self.file.display(), i + 1));
+            let mut err =
+                |m: String| errors.push(format!("{}: entry {}: {m}", self.file.display(), i + 1));
             if e.paths.is_empty() && e.globs.is_empty() {
                 err("needs `paths` or `globs`".into());
             }
             match (&e.ancestor, &e.ancestor_id) {
-                (None, None) => err("needs `ancestor` (a page or folder title) or `ancestor_id`".into()),
+                (None, None) => {
+                    err("needs `ancestor` (a page or folder title) or `ancestor_id`".into())
+                }
                 (Some(_), Some(_)) => err("has both `ancestor` and `ancestor_id`; use one".into()),
                 _ => {}
             }
@@ -99,7 +124,9 @@ impl Config {
             if let Some(template) = &e.folder_title {
                 for var in template_variables(template) {
                     if !FOLDER_TITLE_VARIABLES.contains(&var.as_str()) {
-                        err(format!("`folder_title` has an unknown variable {{{var}}} (it can use {{dir}}, {{parent}} and {{path}})"));
+                        err(format!(
+                            "`folder_title` has an unknown variable {{{var}}} (it can use {{dir}}, {{parent}} and {{path}})"
+                        ));
                     }
                 }
             }
@@ -115,17 +142,28 @@ impl Config {
 
 /// The `{name}`s in a template.
 fn template_variables(template: &str) -> Vec<String> {
-    template.split('{').skip(1).filter_map(|rest| rest.split_once('}').map(|(v, _)| v.to_string())).collect()
+    template
+        .split('{')
+        .skip(1)
+        .filter_map(|rest| rest.split_once('}').map(|(v, _)| v.to_string()))
+        .collect()
 }
 
 /// A folder title from an entry's `folder_title` template (default `{dir}`).
 pub fn folder_title(template: Option<&str>, dir: &str, parent: &str, path: &str) -> String {
-    template.unwrap_or("{dir}").replace("{dir}", dir).replace("{parent}", parent).replace("{path}", path)
+    template
+        .unwrap_or("{dir}")
+        .replace("{dir}", dir)
+        .replace("{parent}", parent)
+        .replace("{path}", path)
 }
 
 fn glob(pattern: &str) -> Result<Glob, String> {
     // `*` doesn't cross directories; `**` does.
-    GlobBuilder::new(pattern).literal_separator(true).build().map_err(|e| format!("invalid glob {pattern:?}: {e}"))
+    GlobBuilder::new(pattern)
+        .literal_separator(true)
+        .build()
+        .map_err(|e| format!("invalid glob {pattern:?}: {e}"))
 }
 
 fn glob_set(patterns: &[String]) -> GlobSet {
@@ -155,10 +193,15 @@ pub fn match_files(config: &Config) -> Result<Vec<Matched>, String> {
     let mut errors = Vec::new();
     let mut matched = Vec::new();
     for (i, entry) in config.entries.iter().enumerate() {
-        let mut err = |m: String| errors.push(format!("{}: entry {}: {m}", config.file.display(), i + 1));
+        let mut err =
+            |m: String| errors.push(format!("{}: entry {}: {m}", config.file.display(), i + 1));
         let globs = glob_set(&entry.globs);
         let exclude = glob_set(&entry.exclude);
-        let mut files: Vec<String> = all.iter().filter(|f| globs.is_match(f.as_str()) && !exclude.is_match(f.as_str())).cloned().collect();
+        let mut files: Vec<String> = all
+            .iter()
+            .filter(|f| globs.is_match(f.as_str()) && !exclude.is_match(f.as_str()))
+            .cloned()
+            .collect();
         for listed in &entry.paths {
             let path = clean(listed);
             let on_disk = config.root.join(&path);
@@ -167,7 +210,9 @@ pub fn match_files(config: &Config) -> Result<Vec<Matched>, String> {
             } else if !path.to_ascii_lowercase().ends_with(".md") {
                 err(format!("listed file {listed} isn't a markdown (.md) file"));
             } else if exclude.is_match(&path) {
-                err(format!("listed file {listed} is also excluded by `exclude`"));
+                err(format!(
+                    "listed file {listed} is also excluded by `exclude`"
+                ));
             } else {
                 files.push(path);
             }
@@ -184,7 +229,11 @@ pub fn match_files(config: &Config) -> Result<Vec<Matched>, String> {
             }
             None => default_root(entry),
         };
-        matched.push(Matched { entry: i, files, root });
+        matched.push(Matched {
+            entry: i,
+            files,
+            root,
+        });
     }
     let mut owners: BTreeMap<&str, Vec<usize>> = BTreeMap::new();
     for m in &matched {
@@ -200,7 +249,11 @@ pub fn match_files(config: &Config) -> Result<Vec<Matched>, String> {
             list.join(" and ")
         ));
     }
-    if errors.is_empty() { Ok(matched) } else { Err(errors.join("\n")) }
+    if errors.is_empty() {
+        Ok(matched)
+    } else {
+        Err(errors.join("\n"))
+    }
 }
 
 /// Every markdown file in the project, skipping files ignored by `.gitignore`.
@@ -208,9 +261,18 @@ fn project_markdown(root: &Path) -> Vec<String> {
     let mut files = Vec::new();
     for entry in ignore::WalkBuilder::new(root).build().flatten() {
         let path = entry.path();
-        if entry.file_type().is_some_and(|t| t.is_file()) && path.extension().is_some_and(|e| e.eq_ignore_ascii_case("md"))
-            && let Ok(rel) = path.strip_prefix(root) {
-            files.push(rel.components().map(|c| c.as_os_str().to_string_lossy()).collect::<Vec<_>>().join("/"));
+        if entry.file_type().is_some_and(|t| t.is_file())
+            && path
+                .extension()
+                .is_some_and(|e| e.eq_ignore_ascii_case("md"))
+            && let Ok(rel) = path.strip_prefix(root)
+        {
+            files.push(
+                rel.components()
+                    .map(|c| c.as_os_str().to_string_lossy())
+                    .collect::<Vec<_>>()
+                    .join("/"),
+            );
         }
     }
     files
@@ -219,11 +281,17 @@ fn project_markdown(root: &Path) -> Vec<String> {
 /// A config path as written (`./docs/x.md`, `docs\x.md`) in canonical form (`docs/x.md`).
 fn clean(path: &str) -> String {
     let path = path.replace('\\', "/");
-    path.split('/').filter(|c| !c.is_empty() && *c != ".").collect::<Vec<_>>().join("/")
+    path.split('/')
+        .filter(|c| !c.is_empty() && *c != ".")
+        .collect::<Vec<_>>()
+        .join("/")
 }
 
 fn inside(file: &str, dir: &str) -> bool {
-    dir.is_empty() || file.strip_prefix(dir).is_some_and(|rest| rest.starts_with('/'))
+    dir.is_empty()
+        || file
+            .strip_prefix(dir)
+            .is_some_and(|rest| rest.starts_with('/'))
 }
 
 /// The entry root from the config text: the deepest directory shared by every glob's static
@@ -244,8 +312,12 @@ fn default_root(entry: &Entry) -> String {
         let parts: Vec<String> = clean(p).split('/').map(str::to_string).collect();
         dirs.push(parts[..parts.len().saturating_sub(1)].to_vec());
     }
-    let Some(first) = dirs.first() else { return String::new() };
-    let common = (0..first.len()).take_while(|&i| dirs.iter().all(|d| d.get(i) == first.get(i))).count();
+    let Some(first) = dirs.first() else {
+        return String::new();
+    };
+    let common = (0..first.len())
+        .take_while(|&i| dirs.iter().all(|d| d.get(i) == first.get(i)))
+        .count();
     first[..common].join("/")
 }
 
@@ -257,7 +329,8 @@ mod tests {
 
     impl Project {
         fn new(name: &str, files: &[&str], config: &str) -> Project {
-            let dir = std::env::temp_dir().join(format!("rfluence-config-{name}-{}", std::process::id()));
+            let dir =
+                std::env::temp_dir().join(format!("rfluence-config-{name}-{}", std::process::id()));
             let _ = std::fs::remove_dir_all(&dir);
             for f in files {
                 let path = dir.join(f);
@@ -339,7 +412,10 @@ mod tests {
             "- paths: [how-to/github/README.md, ./other/a.md]\n  space_key: ENG\n  ancestor: Docs\n  root: how-to\n",
         );
         let errors = match_files(&p.load().unwrap()).unwrap_err();
-        assert!(errors.contains("other/a.md isn't inside `root` (how-to)"), "{errors}");
+        assert!(
+            errors.contains("other/a.md isn't inside `root` (how-to)"),
+            "{errors}"
+        );
 
         let p = Project::new(
             "paths-ok",
@@ -353,13 +429,31 @@ mod tests {
     #[test]
     fn reports_config_mistakes() {
         let cases = [
-            ("- space_key: ENG\n  ancestor: Docs\n", "needs `paths` or `globs`"),
+            (
+                "- space_key: ENG\n  ancestor: Docs\n",
+                "needs `paths` or `globs`",
+            ),
             ("- globs: ['*.md']\n  space_key: ENG\n", "needs `ancestor`"),
-            ("- globs: ['*.md']\n  space_key: ENG\n  ancestor: A\n  ancestor_id: '1'\n", "has both `ancestor` and `ancestor_id`"),
-            ("- globs: ['*.md']\n  space_key: ENG\n  ancestor: A\n  lables: [x]\n", "unknown field `lables`"),
-            ("- globs: ['*.md']\n  space_key: ENG\n  ancestor: A\n  labels: ['a.b']\n", "contains '.'"),
-            ("- globs: ['*.md']\n  space_key: ENG\n  ancestor: A\n  folder_title: '{name}'\n", "unknown variable {name}"),
-            ("- globs: ['docs/[*.md']\n  space_key: ENG\n  ancestor: A\n", "invalid glob"),
+            (
+                "- globs: ['*.md']\n  space_key: ENG\n  ancestor: A\n  ancestor_id: '1'\n",
+                "has both `ancestor` and `ancestor_id`",
+            ),
+            (
+                "- globs: ['*.md']\n  space_key: ENG\n  ancestor: A\n  lables: [x]\n",
+                "unknown field `lables`",
+            ),
+            (
+                "- globs: ['*.md']\n  space_key: ENG\n  ancestor: A\n  labels: ['a.b']\n",
+                "contains '.'",
+            ),
+            (
+                "- globs: ['*.md']\n  space_key: ENG\n  ancestor: A\n  folder_title: '{name}'\n",
+                "unknown variable {name}",
+            ),
+            (
+                "- globs: ['docs/[*.md']\n  space_key: ENG\n  ancestor: A\n",
+                "invalid glob",
+            ),
             ("[]\n", "no entries"),
             ("space_key: ENG\n", "the file is a list of entries"),
         ];
@@ -390,8 +484,22 @@ mod tests {
 
     #[test]
     fn fills_in_folder_titles() {
-        assert_eq!(folder_title(None, "actions", "GitHub How-tos", "actions"), "actions");
-        assert_eq!(folder_title(Some("{parent} / {dir}"), "actions", "GitHub How-tos", "actions"), "GitHub How-tos / actions");
-        assert_eq!(folder_title(Some("Docs: {path}"), "v2", "API", "api/v2"), "Docs: api/v2");
+        assert_eq!(
+            folder_title(None, "actions", "GitHub How-tos", "actions"),
+            "actions"
+        );
+        assert_eq!(
+            folder_title(
+                Some("{parent} / {dir}"),
+                "actions",
+                "GitHub How-tos",
+                "actions"
+            ),
+            "GitHub How-tos / actions"
+        );
+        assert_eq!(
+            folder_title(Some("Docs: {path}"), "v2", "API", "api/v2"),
+            "Docs: api/v2"
+        );
     }
 }

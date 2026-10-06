@@ -8,7 +8,10 @@ use rfluence_convert::{LinkTarget, frontmatter, select};
 
 /// The project root: the nearest directory (from `dir` up) with a `.rfluence.yaml`, else `dir`.
 pub fn root(dir: &Path) -> PathBuf {
-    dir.ancestors().find(|d| d.join(".rfluence.yaml").is_file()).unwrap_or(dir).to_path_buf()
+    dir.ancestors()
+        .find(|d| d.join(".rfluence.yaml").is_file())
+        .unwrap_or(dir)
+        .to_path_buf()
 }
 
 /// The pages held by markdown files under `root` (skipping files ignored by `.gitignore`),
@@ -20,10 +23,24 @@ pub fn pages(root: &Path, from_dir: &Path, skip: &Path) -> HashMap<String, LinkT
         if path.extension().is_none_or(|e| e != "md") || same_file(path, skip) {
             continue;
         }
-        let Ok(text) = crate::text::read(path) else { continue };
+        let Ok(text) = crate::text::read(path) else {
+            continue;
+        };
         let doc = frontmatter::split(&text);
-        let Some(id) = doc.yaml.map(frontmatter::rfluence_fields).and_then(|f| f.id) else { continue };
-        pages.insert(id, LinkTarget { path: relative(from_dir, path), headings: select::heading_titles(doc.body) });
+        let Some(id) = doc
+            .yaml
+            .map(frontmatter::rfluence_fields)
+            .and_then(|f| f.id)
+        else {
+            continue;
+        };
+        pages.insert(
+            id,
+            LinkTarget {
+                path: relative(from_dir, path),
+                headings: select::heading_titles(doc.body),
+            },
+        );
     }
     pages
 }
@@ -39,11 +56,19 @@ fn same_file(a: &Path, b: &Path) -> bool {
 pub fn relative(from: &Path, to: &Path) -> String {
     let abs = |p: &Path| std::path::absolute(p).unwrap_or_else(|_| p.to_path_buf());
     let (from, to) = (normalize(&abs(from)), normalize(&abs(to)));
-    let common = from.iter().zip(to.iter()).take_while(|(a, b)| a == b).count();
+    let common = from
+        .iter()
+        .zip(to.iter())
+        .take_while(|(a, b)| a == b)
+        .count();
     let mut parts: Vec<String> = vec!["..".into(); from.len() - common];
     parts.extend(to[common..].iter().cloned());
     let joined = parts.join("/");
-    if joined.starts_with("..") { joined } else { format!("./{joined}") }
+    if joined.starts_with("..") {
+        joined
+    } else {
+        format!("./{joined}")
+    }
 }
 
 /// Path components with `.` and `..` resolved.
@@ -67,8 +92,20 @@ mod tests {
 
     #[test]
     fn relative_paths() {
-        assert_eq!(relative(Path::new("/p/docs"), Path::new("/p/docs/setup.md")), "./setup.md");
-        assert_eq!(relative(Path::new("/p/docs/guides"), Path::new("/p/docs/api/auth.md")), "../api/auth.md");
-        assert_eq!(relative(Path::new("/p/docs/./x/.."), Path::new("/p/readme.md")), "../readme.md");
+        assert_eq!(
+            relative(Path::new("/p/docs"), Path::new("/p/docs/setup.md")),
+            "./setup.md"
+        );
+        assert_eq!(
+            relative(
+                Path::new("/p/docs/guides"),
+                Path::new("/p/docs/api/auth.md")
+            ),
+            "../api/auth.md"
+        );
+        assert_eq!(
+            relative(Path::new("/p/docs/./x/.."), Path::new("/p/readme.md")),
+            "../readme.md"
+        );
     }
 }

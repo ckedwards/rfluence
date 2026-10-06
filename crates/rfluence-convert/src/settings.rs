@@ -24,7 +24,10 @@ impl Settings {
     }
 
     pub fn get(&self, key: &str) -> Option<&str> {
-        self.0.iter().find(|(k, _)| k == key).and_then(|(_, v)| v.as_deref())
+        self.0
+            .iter()
+            .find(|(k, _)| k == key)
+            .and_then(|(_, v)| v.as_deref())
     }
 
     pub fn has(&self, key: &str) -> bool {
@@ -89,7 +92,11 @@ impl Settings {
 
     /// Parse an `rf:` HTML comment; `None` if `html` isn't one.
     pub fn parse_comment(html: &str) -> Option<Settings> {
-        let inner = html.trim().strip_prefix("<!--")?.strip_suffix("-->")?.trim();
+        let inner = html
+            .trim()
+            .strip_prefix("<!--")?
+            .strip_suffix("-->")?
+            .trim();
         Some(Settings::parse(inner.strip_prefix("rf:")?))
     }
 
@@ -101,14 +108,43 @@ impl Settings {
 
 /// Canonical key order, so settings written in any order normalize to fetch's order.
 const KEY_ORDER: &[&str] = &[
-    "card", "columns", "layout", "breakout", "width", "width-type", "colwidths", "numbered", "no-header-row",
-    "header-column", "align", "indent", "border", "border-color", "caption", "theme", "mermaidVersion",
-    "useMaxWidth", "column", "end-columns", "tabs", "tab", "title", "end-tabs", "synced-block", "id", "page", "read-only",
-    "unavailable", "end-synced-block",
+    "card",
+    "columns",
+    "layout",
+    "breakout",
+    "width",
+    "width-type",
+    "colwidths",
+    "numbered",
+    "no-header-row",
+    "header-column",
+    "align",
+    "indent",
+    "border",
+    "border-color",
+    "caption",
+    "theme",
+    "mermaidVersion",
+    "useMaxWidth",
+    "column",
+    "end-columns",
+    "tabs",
+    "tab",
+    "title",
+    "end-tabs",
+    "synced-block",
+    "id",
+    "page",
+    "read-only",
+    "unavailable",
+    "end-synced-block",
 ];
 
 fn key_rank(key: &str) -> usize {
-    KEY_ORDER.iter().position(|k| *k == key).unwrap_or(KEY_ORDER.len())
+    KEY_ORDER
+        .iter()
+        .position(|k| *k == key)
+        .unwrap_or(KEY_ORDER.len())
 }
 
 impl std::fmt::Display for Settings {
@@ -121,12 +157,18 @@ impl std::fmt::Display for Settings {
             }
             f.write_str(key)?;
             let Some(value) = value else { continue };
-            let plain = !value.is_empty() && !value.chars().any(|c| c.is_whitespace() || matches!(c, '"' | '\\' | '>'));
+            let plain = !value.is_empty()
+                && !value
+                    .chars()
+                    .any(|c| c.is_whitespace() || matches!(c, '"' | '\\' | '>'));
             if plain {
                 write!(f, "={value}")?;
             } else {
                 // Escape `"` and `\`, and break up `--` so the value can't end the HTML comment.
-                let escaped = value.replace('\\', "\\\\").replace('"', "\\\"").replace("--", "-\\-");
+                let escaped = value
+                    .replace('\\', "\\\\")
+                    .replace('"', "\\\"")
+                    .replace("--", "-\\-");
                 write!(f, "=\"{escaped}\"")?;
             }
         }
@@ -136,7 +178,11 @@ impl std::fmt::Display for Settings {
 
 /// Format a number without a trailing `.0` (`760.0` -> `760`).
 pub fn fmt_num(n: f64) -> String {
-    if n.fract() == 0.0 { format!("{}", n as i64) } else { format!("{n}") }
+    if n.fract() == 0.0 {
+        format!("{}", n as i64)
+    } else {
+        format!("{n}")
+    }
 }
 
 #[cfg(test)]
@@ -145,7 +191,9 @@ mod tests {
 
     #[test]
     fn parses_and_formats() {
-        let s = Settings::parse(r#"layout=center width=1070 caption="A -- \"quoted\" caption" header-column"#);
+        let s = Settings::parse(
+            r#"layout=center width=1070 caption="A -- \"quoted\" caption" header-column"#,
+        );
         assert_eq!(s.get("layout"), Some("center"));
         assert_eq!(s.get_f64("width"), Some(1070.0));
         assert_eq!(s.get("caption"), Some(r#"A -- "quoted" caption"#));
@@ -156,8 +204,14 @@ mod tests {
 
     #[test]
     fn writes_keys_in_canonical_order() {
-        assert_eq!(Settings::parse("width=1070 layout=center").to_string(), "layout=center width=1070");
-        assert_eq!(Settings::parse("numbered colwidths=1,2 zzz=1").to_string(), "colwidths=1,2 numbered zzz=1");
+        assert_eq!(
+            Settings::parse("width=1070 layout=center").to_string(),
+            "layout=center width=1070"
+        );
+        assert_eq!(
+            Settings::parse("numbered colwidths=1,2 zzz=1").to_string(),
+            "colwidths=1,2 numbered zzz=1"
+        );
     }
 
     #[test]

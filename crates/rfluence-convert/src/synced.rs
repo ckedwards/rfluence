@@ -9,7 +9,11 @@ use crate::adf::Node;
 pub fn parse_copy(resource_id: &str) -> Option<(&str, &str)> {
     let rest = resource_id.strip_prefix("confluence-page/")?;
     let (page, id) = rest.split_once('/')?;
-    (!page.is_empty() && page.bytes().all(|b| b.is_ascii_digit()) && !id.is_empty() && !id.contains('/')).then_some((page, id))
+    (!page.is_empty()
+        && page.bytes().all(|b| b.is_ascii_digit())
+        && !id.is_empty()
+        && !id.contains('/'))
+    .then_some((page, id))
 }
 
 /// A copy's `resourceId`.
@@ -22,7 +26,9 @@ pub fn copy_ids(doc: &Node) -> Vec<String> {
     let mut ids = Vec::new();
     doc.walk(&mut |n| {
         if let Some(r) = n.attr_str("resourceId").filter(|_| n.is("syncBlock"))
-            && parse_copy(r).is_some() && !ids.iter().any(|i| i == r) {
+            && parse_copy(r).is_some()
+            && !ids.iter().any(|i| i == r)
+        {
             ids.push(r.to_string());
         }
     });
@@ -42,10 +48,15 @@ pub fn originals(doc: &Node) -> HashMap<String, Node> {
 
 /// The content of each copy (by `resourceId`), from its source pages' bodies (by page ID).
 /// Copies whose source page or block isn't there are left out.
-pub fn copy_contents(ids: &[String], sources: &HashMap<String, Node>) -> HashMap<String, Vec<Node>> {
+pub fn copy_contents(
+    ids: &[String],
+    sources: &HashMap<String, Node>,
+) -> HashMap<String, Vec<Node>> {
     let mut contents = HashMap::new();
     for resource_id in ids {
-        let Some((page, id)) = parse_copy(resource_id) else { continue };
+        let Some((page, id)) = parse_copy(resource_id) else {
+            continue;
+        };
         if let Some(block) = sources.get(page).and_then(|doc| originals(doc).remove(id)) {
             contents.insert(resource_id.clone(), block.content);
         }
@@ -60,8 +71,14 @@ mod tests {
     #[test]
     fn parses_copy_resource_ids() {
         let r = "confluence-page/2392065/b7229247-1d30-4ce9-84dc-accb011d4a6b";
-        assert_eq!(parse_copy(r), Some(("2392065", "b7229247-1d30-4ce9-84dc-accb011d4a6b")));
-        assert_eq!(copy_resource_id("2392065", "b7229247-1d30-4ce9-84dc-accb011d4a6b"), r);
+        assert_eq!(
+            parse_copy(r),
+            Some(("2392065", "b7229247-1d30-4ce9-84dc-accb011d4a6b"))
+        );
+        assert_eq!(
+            copy_resource_id("2392065", "b7229247-1d30-4ce9-84dc-accb011d4a6b"),
+            r
+        );
         assert_eq!(parse_copy("b7229247"), None);
         assert_eq!(parse_copy("confluence-page/x/y"), None);
     }
@@ -69,7 +86,10 @@ mod tests {
     #[test]
     fn finds_copies_content_in_their_sources() {
         let fixture = |name: &str| -> Node {
-            let path = format!("{}/../../fixtures/confluence/{name}/adf.json", env!("CARGO_MANIFEST_DIR"));
+            let path = format!(
+                "{}/../../fixtures/confluence/{name}/adf.json",
+                env!("CARGO_MANIFEST_DIR")
+            );
             serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap()
         };
         let copies = fixture("synced-block-copies");

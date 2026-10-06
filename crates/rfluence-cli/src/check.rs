@@ -30,25 +30,45 @@ pub fn run(paths: &[PathBuf], json: bool, warnings_are_errors: bool) -> ExitCode
         let mut diags = rfluence_convert::check(&md);
         diags.extend(missing_images(path, &md));
         diags.sort_by_key(|d| d.line);
-        all.extend(diags.into_iter().map(|diagnostic| FileDiagnostic { path: path.display().to_string(), diagnostic }));
+        all.extend(diags.into_iter().map(|diagnostic| FileDiagnostic {
+            path: path.display().to_string(),
+            diagnostic,
+        }));
     }
 
-    let errors = all.iter().filter(|d| d.diagnostic.severity == Severity::Error).count();
+    let errors = all
+        .iter()
+        .filter(|d| d.diagnostic.severity == Severity::Error)
+        .count();
     if json {
-        println!("{}", serde_json::to_string_pretty(&all).expect("diagnostics serialize"));
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&all).expect("diagnostics serialize")
+        );
     } else {
         for d in &all {
-            println!("{}:{}: {}: {}", d.path, d.diagnostic.line, d.diagnostic.severity, d.diagnostic.message);
+            println!(
+                "{}:{}: {}: {}",
+                d.path, d.diagnostic.line, d.diagnostic.severity, d.diagnostic.message
+            );
         }
         let warnings = all.len() - errors;
         let files = paths.len();
         match (errors, warnings) {
             (0, 0) => println!("ok: {files} file{} checked", plural(files)),
-            _ => println!("{errors} error{}, {warnings} warning{}", plural(errors), plural(warnings)),
+            _ => println!(
+                "{errors} error{}, {warnings} warning{}",
+                plural(errors),
+                plural(warnings)
+            ),
         }
     }
     let failed = errors > 0 || (warnings_are_errors && !all.is_empty());
-    if failed { ExitCode::from(EXIT_ERRORS_FOUND) } else { ExitCode::SUCCESS }
+    if failed {
+        ExitCode::from(EXIT_ERRORS_FOUND)
+    } else {
+        ExitCode::SUCCESS
+    }
 }
 
 /// Local images whose file doesn't exist next to the markdown file.

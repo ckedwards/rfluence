@@ -101,15 +101,21 @@ pub fn from_env(var: impl Fn(&str) -> Option<String>) -> Result<Option<Credentia
     let get = |k: &str| var(k).filter(|v| !v.trim().is_empty());
     let (base, email, token) = (get(ENV_BASE_URL), get(ENV_EMAIL), get(ENV_TOKEN));
     match (base, email, token) {
-        (Some(base), Some(email), Some(token)) => {
-            Ok(Some(Credentials { base_url: normalize_base_url(&base), email, token }))
-        }
+        (Some(base), Some(email), Some(token)) => Ok(Some(Credentials {
+            base_url: normalize_base_url(&base),
+            email,
+            token,
+        })),
         (None, None, None) => Ok(None),
         (base, email, token) => {
-            let missing = [(ENV_BASE_URL, base.is_none()), (ENV_EMAIL, email.is_none()), (ENV_TOKEN, token.is_none())]
-                .into_iter()
-                .filter_map(|(k, m)| m.then_some(k))
-                .collect();
+            let missing = [
+                (ENV_BASE_URL, base.is_none()),
+                (ENV_EMAIL, email.is_none()),
+                (ENV_TOKEN, token.is_none()),
+            ]
+            .into_iter()
+            .filter_map(|(k, m)| m.then_some(k))
+            .collect();
             Err(Error::PartialEnv(missing))
         }
     }
@@ -121,22 +127,36 @@ pub fn from_env(var: impl Fn(&str) -> Option<String>) -> Result<Option<Credentia
 /// account, whose token works on every site the account is on (added or not).
 pub fn resolve(site: Option<&str>) -> Result<(Credentials, Source)> {
     let env = from_env(|k| std::env::var(k).ok())?;
-    let requested = match site.map(str::to_string).or_else(|| std::env::var(ENV_SITE).ok().filter(|s| !s.trim().is_empty())) {
+    let requested = match site.map(str::to_string).or_else(|| {
+        std::env::var(ENV_SITE)
+            .ok()
+            .filter(|s| !s.trim().is_empty())
+    }) {
         Some(s) => Some(site_url(&s)?),
         None => None,
     };
     if let Some(creds) = env
-        && requested.as_ref().is_none_or(|u| host(u) == creds.host()) {
+        && requested.as_ref().is_none_or(|u| host(u) == creds.host())
+    {
         return Ok((creds, Source::Env));
     }
     let config = read_config()?;
-    let Some(email) = config.email.clone() else { return Err(Error::NotConfigured) };
+    let Some(email) = config.email.clone() else {
+        return Err(Error::NotConfigured);
+    };
     let base_url = match requested.or(default_site()?) {
         Some(u) => u,
         None => return Err(Error::NoSite),
     };
     match read_token(&email) {
-        Some((token, source)) => Ok((Credentials { base_url, email, token }, source)),
+        Some((token, source)) => Ok((
+            Credentials {
+                base_url,
+                email,
+                token,
+            },
+            source,
+        )),
         None => Err(Error::NotConfigured),
     }
 }
@@ -144,7 +164,10 @@ pub fn resolve(site: Option<&str>) -> Result<(Credentials, Source)> {
 /// The saved account, if any.
 pub fn account() -> Result<Option<Account>> {
     let config = read_config()?;
-    Ok(config.email.map(|email| Account { source: read_token(&email).map(|t| t.1), email }))
+    Ok(config.email.map(|email| Account {
+        source: read_token(&email).map(|t| t.1),
+        email,
+    }))
 }
 
 /// The saved account's token, and where it is stored.
@@ -215,7 +238,11 @@ struct Config {
 /// `config.json`: settings (`rfluence config`).
 #[derive(Debug, Default, Serialize, Deserialize)]
 struct Settings {
-    #[serde(default, rename = "default-site", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        rename = "default-site",
+        skip_serializing_if = "Option::is_none"
+    )]
     default_site: Option<String>,
 }
 
@@ -260,8 +287,11 @@ fn write_json<T: Serialize>(name: &str, value: &T) -> Result<()> {
     let dir = config_dir()?;
     std::fs::create_dir_all(&dir).map_err(|e| Error::Io(format!("{}: {e}", dir.display())))?;
     let path = dir.join(name);
-    std::fs::write(&path, serde_json::to_string_pretty(value).expect("settings serialize") + "\n")
-        .map_err(|e| Error::Io(format!("{}: {e}", path.display())))
+    std::fs::write(
+        &path,
+        serde_json::to_string_pretty(value).expect("settings serialize") + "\n",
+    )
+    .map_err(|e| Error::Io(format!("{}: {e}", path.display())))
 }
 
 /// The account's token: from the keyring, else the token file.
@@ -283,7 +313,13 @@ fn write_private(path: &PathBuf, contents: &str) -> Result<()> {
     {
         use std::io::Write;
         use std::os::unix::fs::OpenOptionsExt;
-        let mut f = std::fs::OpenOptions::new().write(true).create(true).truncate(true).mode(0o600).open(path).map_err(io)?;
+        let mut f = std::fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .mode(0o600)
+            .open(path)
+            .map_err(io)?;
         f.write_all(contents.as_bytes()).map_err(io)
     }
     #[cfg(not(unix))]
@@ -309,17 +345,33 @@ fn with_keyring<T: Send + 'static>(f: impl FnOnce() -> Option<T> + Send + 'stati
 /// Keyring entries: service `rfluence`, user the account's email.
 fn keyring_get(email: &str) -> Option<String> {
     let user = email.to_string();
-    with_keyring(move || keyring_core::Entry::new(KEYRING_SERVICE, &user).ok()?.get_password().ok())
+    with_keyring(move || {
+        keyring_core::Entry::new(KEYRING_SERVICE, &user)
+            .ok()?
+            .get_password()
+            .ok()
+    })
 }
 
 fn keyring_set(email: &str, token: &str) -> bool {
     let (user, token) = (email.to_string(), token.to_string());
-    with_keyring(move || keyring_core::Entry::new(KEYRING_SERVICE, &user).ok()?.set_password(&token).ok()).is_some()
+    with_keyring(move || {
+        keyring_core::Entry::new(KEYRING_SERVICE, &user)
+            .ok()?
+            .set_password(&token)
+            .ok()
+    })
+    .is_some()
 }
 
 fn keyring_delete(email: &str) {
     let user = email.to_string();
-    with_keyring(move || keyring_core::Entry::new(KEYRING_SERVICE, &user).ok()?.delete_credential().ok());
+    with_keyring(move || {
+        keyring_core::Entry::new(KEYRING_SERVICE, &user)
+            .ok()?
+            .delete_credential()
+            .ok()
+    });
 }
 
 /// Register the platform's credential store with keyring-core, once.
@@ -327,11 +379,14 @@ fn init_store() -> bool {
     static INIT: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
     *INIT.get_or_init(|| {
         #[cfg(target_os = "linux")]
-        let store = zbus_secret_service_keyring_store::Store::new().map(|s| s as std::sync::Arc<keyring_core::CredentialStore>);
+        let store = zbus_secret_service_keyring_store::Store::new()
+            .map(|s| s as std::sync::Arc<keyring_core::CredentialStore>);
         #[cfg(target_os = "macos")]
-        let store = apple_native_keyring_store::keychain::Store::new().map(|s| s as std::sync::Arc<keyring_core::CredentialStore>);
+        let store = apple_native_keyring_store::keychain::Store::new()
+            .map(|s| s as std::sync::Arc<keyring_core::CredentialStore>);
         #[cfg(windows)]
-        let store = windows_native_keyring_store::Store::new().map(|s| s as std::sync::Arc<keyring_core::CredentialStore>);
+        let store = windows_native_keyring_store::Store::new()
+            .map(|s| s as std::sync::Arc<keyring_core::CredentialStore>);
         #[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
         let store: keyring_core::Result<std::sync::Arc<keyring_core::CredentialStore>> =
             Err(keyring_core::Error::NoDefaultStore);
@@ -350,12 +405,20 @@ mod tests {
     use super::*;
 
     fn env<'a>(vars: &'a [(&'a str, &'a str)]) -> impl Fn(&str) -> Option<String> + 'a {
-        move |k| vars.iter().find(|(n, _)| *n == k).map(|(_, v)| v.to_string())
+        move |k| {
+            vars.iter()
+                .find(|(n, _)| *n == k)
+                .map(|(_, v)| v.to_string())
+        }
     }
 
     #[test]
     fn env_credentials_are_all_or_nothing() {
-        let all = [(ENV_BASE_URL, "https://x.atlassian.net/wiki/"), (ENV_EMAIL, "a@b.c"), (ENV_TOKEN, "t")];
+        let all = [
+            (ENV_BASE_URL, "https://x.atlassian.net/wiki/"),
+            (ENV_EMAIL, "a@b.c"),
+            (ENV_TOKEN, "t"),
+        ];
         let creds = from_env(env(&all)).unwrap().unwrap();
         assert_eq!(creds.base_url, "https://x.atlassian.net");
         assert!(from_env(env(&[])).unwrap().is_none());
@@ -367,11 +430,25 @@ mod tests {
 
     #[test]
     fn parses_sites() {
-        for s in ["tech-accounts11", "tech-accounts11.atlassian.net", "https://tech-accounts11.atlassian.net/wiki/"] {
-            assert_eq!(site_url(s).unwrap(), "https://tech-accounts11.atlassian.net", "{s}");
+        for s in [
+            "tech-accounts11",
+            "tech-accounts11.atlassian.net",
+            "https://tech-accounts11.atlassian.net/wiki/",
+        ] {
+            assert_eq!(
+                site_url(s).unwrap(),
+                "https://tech-accounts11.atlassian.net",
+                "{s}"
+            );
         }
-        assert_eq!(site_url("http://127.0.0.1:8080").unwrap(), "http://127.0.0.1:8080");
-        assert_eq!(host("https://Tech-Accounts11.atlassian.net"), "tech-accounts11.atlassian.net");
+        assert_eq!(
+            site_url("http://127.0.0.1:8080").unwrap(),
+            "http://127.0.0.1:8080"
+        );
+        assert_eq!(
+            host("https://Tech-Accounts11.atlassian.net"),
+            "tech-accounts11.atlassian.net"
+        );
         assert_eq!(host("http://127.0.0.1:8080"), "127.0.0.1:8080");
         assert!(site_url("").is_err() && site_url("a b").is_err());
     }

@@ -14,7 +14,10 @@ fn check_key(key: &str) -> Result<(), ExitCode> {
     if KEYS.contains(&key) {
         return Ok(());
     }
-    eprintln!("rfluence: unknown setting {key:?} (settings: {})", KEYS.join(", "));
+    eprintln!(
+        "rfluence: unknown setting {key:?} (settings: {})",
+        KEYS.join(", ")
+    );
     Err(ExitCode::from(EXIT_USAGE))
 }
 
@@ -32,9 +35,16 @@ pub fn set(key: &str, value: &str) -> ExitCode {
     let account = auth::account().ok().flatten();
     match (account, auth::saved_token()) {
         (Some(account), Some((token, _))) => {
-            let creds = Credentials { base_url, email: account.email.clone(), token };
+            let creds = Credentials {
+                base_url,
+                email: account.email.clone(),
+                token,
+            };
             match Client::new(&creds).current_user() {
-                Ok(user) => eprintln!("Default site: {host}. Logged in there as {user} ({}).", account.email),
+                Ok(user) => eprintln!(
+                    "Default site: {host}. Logged in there as {user} ({}).",
+                    account.email
+                ),
                 Err(e) => eprintln!("Default site: {host}. Warning: {e}"),
             }
         }
@@ -49,7 +59,10 @@ pub fn store_default_site(value: &str) -> rfluence_client::Result<String> {
     let base_url = auth::set_default_site(Some(value))?.expect("just set");
     let name = value.trim();
     if !name.contains("://") && !name.contains(['.', ':']) {
-        eprintln!("Added .atlassian.net: {name:?} is {}.", auth::host(&base_url));
+        eprintln!(
+            "Added .atlassian.net: {name:?} is {}.",
+            auth::host(&base_url)
+        );
     }
     Ok(base_url)
 }

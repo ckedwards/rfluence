@@ -77,22 +77,38 @@ struct FileInfo {
 fn read_file(root: &Path, file: &str) -> Result<FileInfo, String> {
     let md = crate::text::read(root.join(file)).map_err(|e| format!("{file}: {e}"))?;
     let doc = frontmatter::split(&md);
-    let fields = doc.yaml.map(frontmatter::rfluence_fields).unwrap_or_default();
+    let fields = doc
+        .yaml
+        .map(frontmatter::rfluence_fields)
+        .unwrap_or_default();
     let (title, _) = upload_title(doc.body, fields.title.as_deref());
     if title.is_none() && fields.id.is_none() {
-        return Err(format!("{file}: has no title for its new page: start it with `# Title`, or set `title` under `rfluence:`"));
+        return Err(format!(
+            "{file}: has no title for its new page: start it with `# Title`, or set `title` under `rfluence:`"
+        ));
     }
-    Ok(FileInfo { id: fields.id, title, weight: fields.weight })
+    Ok(FileInfo {
+        id: fields.id,
+        title,
+        weight: fields.weight,
+    })
 }
 
 /// Is this file a directory's page?
 fn is_index(file_name: &str) -> bool {
-    matches!(file_name.to_ascii_lowercase().as_str(), "index.md" | "readme.md")
+    matches!(
+        file_name.to_ascii_lowercase().as_str(),
+        "index.md" | "readme.md"
+    )
 }
 
 /// Build every entry's tree. `ancestor_titles` gives each entry's ancestor title (for
 /// `{parent}` in folder titles of top-level directories), by entry index.
-pub fn build(config: &Config, matched: &[Matched], ancestor_titles: &[String]) -> Result<Vec<EntryPlan>, String> {
+pub fn build(
+    config: &Config,
+    matched: &[Matched],
+    ancestor_titles: &[String],
+) -> Result<Vec<EntryPlan>, String> {
     let mut errors = Vec::new();
     let mut plans = Vec::new();
     for m in matched {
@@ -106,7 +122,12 @@ pub fn build(config: &Config, matched: &[Matched], ancestor_titles: &[String]) -
                 Err(e) => errors.push(e),
             }
         }
-        let builder = Builder { files: &m.files, infos: &infos, folder_title: entry.folder_title.as_deref(), root: &m.root };
+        let builder = Builder {
+            files: &m.files,
+            infos: &infos,
+            folder_title: entry.folder_title.as_deref(),
+            root: &m.root,
+        };
         let ancestor_title = ancestor_titles.get(m.entry).cloned().unwrap_or_default();
         let nodes = match builder.index_of(&m.root) {
             Ok(Some(index)) => vec![builder.dir_node(&m.root, &ancestor_title, Some(index))],
@@ -122,11 +143,26 @@ pub fn build(config: &Config, matched: &[Matched], ancestor_titles: &[String]) -
             (None, Some(title)) => Ancestor::Title(title.clone()),
             (None, None) => unreachable!("checked when the config was loaded"),
         };
-        let labels = entry.labels.iter().filter_map(|l| labels::normalize_label(l).ok()).collect();
-        plans.push(EntryPlan { entry: m.entry, space_key: entry.space_key.clone(), ancestor, labels, root: m.root.clone(), nodes });
+        let labels = entry
+            .labels
+            .iter()
+            .filter_map(|l| labels::normalize_label(l).ok())
+            .collect();
+        plans.push(EntryPlan {
+            entry: m.entry,
+            space_key: entry.space_key.clone(),
+            ancestor,
+            labels,
+            root: m.root.clone(),
+            nodes,
+        });
     }
     errors.extend(collisions(&plans));
-    if errors.is_empty() { Ok(plans) } else { Err(errors.join("\n")) }
+    if errors.is_empty() {
+        Ok(plans)
+    } else {
+        Err(errors.join("\n"))
+    }
 }
 
 struct Builder<'a> {
@@ -144,7 +180,11 @@ impl Builder<'_> {
 
     /// The subdirectories of `dir` that hold any of the entry's files.
     fn subdirs(&self, dir: &str) -> BTreeSet<String> {
-        let prefix = if dir.is_empty() { String::new() } else { format!("{dir}/") };
+        let prefix = if dir.is_empty() {
+            String::new()
+        } else {
+            format!("{dir}/")
+        };
         self.files
             .iter()
             .filter_map(|f| f.strip_prefix(&prefix))
@@ -154,14 +194,21 @@ impl Builder<'_> {
 
     /// The directory's page (`index.md` or `README.md`), if it has one.
     fn index_of(&self, dir: &str) -> Result<Option<&String>, String> {
-        let indexes: Vec<&String> = self.files_in(dir).into_iter().filter(|f| is_index(file_name(f))).collect();
+        let indexes: Vec<&String> = self
+            .files_in(dir)
+            .into_iter()
+            .filter(|f| is_index(file_name(f)))
+            .collect();
         match indexes.as_slice() {
             [] => Ok(None),
             [one] => Ok(Some(one)),
             many => Err(format!(
                 "{}: has more than one page for the directory ({}); keep one",
                 if dir.is_empty() { "." } else { dir },
-                many.iter().map(|f| f.as_str()).collect::<Vec<_>>().join(", ")
+                many.iter()
+                    .map(|f| f.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ")
             )),
         }
     }
@@ -186,23 +233,44 @@ impl Builder<'_> {
 
     fn page(&self, file: &str, children: Vec<Node>) -> Node {
         let info = &self.infos.get(file).cloned().unwrap_or_default();
-        Node { kind: Kind::Page { file: file.to_string(), id: info.id.clone() }, title: info.title.clone(), children }
+        Node {
+            kind: Kind::Page {
+                file: file.to_string(),
+                id: info.id.clone(),
+            },
+            title: info.title.clone(),
+            children,
+        }
     }
 
     /// A directory as a node: its index page with the rest below, or a folder.
     fn dir_node(&self, dir: &str, parent_title: &str, index: Option<&String>) -> Node {
         match index {
             Some(index) => {
-                let title = self.infos.get(index).and_then(|i| i.title.clone()).unwrap_or_else(|| stem(index).to_string());
+                let title = self
+                    .infos
+                    .get(index)
+                    .and_then(|i| i.title.clone())
+                    .unwrap_or_else(|| stem(index).to_string());
                 let mut node = self.page(index, Vec::new());
                 node.children = self.children(dir, &title);
                 node
             }
             None => {
-                let path = dir.strip_prefix(self.root).unwrap_or(dir).trim_start_matches('/');
-                let title = config::folder_title(self.folder_title, file_name(dir), parent_title, path);
+                let path = dir
+                    .strip_prefix(self.root)
+                    .unwrap_or(dir)
+                    .trim_start_matches('/');
+                let title =
+                    config::folder_title(self.folder_title, file_name(dir), parent_title, path);
                 let children = self.children(dir, &title);
-                Node { kind: Kind::Folder { dir: dir.to_string() }, title: Some(title), children }
+                Node {
+                    kind: Kind::Folder {
+                        dir: dir.to_string(),
+                    },
+                    title: Some(title),
+                    children,
+                }
             }
         }
     }
@@ -210,14 +278,30 @@ impl Builder<'_> {
     /// The pages and directories in `dir` (except its index page), in order.
     fn children(&self, dir: &str, title: &str) -> Vec<Node> {
         let mut nodes: Vec<(SortKey, Node)> = Vec::new();
-        for f in self.files_in(dir).into_iter().filter(|f| !is_index(file_name(f))) {
+        for f in self
+            .files_in(dir)
+            .into_iter()
+            .filter(|f| !is_index(file_name(f)))
+        {
             let weight = self.infos.get(f).and_then(|i| i.weight);
-            nodes.push((SortKey { weight, name: file_name(f).to_string() }, self.page(f, Vec::new())));
+            nodes.push((
+                SortKey {
+                    weight,
+                    name: file_name(f).to_string(),
+                },
+                self.page(f, Vec::new()),
+            ));
         }
         for d in self.subdirs(dir) {
             let index = self.index_of(&d).ok().flatten();
             let weight = index.and_then(|i| self.infos.get(i)).and_then(|i| i.weight);
-            nodes.push((SortKey { weight, name: file_name(&d).to_string() }, self.dir_node(&d, title, index)));
+            nodes.push((
+                SortKey {
+                    weight,
+                    name: file_name(&d).to_string(),
+                },
+                self.dir_node(&d, title, index),
+            ));
         }
         nodes.sort_by(|a, b| a.0.cmp(&b.0));
         nodes.into_iter().map(|(_, n)| n).collect()
@@ -328,8 +412,12 @@ pub fn render(nodes: &[Node], depth: usize, out: &mut String) {
         let pad = "  ".repeat(depth);
         let title = n.title.as_deref().unwrap_or("(its current title)");
         match &n.kind {
-            Kind::Page { file, id: Some(id) } => out.push_str(&format!("{pad}{title}  page {id}, {file}\n")),
-            Kind::Page { file, id: None } => out.push_str(&format!("{pad}{title}  new page, {file}\n")),
+            Kind::Page { file, id: Some(id) } => {
+                out.push_str(&format!("{pad}{title}  page {id}, {file}\n"))
+            }
+            Kind::Page { file, id: None } => {
+                out.push_str(&format!("{pad}{title}  new page, {file}\n"))
+            }
             Kind::Folder { dir } => out.push_str(&format!("{pad}{title}  folder, {dir}/\n")),
         }
         render(&n.children, depth + 1, out);
@@ -345,7 +433,8 @@ mod tests {
 
     impl Project {
         fn new(name: &str, files: &[(&str, &str)], config: &str) -> Project {
-            let dir = std::env::temp_dir().join(format!("rfluence-plan-{name}-{}", std::process::id()));
+            let dir =
+                std::env::temp_dir().join(format!("rfluence-plan-{name}-{}", std::process::id()));
             let _ = std::fs::remove_dir_all(&dir);
             std::fs::create_dir_all(&dir).unwrap();
             for (f, content) in files {
@@ -360,7 +449,11 @@ mod tests {
         fn plan(&self) -> Result<Vec<EntryPlan>, String> {
             let config = Config::load(&self.0.join(FILE_NAME))?;
             let matched = match_files(&config)?;
-            build(&config, &matched, &["Engineering Docs".to_string(), "Other".to_string()])
+            build(
+                &config,
+                &matched,
+                &["Engineering Docs".to_string(), "Other".to_string()],
+            )
         }
 
         fn tree(&self) -> String {
@@ -387,8 +480,14 @@ mod tests {
             &[
                 ("how-to/github/README.md", "# GitHub How-tos\n"),
                 ("how-to/github/01-setup.md", "# Setting up GitHub\n"),
-                ("how-to/github/02-workflow.md", "---\nrfluence:\n  id: \"77\"\n---\n\n# Our GitHub workflow\n"),
-                ("how-to/github/actions/runners.md", "# Self-hosted runners\n"),
+                (
+                    "how-to/github/02-workflow.md",
+                    "---\nrfluence:\n  id: \"77\"\n---\n\n# Our GitHub workflow\n",
+                ),
+                (
+                    "how-to/github/actions/runners.md",
+                    "# Self-hosted runners\n",
+                ),
                 ("how-to/github/actions/secrets.md", "# Managing secrets\n"),
                 ("how-to/github/drafts/wip.md", "# WIP\n"),
             ],
@@ -405,7 +504,13 @@ mod tests {
 "
         );
         let plan = &p.plan().unwrap()[0];
-        assert_eq!((plan.ancestor.clone(), plan.labels.clone()), (Ancestor::Id("123000".into()), vec!["github".to_string(), "ai-generated".to_string()]));
+        assert_eq!(
+            (plan.ancestor.clone(), plan.labels.clone()),
+            (
+                Ancestor::Id("123000".into()),
+                vec!["github".to_string(), "ai-generated".to_string()]
+            )
+        );
     }
 
     #[test]
@@ -415,8 +520,14 @@ mod tests {
             &[
                 ("docs/10-faq.md", "# FAQ\n"),
                 ("docs/2-setup.md", "# Setup\n"),
-                ("docs/Zeta.md", "---\nrfluence:\n  weight: -1\n---\n\n# Zeta first\n"),
-                ("docs/api/index.md", "---\nrfluence:\n  weight: 5\n---\n\n# API\n"),
+                (
+                    "docs/Zeta.md",
+                    "---\nrfluence:\n  weight: -1\n---\n\n# Zeta first\n",
+                ),
+                (
+                    "docs/api/index.md",
+                    "---\nrfluence:\n  weight: 5\n---\n\n# API\n",
+                ),
                 ("docs/api/v2/auth.md", "# Auth v2\n"),
             ],
             "- globs: ['docs/**/*.md']\n  space_key: ENG\n  ancestor: Engineering Docs\n  folder_title: '{parent} / {dir}'\n",
@@ -484,6 +595,9 @@ FAQ  new page, docs/10-faq.md
     fn sorts_naturally() {
         let mut names = vec!["10-faq", "2-setup", "1-intro", "B", "a", "img10", "img9"];
         names.sort_by(|a, b| natural_cmp(a, b));
-        assert_eq!(names, ["1-intro", "2-setup", "10-faq", "a", "B", "img9", "img10"]);
+        assert_eq!(
+            names,
+            ["1-intro", "2-setup", "10-faq", "a", "B", "img9", "img10"]
+        );
     }
 }
