@@ -708,7 +708,7 @@ Storage: sites, emails and the default site in `~/.config/rfluence/auth.json`; e
     * A file without a page ID creates a new page; see "Frontmatter" > "New pages" (`--space` / `--parent` fill in missing values). If a page with that title already exists in the space, refuse unless `--force` is passed (see Decisions).
     * Frontmatter is stripped before upload. After a successful upload, the `rfluence:` block is written back (see "Frontmatter" > "Reading and writing").
     * `--dry-run` shows what would be created/updated without changing anything.
-    * Runs the same checks as `rfluence check`: warnings are printed and the upload goes ahead; errors stop the upload before anything is sent, unless `--force` (which uploads the approximations listed in "Checking markdown").
+    * Runs the same checks as `rfluence check`: warnings are printed and the upload goes ahead; errors stop the upload before anything is sent, unless `--force` (which uploads the approximations listed in "Checking markdown"). With `--warnings-are-errors`, warnings stop it too (also overridden by `--force`); this works for `--config` as well, where every file is checked before anything is sent, so one file's warning stops the whole upload. Exit 1 when the only problems are content (errors, or warnings with the flag), as for `rfluence check`; 2 when there are usage problems too (unresolved links, missing images, bad frontmatter, config mistakes).
     * Everything that can fail locally fails before anything is sent: `rfluence:` keys (unknown keys, `simplified` or `partial` files), labels, check errors, links to files without a page, and image files that are missing with no attachment of that name. The body is converted once with stand-in IDs for images not uploaded yet, then again with the real `fileId`s.
     * Requests: the page (body, labels), its attachments and its `rfluence` property, in parallel; then new attachments and attachment versions; the body (`PUT /wiki/api/v2/pages/{id}` with version + 1); new labels; the property, if the page has one.
     * Nothing is sent for the body if it hasn't changed. The page and the upload are both converted to markdown with the same settings (so what Confluence adds on save doesn't count) and compared, with page links compared by page ID and anchor (Confluence adds or removes the title in stored page URLs). Verified: a PUT whose body only differs in a link URL's title part doesn't create a version either; the response has the old version number, and upload reports the page as up to date.
@@ -718,7 +718,7 @@ Storage: sites, emails and the default site in `~/.config/rfluence/auth.json`; e
     * Moving a page (a `parent` that differs from the page's) isn't done by single-file upload yet: it warns.
   * `rfluence upload --config <path>` uploads multiple pages using a config file. The config file (`.rfluence.yaml` in the project root) is a YAML list of entries, each mapping files (exact paths or globs) to a Confluence space and ancestor page, with optional labels. See "Upload config".
   * `rfluence diff <path>` shows the differences between a local file and the current remote page.
-  * `rfluence check <path>...` reports, without network access, what upload would approximate (warnings) or can't represent (errors); see "Checking markdown". Output is `path:line: severity: message` lines and a summary (`--json` for structured output). Exits 1 if there are errors. It also warns about local images whose file is missing.
+  * `rfluence check <path>...` reports, without network access, what upload would approximate (warnings) or can't represent (errors); see "Checking markdown". Output is `path:line: severity: message` lines and a summary (`--json` for structured output). Exits 1 if there are errors, or with `--warnings-are-errors` if there are warnings too (for CI that should keep files exactly representable). It also warns about local images whose file is missing.
 
 ### Simplified output
 
@@ -1043,7 +1043,27 @@ Verified on the test site (folder 262167):
 
   * Default output is compact text for LLMs; `--json` for structured output.
   * `upload --config --dry-run` prints the resolved plan as a tree: each entry's resolved ancestor (title and ID), then every file -> page title -> parent, with planned creates, updates, moves, reorders, label changes and prunes marked. This is the main way to check a config does what was intended.
-  * Results go to stdout, errors go to stderr, with distinct exit codes: 0 success; 1 `rfluence check` found errors; 2 usage or configuration (bad arguments or page reference, missing or partial credentials); 3 not found (page, title or `--section`); 4 authentication failed; 5 other Confluence API or network errors; 6 the command would lose changes (`fetch -o` over local edits or a file holding another page; upload's version conflicts will use it too).
+  * Results go to stdout, errors go to stderr, with distinct exit codes: 0 success; 1 content problems (`rfluence check` errors, or warnings with `--warnings-are-errors`; also when `upload` refuses a file for them); 2 usage or configuration (bad arguments or page reference, missing or partial credentials); 3 not found (page, title or `--section`; also trashed pages); 4 authentication failed (HTTP 401) or permission denied (403); 5 other Confluence API or network errors; 6 the command would lose changes (`fetch -o` over local edits or a file holding another page; upload's version conflicts).
+  * A 403 is reported as "permission denied: ... (the login works, but this account isn't allowed to do this; check its permissions on the space or page)", not as an authentication failure: the credentials were accepted.
+
+#### Retries
+
+Confluence Cloud rate-limits (HTTP 429) and has brief outages (502, 503, 504), and `upload --config` sends many requests, so the client retries (for every command: fetch, search and upload), up to 3 times, waiting as `Retry-After` says (up to 60 s) or 1, 2 and 4 s. Each retry is announced on stderr, worded so that a person or an LLM reading it can tell it isn't a failure: `rfluence: Confluence is busy (HTTP 429); trying again in 2 s (1/3)` (or "unavailable" for 502-504, "couldn't connect to Confluence" for connection errors). stdout, which LLMs and scripts parse, never gets these.
+
+  * Any request answered 429, or 503 with `Retry-After`: Confluence didn't process it.
+  * Reads (GET) also on 502, 503, 504, and when the connection failed (refused, reset): repeating a read is harmless.
+  * Writes aren't retried in the other cases: the first attempt may have been processed, and repeating it could fail with a version conflict or create a duplicate page. A 500 isn't retried at all.
+  * A request that timed out isn't retried: it already waited, and is unlikely to do better at once. This keeps the worst case for a command against a hung Confluence at about a minute (the request timeout) rather than four, which matters for LLM tools with time limits.
+
+Timeouts: a request may take 60 s from start to finish (large pages and attachment downloads take a while); looking up the site's address and opening the connection (including TLS) may take 10 s, so an unreachable site fails in 10 s rather than 60 ("couldn't reach example.atlassian.net within 10 s (check the site address and the network)").
+
+`RFLUENCE_RETRY_UNIT_MS` changes the 1-second unit (the tests use 1 ms).
+
+#### When an upload stops part-way
+
+  * Single-file upload of a new page records the page ID in the file as soon as the page exists, and `upload --config` does so for every new page in pass 1, so running the same command again continues: nothing is created twice.
+  * `upload --config` says what it had done when it stopped: `rfluence: stopped part-way; done before the error: 5 pages created, 0 updated, 0 up to date, 1 folder created. Run the same command again to continue (every new page's ID is in its file).`
+  * A page Confluence created moments ago that it then can't find (as during the 2026-10-06 incident) is reported as a problem on Confluence's side, with exit 5, rather than as a missing page (3): "Confluence created page 123 moments ago, but now can't find it (...); this is likely a problem on Confluence's side: check https://status.atlassian.com and try again later".
 
 ## Testing
 

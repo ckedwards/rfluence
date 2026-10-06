@@ -11,8 +11,10 @@ pub enum Error {
     PartialEnv(Vec<&'static str>),
     /// Something the user passed that isn't valid (a page reference, ...).
     Invalid(String),
-    /// Confluence rejected the credentials (HTTP 401 / 403).
+    /// Confluence rejected the credentials (HTTP 401).
     Auth(String),
+    /// The credentials work, but this account isn't allowed to do this (HTTP 403).
+    Forbidden(String),
     /// The page (or space, attachment, ...) doesn't exist, or isn't visible.
     NotFound(String),
     /// The page changed in Confluence (a newer version than expected).
@@ -41,6 +43,10 @@ impl fmt::Display for Error {
             ),
             Error::Invalid(m) => f.write_str(m),
             Error::Auth(m) => write!(f, "authentication failed: {m}"),
+            Error::Forbidden(m) => write!(
+                f,
+                "permission denied: {m} (the login works, but this account isn't allowed to do this; check its permissions on the space or page)"
+            ),
             Error::NotFound(m) => f.write_str(m),
             Error::Conflict(m) => f.write_str(m),
             Error::Api { status, message } => write!(f, "Confluence returned HTTP {status}: {message}"),

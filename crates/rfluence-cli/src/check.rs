@@ -15,7 +15,9 @@ struct FileDiagnostic {
     diagnostic: Diagnostic,
 }
 
-pub fn run(paths: &[PathBuf], json: bool) -> ExitCode {
+/// Check the files; exit 1 if there are errors (or any diagnostics, with
+/// `warnings_are_errors`).
+pub fn run(paths: &[PathBuf], json: bool, warnings_are_errors: bool) -> ExitCode {
     let mut all = Vec::new();
     for path in paths {
         let md = match std::fs::read_to_string(path) {
@@ -45,7 +47,8 @@ pub fn run(paths: &[PathBuf], json: bool) -> ExitCode {
             _ => println!("{errors} error{}, {warnings} warning{}", plural(errors), plural(warnings)),
         }
     }
-    if errors > 0 { ExitCode::from(EXIT_ERRORS_FOUND) } else { ExitCode::SUCCESS }
+    let failed = errors > 0 || (warnings_are_errors && !all.is_empty());
+    if failed { ExitCode::from(EXIT_ERRORS_FOUND) } else { ExitCode::SUCCESS }
 }
 
 /// Local images whose file doesn't exist next to the markdown file.

@@ -40,6 +40,27 @@ pub struct State {
     pub log: Vec<String>,
     /// Trashed content, by ID.
     pub trashed: BTreeMap<String, Content>,
+    /// Requests to answer with an error instead.
+    pub failures: Vec<Failure>,
+}
+
+/// Answer matching requests with an error: `skip` of them are served normally first, then
+/// `times` fail.
+#[derive(Debug, Clone)]
+pub struct Failure {
+    pub method: &'static str,
+    /// Part of the path (and query).
+    pub contains: String,
+    pub status: u16,
+    pub retry_after: Option<u64>,
+    pub skip: usize,
+    pub times: usize,
+}
+
+impl Failure {
+    pub fn new(method: &'static str, contains: &str, status: u16) -> Failure {
+        Failure { method, contains: contains.to_string(), status, retry_after: None, skip: 0, times: usize::MAX }
+    }
 }
 
 impl State {
@@ -148,10 +169,34 @@ fn serve(stream: std::net::TcpStream, state: &Mutex<State>, base: &str) -> std::
     }
     let mut body = vec![0; length];
     reader.read_exact(&mut body)?;
-    let (status, response) = handle(&mut state.lock().unwrap(), &method, &target, &body, base);
+    let (status, response, retry_after) = {
+        let mut state = state.lock().unwrap();
+        let failure = state.failures.iter_mut().find(|f| f.method == method && target.contains(&f.contains)).and_then(|f| {
+            if f.skip > 0 {
+                f.skip -= 1;
+                None
+            } else if f.times > 0 {
+                f.times -= 1;
+                Some((f.status, f.retry_after))
+            } else {
+                None
+            }
+        });
+        match failure {
+            Some((status, retry_after)) => {
+                state.log.push(format!("{method} {target} -> {status}"));
+                (status, json!({ "message": format!("injected HTTP {status}") }), retry_after)
+            }
+            None => {
+                let (status, response) = handle(&mut state, &method, &target, &body, base);
+                (status, response, None)
+            }
+        }
+    };
     let text = if status == 204 { String::new() } else { response.to_string() };
+    let header = retry_after.map(|s| format!("Retry-After: {s}\r\n")).unwrap_or_default();
     let mut stream = stream;
-    write!(stream, "HTTP/1.1 {status} X\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{text}", text.len())?;
+    write!(stream, "HTTP/1.1 {status} X\r\nContent-Type: application/json\r\n{header}Content-Length: {}\r\nConnection: close\r\n\r\n{text}", text.len())?;
     stream.flush()
 }
 

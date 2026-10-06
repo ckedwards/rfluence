@@ -31,6 +31,8 @@ pub struct Options {
     pub move_pages: bool,
     /// Remove labels the file (and config entry) don't have (design.md, "Labels").
     pub prune_labels: bool,
+    /// Refuse to upload files with `rfluence check` warnings too, not only errors.
+    pub warnings_are_errors: bool,
     /// Set when the file is uploaded as part of `upload --config`.
     pub tree: Option<InTree>,
 }
@@ -211,11 +213,19 @@ pub fn check_file<'a>(opts: &'a Options, md: &'a str) -> Result<Local<'a>, Stop>
         eprintln!("{}:{}: {}: {}", path.display(), d.line, d.severity, d.message);
     }
     let errors = diags.iter().filter(|d| d.severity == Severity::Error).count();
-    if errors > 0 && !opts.force {
+    let warnings = if opts.warnings_are_errors { diags.len() - errors } else { 0 };
+    if errors + warnings > 0 && !opts.force {
+        let mut what = Vec::new();
+        if errors > 0 {
+            what.push(format!("{errors} error{} (content Confluence can't store)", plural(errors)));
+        }
+        if warnings > 0 {
+            what.push(format!("{warnings} warning{} (--warnings-are-errors)", plural(warnings)));
+        }
         eprintln!(
-            "rfluence: {}: {errors} error{} (content Confluence can't store), nothing uploaded; fix them, or use --force to upload the approximations",
+            "rfluence: {}: {}, nothing uploaded; fix them, or use --force to upload the approximations",
             path.display(),
-            plural(errors)
+            what.join(" and ")
         );
         return Err(Stop::CheckErrors);
     }
@@ -444,25 +454,30 @@ fn create(opts: &Options, local: &Local) -> Result<Outcome, Stop> {
     let mut meta = PageMeta { title: title.clone(), space_key: space.key.clone(), parent: Some(parent.clone()), version: 1, ..Default::default() };
 
     if !opts.dry_run {
-        meta = if images.is_empty() {
-            client.create_page(&space.id, &parent, &title, &doc)?
-        } else {
-            // Files can only be attached to a page that exists: create it empty, record its
-            // ID in the file (so a failure from here on can't lead to a duplicate), attach
-            // the images, then write the body.
-            let created = client.create_page(&space.id, &parent, &title, &Node::doc(Vec::new()))?;
-            write_back(path, local, &Node::doc(Vec::new()), &created)?;
-            upload_images(&client, &created.id, &mut images)?;
-            ctx.page_id = Some(created.id.clone());
-            ctx.media = media(&images);
-            doc = convert(&local.body, &ctx)?;
-            let updated = client.update_page(&created.id, &title, &doc, created.version + 1)?;
-            PageMeta { version: updated.version, title: updated.title, ..created }
-        };
-        let value = property_value(&project_path(local.dir, path), meta.version, None);
-        labels_and_property(&client, &meta.id, &local.labels, Some((value, None)))?;
-        meta.labels = local.labels.clone();
-        write_back(path, local, &doc, &meta)?;
+        let empty = images.is_empty().then_some(&doc);
+        let created = client.create_page(&space.id, &parent, &title, empty.unwrap_or(&Node::doc(Vec::new())))?;
+        let id = created.id.clone();
+        (|| {
+            meta = if images.is_empty() {
+                created
+            } else {
+                // Files can only be attached to a page that exists: create it empty, record
+                // its ID in the file (so a failure from here on can't lead to a duplicate),
+                // attach the images, then write the body.
+                write_back(path, local, &Node::doc(Vec::new()), &created)?;
+                upload_images(&client, &created.id, &mut images)?;
+                ctx.page_id = Some(created.id.clone());
+                ctx.media = media(&images);
+                doc = convert(&local.body, &ctx)?;
+                let updated = client.update_page(&created.id, &title, &doc, created.version + 1)?;
+                PageMeta { version: updated.version, title: updated.title, ..created }
+            };
+            let value = property_value(&project_path(local.dir, path), meta.version, None);
+            labels_and_property(&client, &meta.id, &local.labels, Some((value, None)))?;
+            meta.labels = local.labels.clone();
+            write_back(path, local, &doc, &meta)
+        })()
+        .map_err(|stop| vanished(stop, &id))?;
     }
 
     let comments = Reanchored::default();
@@ -485,8 +500,23 @@ pub fn create_empty(client: &Client, path: &Path, space: &rfluence_client::Space
     let dir = path.parent().filter(|d| !d.as_os_str().is_empty()).unwrap_or(Path::new("."));
     let mut value = property_value(&project_path(dir, path), meta.version, None);
     value["config_labels"] = serde_json::json!(config_labels);
-    client.set_property(&meta.id, PROPERTY, value, None)?;
+    client.set_property(&meta.id, PROPERTY, value, None).map_err(|e| vanished(e.into(), &meta.id))?;
     Ok(meta.id)
+}
+
+/// A page Confluence created moments ago that it now says doesn't exist: a problem on
+/// Confluence's side (seen during an incident on the test site), not a missing page. Reported
+/// as an API error (exit 5) that says so.
+pub fn vanished(stop: Stop, id: &str) -> Stop {
+    match stop {
+        Stop::Client(rfluence_client::Error::NotFound(m)) => Stop::Client(rfluence_client::Error::Api {
+            status: 404,
+            message: format!(
+                "Confluence created page {id} moments ago, but now can't find it ({m}); this is likely a problem on Confluence's side: check https://status.atlassian.com and try again later"
+            ),
+        }),
+        other => other,
+    }
 }
 
 /// Add labels and set the `rfluence` property (if given), in parallel.

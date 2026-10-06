@@ -18,7 +18,17 @@ pub struct Client {
     agent: ureq::Agent,
     base_url: String,
     authorization: String,
+    /// The unit of retry waits: 1 s (backoff 1, 2, 4 s; `Retry-After` in seconds). Tests
+    /// shorten it with `RFLUENCE_RETRY_UNIT_MS`.
+    retry_unit: Duration,
 }
+
+/// How many times a request is retried (design.md, "Output and errors" > "Retries").
+const RETRIES: u32 = 3;
+/// The longest `Retry-After` honoured, in retry units.
+const MAX_RETRY_AFTER: u64 = 60;
+
+type Response = ureq::http::Response<ureq::Body>;
 
 /// A page as fetched: its metadata and body.
 #[derive(Debug, Clone)]
@@ -189,44 +199,146 @@ pub fn page_ref_site(s: &str) -> Option<String> {
     Some(format!("{scheme}://{}", rest.split('/').next()?))
 }
 
+/// The longest a request may take, start to finish.
+const TIMEOUT: Duration = Duration::from_secs(60);
+/// The longest looking up the site and opening a connection to it may take: a reachable
+/// site takes well under a second, so an unreachable one fails fast.
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
+
+fn agent(timeout: Duration) -> ureq::Agent {
+    ureq::Agent::config_builder()
+        .timeout_global(Some(timeout))
+        .timeout_resolve(Some(CONNECT_TIMEOUT))
+        .timeout_connect(Some(CONNECT_TIMEOUT))
+        // Read Confluence's error bodies instead of getting a bare status error.
+        .http_status_as_error(false)
+        .user_agent(concat!("rfluence/", env!("CARGO_PKG_VERSION")))
+        .build()
+        .into()
+}
+
+/// A request that got no (complete) answer, in words.
+fn network_error(url: &str, e: &ureq::Error) -> Error {
+    let host = crate::auth::host(url);
+    Error::Network(match e {
+        ureq::Error::Timeout(ureq::Timeout::Resolve | ureq::Timeout::Connect) => {
+            format!("couldn't reach {host} within {} s (check the site address and the network)", CONNECT_TIMEOUT.as_secs())
+        }
+        ureq::Error::Timeout(_) => format!("timed out waiting for {host} to answer ({url})"),
+        e => format!("{url}: {e}"),
+    })
+}
+
 impl Client {
     pub fn new(creds: &Credentials) -> Client {
-        let agent = ureq::Agent::config_builder()
-            .timeout_global(Some(Duration::from_secs(60)))
-            // Read Confluence's error bodies instead of getting a bare status error.
-            .http_status_as_error(false)
-            .user_agent(concat!("rfluence/", env!("CARGO_PKG_VERSION")))
-            .build()
-            .into();
+        let agent = agent(TIMEOUT);
         let basic = base64::engine::general_purpose::STANDARD.encode(format!("{}:{}", creds.email, creds.token));
+        let unit = std::env::var("RFLUENCE_RETRY_UNIT_MS").ok().and_then(|v| v.parse().ok()).map(Duration::from_millis);
         Client {
             agent,
             base_url: crate::auth::normalize_base_url(&creds.base_url),
             authorization: format!("Basic {basic}"),
+            retry_unit: unit.unwrap_or(Duration::from_secs(1)),
+        }
+    }
+
+    /// The same client with another retry unit (tests use a millisecond).
+    pub fn with_retry_unit(mut self, unit: Duration) -> Client {
+        self.retry_unit = unit;
+        self
+    }
+
+    /// The same client with another timeout for whole requests (for tests).
+    pub fn with_timeout(mut self, timeout: Duration) -> Client {
+        self.agent = agent(timeout);
+        self
+    }
+
+    /// Send a request, retrying when Confluence is busy or briefly unavailable:
+    ///
+    /// * any request answered 429 (rate limited), or 503 with `Retry-After`: Confluence
+    ///   didn't process it;
+    /// * reads (GET) also on 502, 503, 504 and when the connection failed, since repeating a
+    ///   read is harmless. Writes aren't repeated then: the first attempt may have gone
+    ///   through, and repeating it could fail with a version conflict or create a duplicate.
+    ///
+    /// A request that timed out isn't repeated: it already waited long, and Confluence is
+    /// unlikely to do better at once. Up to 3 retries, waiting `Retry-After` (up to 60 s) or
+    /// 1, 2, 4 s, announced on stderr (stdout stays clean for output that's parsed).
+    fn send(&self, method: &str, request: impl Fn() -> std::result::Result<Response, ureq::Error>) -> std::result::Result<Response, ureq::Error> {
+        let read = method == "GET";
+        let mut attempt = 0;
+        loop {
+            let result = request();
+            let (reason, retry_after) = match &result {
+                Ok(resp) => {
+                    let status = resp.status().as_u16();
+                    let after = resp.headers().get("retry-after").and_then(|v| v.to_str().ok()).and_then(|v| v.trim().parse::<u64>().ok());
+                    let retry = match status {
+                        429 => true,
+                        503 if after.is_some() => true,
+                        502..=504 => read,
+                        _ => false,
+                    };
+                    if !retry {
+                        return result;
+                    }
+                    let what = if status == 429 { "busy" } else { "unavailable" };
+                    (format!("Confluence is {what} (HTTP {status})"), after)
+                }
+                Err(ureq::Error::Timeout(_)) => return result,
+                Err(e) if read => (format!("couldn't connect to Confluence ({e})"), None),
+                Err(_) => return result,
+            };
+            if attempt == RETRIES {
+                return result;
+            }
+            let wait = match retry_after {
+                Some(secs) => self.retry_unit * secs.min(MAX_RETRY_AFTER) as u32,
+                None => self.retry_unit * 2u32.pow(attempt),
+            };
+            attempt += 1;
+            eprintln!("rfluence: {reason}; trying again in {} ({attempt}/{RETRIES})", show_wait(wait));
+            std::thread::sleep(wait);
         }
     }
 
     /// GET a JSON resource under the site (`path` starts with `/wiki/...`).
     fn get<T: DeserializeOwned>(&self, path: &str) -> Result<T> {
         let url = format!("{}{path}", self.base_url);
-        let resp = self
-            .agent
-            .get(&url)
-            .header("Authorization", &self.authorization)
-            .header("Accept", "application/json")
-            .call();
+        let resp = self.send("GET", || {
+            self.agent.get(&url).header("Authorization", &self.authorization).header("Accept", "application/json").call()
+        });
         read_json(resp, &url, path)
     }
 
     /// POST or PUT JSON, and read the JSON response.
     fn send_json<T: DeserializeOwned>(&self, method: &str, path: &str, body: &serde_json::Value) -> Result<T> {
         let url = format!("{}{path}", self.base_url);
-        let req = match method {
-            "PUT" => self.agent.put(&url),
-            _ => self.agent.post(&url),
-        };
-        let resp = req.header("Authorization", &self.authorization).header("Accept", "application/json").send_json(body);
+        let resp = self.send(method, || {
+            let req = match method {
+                "PUT" => self.agent.put(&url),
+                _ => self.agent.post(&url),
+            };
+            req.header("Authorization", &self.authorization).header("Accept", "application/json").send_json(body)
+        });
         read_json(resp, &url, path)
+    }
+
+    /// Send a request without a body (DELETE, or PUT for moves) and check the status.
+    fn send_empty(&self, method: &str, path: &str) -> Result<()> {
+        let url = format!("{}{path}", self.base_url);
+        let resp = self.send(method, || match method {
+            "PUT" => self.agent.put(&url).header("Authorization", &self.authorization).header("Accept", "application/json").send_empty(),
+            _ => self.agent.delete(&url).header("Authorization", &self.authorization).header("Accept", "application/json").call(),
+        });
+        let mut resp = resp.map_err(|e| network_error(&url, &e))?;
+        let status = resp.status().as_u16();
+        if (200..300).contains(&status) {
+            return Ok(());
+        }
+        let body = resp.body_mut().read_to_string().unwrap_or_default();
+        Err(status_error(status, &url, path, &body))
     }
 
     /// POST a file as `multipart/form-data` (v1 attachment uploads), and read the JSON response.
@@ -245,14 +357,15 @@ impl Client {
         );
         body.extend(data);
         body.extend(format!("\r\n--{boundary}--\r\n").bytes());
-        let resp = self
-            .agent
-            .post(&url)
-            .header("Authorization", &self.authorization)
-            .header("Accept", "application/json")
-            .header("X-Atlassian-Token", "no-check")
-            .header("Content-Type", &format!("multipart/form-data; boundary={boundary}"))
-            .send(&body[..]);
+        let resp = self.send("POST", || {
+            self.agent
+                .post(&url)
+                .header("Authorization", &self.authorization)
+                .header("Accept", "application/json")
+                .header("X-Atlassian-Token", "no-check")
+                .header("Content-Type", &format!("multipart/form-data; boundary={boundary}"))
+                .send(&body[..])
+        });
         read_json(resp, &url, path)
     }
 
@@ -492,15 +605,13 @@ impl Client {
             .ok_or_else(|| Error::NotFound(format!("attachment {} has no download link", attachment.title)))?;
         let url = format!("{}/wiki{link}", self.base_url);
         let mut resp = self
-            .agent
-            .get(&url)
-            .header("Authorization", &self.authorization)
-            .call()
-            .map_err(|e| Error::Network(format!("{url}: {e}")))?;
+            .send("GET", || self.agent.get(&url).header("Authorization", &self.authorization).call())
+            .map_err(|e| network_error(&url, &e))?;
         let status = resp.status().as_u16();
         if !(200..300).contains(&status) {
             return Err(match status {
-                401 | 403 => Error::Auth(format!("HTTP {status} downloading {}", attachment.title)),
+                401 => Error::Auth(format!("HTTP {status} downloading {}", attachment.title)),
+                403 => Error::Forbidden(format!("HTTP {status} downloading {}", attachment.title)),
                 404 => Error::NotFound(format!("attachment {} not found", attachment.title)),
                 _ => Error::Api { status, message: format!("downloading {}", attachment.title) },
             });
@@ -509,7 +620,7 @@ impl Client {
             .with_config()
             .limit(MAX_DOWNLOAD)
             .read_to_vec()
-            .map_err(|e| Error::Network(format!("{url}: {e}")))
+            .map_err(|e| network_error(&url, &e))
     }
 
     /// The ID of the page titled `title` in space `space_key` (titles are unique per space).
@@ -754,10 +865,7 @@ impl Client {
     /// Doesn't create a version.
     pub fn move_next_to(&self, id: &str, after: bool, target: &str) -> Result<()> {
         let position = if after { "after" } else { "before" };
-        let url = format!("{}/wiki/rest/api/content/{id}/move/{position}/{target}", self.base_url);
-        let resp = self.agent.put(&url).header("Authorization", &self.authorization).header("Accept", "application/json").send_empty();
-        let _: serde_json::Value = read_json(resp, &url, &format!("/wiki/rest/api/content/{id}/move"))?;
-        Ok(())
+        self.send_empty("PUT", &format!("/wiki/rest/api/content/{id}/move/{position}/{target}"))
     }
 
     /// Move a page to the trash (it can be restored from there).
@@ -767,21 +875,7 @@ impl Client {
 
     /// Move a page or folder to the trash. A folder's or page's children move up a level.
     pub fn trash(&self, kind: Kind, id: &str) -> Result<()> {
-        let url = format!("{}/wiki/api/v2/{}/{id}", self.base_url, kind.path());
-        let resp = self.agent.delete(&url).header("Authorization", &self.authorization).call();
-        let mut resp = resp.map_err(|e| Error::Network(format!("{url}: {e}")))?;
-        match resp.status().as_u16() {
-            200..=299 => Ok(()),
-            status => {
-                let body = resp.body_mut().read_to_string().unwrap_or_default();
-                let message = error_message(&body).unwrap_or(body);
-                Err(match status {
-                    401 | 403 => Error::Auth(format!("HTTP {status} trashing page {id}: {message}")),
-                    404 => Error::NotFound(format!("page {id} not found")),
-                    _ => Error::Api { status, message },
-                })
-            }
-        }
+        self.send_empty("DELETE", &format!("/wiki/api/v2/{}/{id}", kind.path()))
     }
 
     /// Attach a new file to a page (v1: v2 can't upload). Doesn't create a page version.
@@ -819,16 +913,7 @@ impl Client {
 
     /// Remove a global label from a page (v1; the query form works for names with `/`).
     pub fn remove_label(&self, page_id: &str, label: &str) -> Result<()> {
-        let path = format!("/wiki/rest/api/content/{page_id}/label?name={}", encode(label));
-        let url = format!("{}{path}", self.base_url);
-        let mut resp = self.agent.delete(&url).header("Authorization", &self.authorization).call().map_err(|e| Error::Network(format!("{url}: {e}")))?;
-        match resp.status().as_u16() {
-            200..=299 => Ok(()),
-            status => {
-                let body = resp.body_mut().read_to_string().unwrap_or_default();
-                Err(Error::Api { status, message: error_message(&body).unwrap_or(body) })
-            }
-        }
+        self.send_empty("DELETE", &format!("/wiki/rest/api/content/{page_id}/label?name={}", encode(label)))
     }
 
     /// A page's content property, if set.
@@ -981,19 +1066,30 @@ impl V1Attachment {
 }
 
 /// A response as JSON, or the error it reports.
-fn read_json<T: DeserializeOwned>(resp: std::result::Result<ureq::http::Response<ureq::Body>, ureq::Error>, url: &str, path: &str) -> Result<T> {
-    let mut resp = resp.map_err(|e| Error::Network(format!("{url}: {e}")))?;
+fn read_json<T: DeserializeOwned>(resp: std::result::Result<Response, ureq::Error>, url: &str, path: &str) -> Result<T> {
+    let mut resp = resp.map_err(|e| network_error(url, &e))?;
     let status = resp.status().as_u16();
     if (200..300).contains(&status) {
-        return resp.body_mut().read_json().map_err(|e| Error::Network(format!("{url}: reading the response: {e}")));
+        return resp.body_mut().read_json().map_err(|e| network_error(url, &e));
     }
     let body = resp.body_mut().read_to_string().unwrap_or_default();
-    let message = error_message(&body).unwrap_or_else(|| body.chars().take(300).collect());
-    Err(match status {
-        401 | 403 => Error::Auth(format!("HTTP {status} from {url}: {message}")),
+    Err(status_error(status, url, path, &body))
+}
+
+/// The error for an HTTP error status, with Confluence's message.
+fn status_error(status: u16, url: &str, path: &str, body: &str) -> Error {
+    let message = error_message(body).unwrap_or_else(|| body.chars().take(300).collect());
+    match status {
+        401 => Error::Auth(format!("HTTP {status} from {url}: {message}")),
+        403 => Error::Forbidden(format!("HTTP {status} from {url}: {message}")),
         404 => Error::NotFound(format!("not found: {path} ({message})")),
         _ => Error::Api { status, message },
-    })
+    }
+}
+
+/// A wait, for messages: `2 s`, or `250 ms`.
+fn show_wait(d: Duration) -> String {
+    if d.as_millis() >= 1000 && d.as_millis() % 1000 == 0 { format!("{} s", d.as_secs()) } else { format!("{} ms", d.as_millis()) }
 }
 
 /// The media type for an attachment, by file extension.

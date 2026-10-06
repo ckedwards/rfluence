@@ -588,3 +588,22 @@ fn moves_a_page_to_its_parent() {
     assert!(out(&o).contains("(version 2 -> 3)") && out(&o).contains("  parent: 753877 -> 999"), "{}", out(&o));
     assert!(site.read().contains("  parent: \"999\"\n  version: 3\n"), "{}", site.read());
 }
+
+/// `--warnings-are-errors`: content uploaded as a close equivalent (here `<kbd>`, as inline
+/// code) stops the upload too, unless `--force`.
+#[test]
+fn warnings_can_stop_an_upload() {
+    let site = Site::new("warnings", None, 2, None);
+    site.fetch();
+    site.write(&(site.read() + "\nPress <kbd>Ctrl</kbd>.\n"));
+    let o = site.upload(&["--dry-run"]);
+    assert!(o.status.success(), "{}", err(&o));
+    assert!(err(&o).contains("warning: `<kbd>` written as inline code"), "{}", err(&o));
+
+    let o = site.upload(&["--dry-run", "--warnings-are-errors"]);
+    assert_eq!(o.status.code(), Some(1), "{}", err(&o));
+    assert!(err(&o).contains("1 warning (--warnings-are-errors), nothing uploaded; fix them, or use --force to upload the approximations"), "{}", err(&o));
+
+    let o = site.upload(&["--dry-run", "--warnings-are-errors", "--force"]);
+    assert!(o.status.success(), "{}", err(&o));
+}

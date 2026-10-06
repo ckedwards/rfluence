@@ -11,7 +11,7 @@ use rfluence_convert::local_images;
 use crate::config::{self, Config};
 use crate::plan::{self, Ancestor, EntryPlan, Node};
 use crate::upload::{self, InTree, Stop};
-use crate::{EXIT_CONFLICT, EXIT_USAGE, fail};
+use crate::{EXIT_CONFLICT, EXIT_ERRORS_FOUND, EXIT_USAGE, fail};
 
 pub struct Options {
     pub config: PathBuf,
@@ -20,6 +20,7 @@ pub struct Options {
     pub move_pages: bool,
     pub prune: bool,
     pub prune_labels: bool,
+    pub warnings_are_errors: bool,
     pub site: Option<String>,
 }
 
@@ -40,8 +41,9 @@ fn usage(message: String) -> Failure {
 }
 
 pub fn run(opts: &Options) -> ExitCode {
-    match upload_tree(opts) {
-        Ok(()) => ExitCode::SUCCESS,
+    let mut counts = Counts::default();
+    let code = match upload_tree(opts, &mut counts) {
+        Ok(()) => return ExitCode::SUCCESS,
         Err(Failure::Message(m, code)) => {
             for line in m.lines() {
                 eprintln!("rfluence: {line}");
@@ -50,7 +52,16 @@ pub fn run(opts: &Options) -> ExitCode {
         }
         Err(Failure::File(path, Stop::Client(e))) if path.as_os_str().is_empty() => fail(&e),
         Err(Failure::File(path, stop)) => upload::exit(&file_options(opts, &path, None), stop),
+    };
+    // Stopped part-way: say what was done. New pages' IDs are in their files already, so
+    // running again continues where this stopped, without duplicates.
+    if !opts.dry_run && counts.did_anything() {
+        eprintln!(
+            "rfluence: stopped part-way; done before the error: {} Run the same command again to continue (every new page's ID is in its file).",
+            counts.summary(false)
+        );
     }
+    code
 }
 
 /// The single-file upload options for one of the config's files.
@@ -65,6 +76,7 @@ fn file_options(opts: &Options, path: &Path, tree: Option<InTree>) -> upload::Op
         json: false,
         move_pages: opts.move_pages,
         prune_labels: opts.prune_labels,
+        warnings_are_errors: opts.warnings_are_errors,
         tree,
     }
 }
@@ -99,7 +111,7 @@ enum Resolved {
     InUpload { file: String, title: String },
 }
 
-fn upload_tree(opts: &Options) -> Result<(), Failure> {
+fn upload_tree(opts: &Options, counts: &mut Counts) -> Result<(), Failure> {
     let config = Config::load(&opts.config).map_err(usage)?;
     let matched = config::match_files(&config).map_err(usage)?;
     let (creds, _) = auth::resolve(opts.site.as_deref())?;
@@ -157,7 +169,7 @@ fn upload_tree(opts: &Options) -> Result<(), Failure> {
             Err(Stop::Usage(m) | Stop::Conflict(m)) => return problems.push(format!("{file}: {m}")),
             Err(Stop::Client(e)) => return problems.push(format!("{file}: {e}")),
         };
-        if rfluence_convert::check(&md).iter().any(|d| d.severity == rfluence_convert::Severity::Error) {
+        if rfluence_convert::check(&md).iter().any(|d| d.severity == rfluence_convert::Severity::Error || opts.warnings_are_errors) {
             check_failed = true;
         }
         if let Err(Stop::Usage(m)) = upload::link_targets(local.dir, &local.body, &creds.base_url, Some(&plan.space_key), Some(&pending)) {
@@ -172,11 +184,15 @@ fn upload_tree(opts: &Options) -> Result<(), Failure> {
             }
         }
     });
+    // Only content problems (as `rfluence check` reports them): exit 1, like check and
+    // single-file upload; anything else is a usage problem (2).
+    let code = if problems.is_empty() { EXIT_ERRORS_FOUND } else { EXIT_USAGE };
     if check_failed && !opts.force {
-        problems.push("files have content Confluence can't store (listed above); fix them, or use --force to upload the approximations".into());
+        let what = if opts.warnings_are_errors { "content Confluence can't store exactly (errors and, with --warnings-are-errors, warnings)" } else { "content Confluence can't store" };
+        problems.push(format!("files have {what} (listed above); fix them, or use --force to upload the approximations"));
     }
     if !problems.is_empty() {
-        return Err(usage(format!("nothing uploaded:\n{}", problems.join("\n"))));
+        return Err(Failure::Message(format!("nothing uploaded:\n{}", problems.join("\n")), code));
     }
 
     // Ancestors given by title: a page or folder in Confluence, or a page of this upload.
@@ -243,7 +259,6 @@ fn upload_tree(opts: &Options) -> Result<(), Failure> {
     // Pass 1, top-down: folders found or created, new pages created empty, so every file has
     // a page ID before the bodies (which link to each other) are uploaded.
     let mut parents: HashMap<String, (Option<String>, String)> = HashMap::new();
-    let mut folders_created = 0;
     let mut done = vec![false; plans.len()];
     loop {
         let mut progress = false;
@@ -263,9 +278,8 @@ fn upload_tree(opts: &Options) -> Result<(), Failure> {
                 },
             };
             let space = &spaces[&plan.space_key];
-            let mut pass = Pass { opts, config: &config, client: &client, space, plan, places: &mut places, parents: &mut parents, folders_created: 0 };
+            let mut pass = Pass { opts, config: &config, client: &client, space, plan, places: &mut places, parents: &mut parents, counts: &mut *counts };
             pass.nodes(&plan.nodes, parent.as_deref(), parent_kind, &parent_title)?;
-            folders_created += pass.folders_created;
             done[i] = true;
             progress = true;
         }
@@ -289,7 +303,6 @@ fn upload_tree(opts: &Options) -> Result<(), Failure> {
 
     // Pass 2: every file's body, labels and property, as single-file upload does.
     println!("{}", if opts.dry_run { "Pages:" } else { "Uploading:" });
-    let mut counts = Counts { folders_created, ..Default::default() };
     let mut failure = None;
     for_each_page(&plans, &mut |plan, node| {
         if failure.is_some() {
@@ -316,7 +329,8 @@ fn upload_tree(opts: &Options) -> Result<(), Failure> {
         match result {
             Ok(outcome) => {
                 match place {
-                    Place::Created(_) => counts.created += 1,
+                    // Counted when it was created, in pass 1.
+                    Place::Created(_) => {}
                     _ if outcome.changed => counts.updated += 1,
                     _ => counts.unchanged += 1,
                 }
@@ -327,7 +341,14 @@ fn upload_tree(opts: &Options) -> Result<(), Failure> {
                     counts.moved += 1;
                 }
             }
-            Err(stop) => failure = Some(Failure::File(path, stop)),
+            Err(stop) => {
+                // A page created moments ago that Confluence can't find: its problem.
+                let stop = match &place {
+                    Place::Created(id) => upload::vanished(stop, id),
+                    _ => stop,
+                };
+                failure = Some(Failure::File(path, stop));
+            }
         }
     });
     if let Some(f) = failure {
@@ -340,7 +361,7 @@ fn upload_tree(opts: &Options) -> Result<(), Failure> {
             Resolved::Content { id, kind, title } => (Some(id.clone()), *kind, title.clone()),
             Resolved::InUpload { file, title } => (places[file].id().map(str::to_string), Kind::Page, title.clone()),
         };
-        let mut ordering = Ordering { opts, client: &client, places: &places, counts: &mut counts };
+        let mut ordering = Ordering { opts, client: &client, places: &places, counts: &mut *counts };
         ordering.level(parent.as_deref(), kind, &title, &plan.nodes)?;
     }
 
@@ -359,7 +380,7 @@ fn upload_tree(opts: &Options) -> Result<(), Failure> {
         }
     }
     if opts.prune || opts.dry_run {
-        prune(opts, &client, &roots, &known, &mut counts)?;
+        prune(opts, &client, &roots, &known, counts)?;
     }
     println!("{}", counts.summary(opts.dry_run));
     Ok(())
@@ -401,7 +422,7 @@ struct Pass<'a> {
     places: &'a mut HashMap<String, Place>,
     /// Each file's parent in the tree: its ID (none if it's new, with --dry-run) and title.
     parents: &'a mut HashMap<String, (Option<String>, String)>,
-    folders_created: usize,
+    counts: &'a mut Counts,
 }
 
 impl Pass<'_> {
@@ -432,11 +453,11 @@ impl Pass<'_> {
                                     let id = self.client.create_folder(&self.space.id, p, &title)?;
                                     let value = serde_json::json!({ "managed": true, "path": dir, "config_labels": [] });
                                     self.client.set_property_of(Kind::Folder, &id, upload::PROPERTY, value, None)?;
-                                    self.folders_created += 1;
+                                    self.counts.folders_created += 1;
                                     Place::Created(id)
                                 }
                                 _ => {
-                                    self.folders_created += 1;
+                                    self.counts.folders_created += 1;
                                     Place::New
                                 }
                             }
@@ -454,6 +475,7 @@ impl Pass<'_> {
                             let id = upload::create_empty(self.client, &path, self.space, p, &title, &self.plan.labels)
                                 .map_err(|stop| Failure::File(path.clone(), stop))?;
                             self.places.insert(file.clone(), Place::Created(id));
+                            self.counts.created += 1;
                         }
                     }
                     let id = self.places[file].id().map(str::to_string);
@@ -684,7 +706,7 @@ fn print_tree(nodes: &[Node], depth: usize, places: &HashMap<String, Place>, dry
 }
 
 #[derive(Default)]
-struct Counts {
+pub struct Counts {
     created: usize,
     updated: usize,
     unchanged: usize,
@@ -701,6 +723,11 @@ struct Counts {
 }
 
 impl Counts {
+    /// Did this run change anything in Confluence?
+    fn did_anything(&self) -> bool {
+        self.created + self.updated + self.folders_created + self.moved + self.reordered + self.pruned > 0
+    }
+
     fn summary(&self, dry_run: bool) -> String {
         let (create, update) = if dry_run { ("to create", "to update") } else { ("created", "updated") };
         let mut parts = vec![

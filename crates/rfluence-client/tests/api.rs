@@ -134,3 +134,110 @@ fn trashed_pages_are_not_found() {
     }
     assert!(matches!(client.content("458790"), Err(Error::NotFound(_))));
 }
+
+fn quick(server: &mockito::Server) -> Client {
+    client(server).with_retry_unit(std::time::Duration::from_millis(1))
+}
+
+/// Reads are retried on 429, 502-504 and no response; writes only when Confluence says it
+/// didn't process them (429, or 503 with Retry-After). Up to 3 retries.
+#[test]
+fn retries_when_confluence_is_busy() {
+    let mut server = mockito::Server::new();
+    let ok = r#"{"displayName":"Me"}"#;
+    // A read: 503, then 429 with Retry-After, then it works.
+    let first = server.mock("GET", "/wiki/rest/api/user/current").with_status(503).expect(1).create();
+    let second = server.mock("GET", "/wiki/rest/api/user/current").with_status(429).with_header("Retry-After", "2").expect(1).create();
+    let third = server.mock("GET", "/wiki/rest/api/user/current").with_body(ok).create();
+    assert_eq!(quick(&server).current_user().unwrap(), "Me");
+    first.assert();
+    second.assert();
+    third.assert();
+
+    // Retries run out: the last answer is the error.
+    let mut server = mockito::Server::new();
+    let busy = server.mock("GET", "/wiki/rest/api/user/current").with_status(502).with_body(r#"{"message":"bad gateway"}"#).expect(4).create();
+    assert!(matches!(quick(&server).current_user(), Err(Error::Api { status: 502, .. })));
+    busy.assert();
+
+    // Not retried: a 500 (a bug or failure on Confluence's side that waiting won't fix).
+    let mut server = mockito::Server::new();
+    let failed = server.mock("GET", "/wiki/rest/api/user/current").with_status(500).expect(1).create();
+    assert!(quick(&server).current_user().is_err());
+    failed.assert();
+}
+
+#[test]
+fn retries_writes_only_when_confluence_did_nothing() {
+    let doc = rfluence_convert::adf::Node::doc(vec![]);
+    let page = r#"{"title":"T","parentId":null,"version":{"number":2}}"#;
+    // 429: retried.
+    let mut server = mockito::Server::new();
+    let limited = server.mock("PUT", "/wiki/api/v2/pages/1").with_status(429).expect(1).create();
+    let ok = server.mock("PUT", "/wiki/api/v2/pages/1").with_body(page).expect(1).create();
+    assert_eq!(quick(&server).update_page("1", "T", &doc, 2).unwrap().version, 2);
+    limited.assert();
+    ok.assert();
+    // 503 with Retry-After: retried.
+    let mut server = mockito::Server::new();
+    let unavailable = server.mock("PUT", "/wiki/api/v2/pages/1").with_status(503).with_header("Retry-After", "1").expect(1).create();
+    let ok = server.mock("PUT", "/wiki/api/v2/pages/1").with_body(page).expect(1).create();
+    assert!(quick(&server).update_page("1", "T", &doc, 2).is_ok());
+    unavailable.assert();
+    ok.assert();
+    // 503 without Retry-After, or 502: not retried (the update may have been saved).
+    for (status, header) in [(503, None), (502, None)] {
+        let mut server = mockito::Server::new();
+        let mut m = server.mock("PUT", "/wiki/api/v2/pages/1").with_status(status).expect(1);
+        if let Some(h) = header {
+            m = m.with_header("Retry-After", h);
+        }
+        let m = m.create();
+        assert!(matches!(quick(&server).update_page("1", "T", &doc, 2), Err(Error::Api { .. })), "{status}");
+        m.assert();
+    }
+}
+
+#[test]
+fn retries_reads_without_a_response() {
+    // Nothing listens on this port: connection refused, retried, then a network error.
+    let port = std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
+    let c = Client::new(&Credentials { base_url: format!("http://127.0.0.1:{port}"), email: "me@example.com".into(), token: "secret".into() })
+        .with_retry_unit(std::time::Duration::from_millis(1));
+    assert!(matches!(c.current_user(), Err(Error::Network(_))));
+}
+
+/// A 403 means the login works but the account isn't allowed: not "authentication failed".
+#[test]
+fn reports_403_as_permission_denied() {
+    let mut server = mockito::Server::new();
+    server.mock("PUT", "/wiki/api/v2/pages/1").with_status(403).with_body(r#"{"message":"Not permitted to update"}"#).create();
+    let err = quick(&server).update_page("1", "T", &rfluence_convert::adf::Node::doc(vec![]), 2).unwrap_err();
+    assert!(matches!(err, Error::Forbidden(_)), "{err:?}");
+    let message = err.to_string();
+    assert!(message.starts_with("permission denied: HTTP 403 from"), "{message}");
+    assert!(message.contains("Not permitted to update") && message.contains("isn't allowed to do this"), "{message}");
+}
+
+/// A read that timed out isn't repeated: it already waited, and won't do better at once.
+#[test]
+fn doesnt_retry_timeouts() {
+    // A server that accepts connections and never answers.
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let accepted = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let count = accepted.clone();
+    std::thread::spawn(move || {
+        let mut held = Vec::new();
+        for stream in listener.incoming().flatten() {
+            count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            held.push(stream);
+        }
+    });
+    let c = Client::new(&Credentials { base_url: format!("http://127.0.0.1:{port}"), email: "me@example.com".into(), token: "secret".into() })
+        .with_retry_unit(std::time::Duration::from_millis(1))
+        .with_timeout(std::time::Duration::from_millis(300));
+    let err = c.current_user().unwrap_err();
+    assert!(matches!(&err, Error::Network(m) if m.starts_with(&format!("timed out waiting for 127.0.0.1:{port} to answer"))), "{err:?}");
+    assert_eq!(accepted.load(std::sync::atomic::Ordering::SeqCst), 1, "one attempt");
+}

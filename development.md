@@ -80,7 +80,7 @@ set -a; . ./.env; set +a
 
 Create API tokens at <https://id.atlassian.com/manage-profile/security/api-tokens>.
 
-`RFLUENCE_CONFIG_DIR=<dir>` keeps accounts somewhere other than `~/.config/rfluence`, and `RFLUENCE_NO_KEYRING=1` stores tokens in files instead of the system keyring; the tests use both so they never touch your real accounts.
+`RFLUENCE_CONFIG_DIR=<dir>` keeps accounts somewhere other than `~/.config/rfluence`, and `RFLUENCE_NO_KEYRING=1` stores tokens in files instead of the system keyring; the tests use both so they never touch your real accounts. `RFLUENCE_RETRY_UNIT_MS=1` makes retry waits (1, 2, 4 s, and `Retry-After`) milliseconds instead of seconds, for tests that make Confluence (or the fake) fail on purpose.
 
 ## Tests
 

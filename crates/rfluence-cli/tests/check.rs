@@ -66,3 +66,14 @@ fn unreadable_file_exits_2() {
     let out = rf(&["check", "/nonexistent/page.md"]);
     assert_eq!(out.status.code(), Some(2));
 }
+
+#[test]
+fn warnings_can_fail_too() {
+    let approximated = corpus("approximated.md");
+    let out = rf(&["check", "--warnings-are-errors", approximated.to_str().unwrap()]);
+    assert_eq!(out.status.code(), Some(1));
+    assert!(stdout(&out).ends_with("0 errors, 13 warnings\n"), "{}", stdout(&out));
+    // Clean files still pass, and errors still fail.
+    assert!(rf(&["check", "--warnings-are-errors", corpus("runbook.md").to_str().unwrap()]).status.success());
+    assert_eq!(rf(&["check", "--warnings-are-errors", corpus("unsupported.md").to_str().unwrap()]).status.code(), Some(1));
+}

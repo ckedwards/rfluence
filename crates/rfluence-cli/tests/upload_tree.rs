@@ -5,7 +5,7 @@ mod fake;
 use std::path::PathBuf;
 use std::process::{Command, Output};
 
-use fake::{Fake, HOMEPAGE};
+use fake::{Failure, Fake, HOMEPAGE};
 
 const ANCESTOR: &str = "123000";
 
@@ -51,6 +51,8 @@ impl Project {
             .env("CONFLUENCE_API_KEY", "secret")
             .env("RFLUENCE_CONFIG_DIR", self.dir.join(".config"))
             .env("RFLUENCE_NO_KEYRING", "1")
+            // Retry waits in milliseconds, not seconds.
+            .env("RFLUENCE_RETRY_UNIT_MS", "1")
             .env_remove("RFLUENCE_SITE")
             .output()
             .unwrap()
@@ -384,4 +386,69 @@ fn prunes_labels_only_when_asked() {
     let readme = p.id("how-to/github/README.md");
     assert_eq!(p.fake.state().content[&readme].labels, ["github"]);
     assert_eq!(p.fake.state().content[&readme].properties["rfluence"].2["config_labels"], serde_json::json!(["github"]));
+}
+
+#[test]
+fn warnings_can_stop_a_config_upload() {
+    let p = Project::new("warnings", EXAMPLE);
+    p.write("how-to/github/01-setup.md", "# Setting up GitHub\n\nPress <kbd>Ctrl</kbd>.\n");
+    assert!(p.upload(&["--dry-run"]).status.success());
+    let o = p.upload(&["--warnings-are-errors"]);
+    assert_eq!(o.status.code(), Some(1), "content problems only: {}", err(&o));
+    assert!(err(&o).contains("how-to/github/01-setup.md:3: warning: `<kbd>` written as inline code"), "{}", err(&o));
+    assert!(err(&o).contains("files have content Confluence can't store exactly"), "{}", err(&o));
+    assert!(p.fake.state().writes().is_empty());
+
+    // An error (no flag needed) is a content problem too: exit 1. Mixed with other problems
+    // (a broken link, a missing image), it's 2: see checks_every_file_before_sending_anything.
+    p.write("how-to/github/02-workflow.md", "# Our GitHub workflow\n\nA footnote[^1].\n\n[^1]: Note.\n");
+    let o = p.upload(&[]);
+    assert_eq!(o.status.code(), Some(1), "{}", err(&o));
+    assert!(p.fake.state().writes().is_empty());
+}
+
+/// Confluence rate-limits: the request is retried after Retry-After, and the upload goes on.
+#[test]
+fn retries_when_rate_limited() {
+    let p = Project::new("rate-limited", EXAMPLE);
+    p.fake.state().failures.push(Failure { retry_after: Some(2), times: 1, ..Failure::new("GET", "/wiki/api/v2/spaces", 429) });
+    let o = p.upload(&[]);
+    assert!(o.status.success(), "{}", err(&o));
+    assert!(err(&o).contains("rfluence: Confluence is busy (HTTP 429); trying again in 2 ms (1/3)"), "{}", err(&o));
+    assert!(out(&o).contains("5 pages created"), "{}", out(&o));
+}
+
+/// An error part-way through: what was done is reported, and running again finishes the job
+/// without duplicates (new pages' IDs are in their files).
+#[test]
+fn reports_progress_when_stopped_part_way() {
+    let p = Project::new("stopped", EXAMPLE);
+    // Bodies are uploaded in pass 2: the third (02-workflow.md, page 1005) fails.
+    p.fake.state().failures.push(Failure { times: 1, ..Failure::new("PUT", "/wiki/api/v2/pages/1005", 500) });
+    let o = p.upload(&[]);
+    assert_eq!(o.status.code(), Some(5), "{}", err(&o));
+    assert!(err(&o).contains("Confluence returned HTTP 500: injected HTTP 500"), "{}", err(&o));
+    assert!(
+        err(&o).contains("rfluence: stopped part-way; done before the error: 5 pages created, 0 updated, 0 up to date, 1 folder created. Run the same command again to continue"),
+        "{}",
+        err(&o)
+    );
+
+    let o = p.upload(&[]);
+    assert!(o.status.success(), "{}", err(&o));
+    assert!(out(&o).contains("0 pages created, 3 updated, 2 up to date."), "{}", out(&o));
+    assert_eq!(p.fake.state().content.values().filter(|c| c.kind == "page").count(), 5 + 2, "5 pages, the ancestor and the homepage");
+}
+
+/// A page Confluence created moments ago can't be found (seen in an incident): reported as
+/// Confluence's problem (exit 5), not as a missing page (3).
+#[test]
+fn explains_pages_that_vanish_after_creation() {
+    let p = Project::new("vanished", EXAMPLE);
+    // The first page created is 1001 (the README).
+    p.fake.state().failures.push(Failure::new("GET", "/wiki/api/v2/pages/1001?", 404));
+    let o = p.upload(&[]);
+    assert_eq!(o.status.code(), Some(5), "{}", err(&o));
+    assert!(err(&o).contains("Confluence created page 1001 moments ago, but now can't find it"), "{}", err(&o));
+    assert!(err(&o).contains("likely a problem on Confluence's side"), "{}", err(&o));
 }
