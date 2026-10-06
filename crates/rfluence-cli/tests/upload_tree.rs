@@ -1,0 +1,223 @@
+//! `rfluence upload --config` against an in-memory Confluence.
+
+mod fake;
+
+use std::path::PathBuf;
+use std::process::{Command, Output};
+
+use fake::{Fake, HOMEPAGE};
+
+const ANCESTOR: &str = "123000";
+
+struct Project {
+    dir: PathBuf,
+    fake: Fake,
+}
+
+impl Project {
+    /// The design.md example: a README, two pages and a directory without an index.
+    fn new(name: &str, config: &str) -> Project {
+        let dir = std::env::temp_dir().join(format!("rfluence-upload-tree-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let p = Project { dir, fake: Fake::start() };
+        p.fake.state().add_with_id(ANCESTOR, "page", "Engineering Docs", Some(HOMEPAGE));
+        p.write(".rfluence.yaml", config);
+        p.write("how-to/github/README.md", "# GitHub How-tos\n\nStart with [setup](./01-setup.md).\n");
+        p.write("how-to/github/01-setup.md", "# Setting up GitHub\n\nSee the [workflow](./02-workflow.md#steps).\n");
+        p.write("how-to/github/02-workflow.md", "# Our GitHub workflow\n\n## Steps\n\nBranch, commit, merge.\n");
+        p.write("how-to/github/actions/runners.md", "# Self-hosted runners\n\nRunners.\n");
+        p.write("how-to/github/actions/secrets.md", "# Managing secrets\n\nSecrets.\n");
+        p.write("how-to/github/drafts/wip.md", "# WIP\n");
+        p
+    }
+
+    fn write(&self, file: &str, text: &str) {
+        let path = self.dir.join(file);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, text).unwrap();
+    }
+
+    fn read(&self, file: &str) -> String {
+        std::fs::read_to_string(self.dir.join(file)).unwrap()
+    }
+
+    fn upload(&self, extra: &[&str]) -> Output {
+        Command::new(env!("CARGO_BIN_EXE_rfluence"))
+            .args(["upload", "--config"])
+            .args(extra)
+            .current_dir(&self.dir)
+            .env("CONFLUENCE_BASE_URL", &self.fake.url)
+            .env("CONFLUENCE_EMAIL", "me@example.com")
+            .env("CONFLUENCE_API_KEY", "secret")
+            .env("RFLUENCE_CONFIG_DIR", self.dir.join(".config"))
+            .env("RFLUENCE_NO_KEYRING", "1")
+            .env_remove("RFLUENCE_SITE")
+            .output()
+            .unwrap()
+    }
+
+    /// The page ID recorded in a file.
+    fn id(&self, file: &str) -> String {
+        let md = self.read(file);
+        let fields = rfluence_convert::frontmatter::rfluence_fields(rfluence_convert::frontmatter::split(&md).yaml.unwrap_or_default());
+        fields.id.unwrap_or_else(|| panic!("{file} has no ID:\n{md}"))
+    }
+}
+
+impl Drop for Project {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.dir);
+    }
+}
+
+fn out(o: &Output) -> String {
+    String::from_utf8_lossy(&o.stdout).into_owned()
+}
+
+fn err(o: &Output) -> String {
+    String::from_utf8_lossy(&o.stderr).into_owned()
+}
+
+const EXAMPLE: &str = "- globs:\n    - how-to/github/**/*.md\n  exclude:\n    - how-to/github/drafts/**\n  space_key: ENG\n  ancestor_id: \"123000\"\n  labels: [github, AI Generated]\n";
+
+#[test]
+fn uploads_the_design_example() {
+    let p = Project::new("example", EXAMPLE);
+
+    // A dry run shows the tree and changes nothing.
+    let o = p.upload(&["--dry-run"]);
+    assert!(o.status.success(), "{}", err(&o));
+    let text = out(&o);
+    for expected in [
+        "Plan for entry 1: space ENG, under \"Engineering Docs\" (page 123000)",
+        "  GitHub How-tos  [new page]  how-to/github/README.md",
+        "    Setting up GitHub  [new page]  how-to/github/01-setup.md",
+        "    actions  [new folder]  how-to/github/actions/",
+        "      Self-hosted runners  [new page]  how-to/github/actions/runners.md",
+        "Dry run: 5 pages to create, 0 to update, 0 up to date, 1 folder to create.",
+    ] {
+        assert!(text.contains(expected), "{expected}\n{text}");
+    }
+    assert!(p.fake.state().writes().is_empty(), "{:?}", p.fake.state().writes());
+    assert!(!p.read("how-to/github/README.md").contains("rfluence:"));
+
+    // The upload.
+    let o = p.upload(&[]);
+    assert!(o.status.success(), "{}\n{}", out(&o), err(&o));
+    assert!(out(&o).contains("5 pages created, 0 updated, 0 up to date, 1 folder created."), "{}", out(&o));
+    {
+        let s = p.fake.state();
+        let page = |title: &str| s.by_title("page", title).unwrap_or_else(|| panic!("no page {title}"));
+        let readme = page("GitHub How-tos");
+        let folder = s.by_title("folder", "actions").expect("folder");
+        assert_eq!(readme.parent.as_deref(), Some(ANCESTOR));
+        assert_eq!(page("Setting up GitHub").parent.as_deref(), Some(readme.id.as_str()));
+        assert_eq!(page("Our GitHub workflow").parent.as_deref(), Some(readme.id.as_str()));
+        assert_eq!(folder.parent.as_deref(), Some(readme.id.as_str()));
+        assert_eq!(page("Managing secrets").parent.as_deref(), Some(folder.id.as_str()));
+        assert!(s.by_title("page", "WIP").is_none());
+        // Bodies, with links between the new pages resolved.
+        let setup = page("Setting up GitHub");
+        let workflow = page("Our GitHub workflow");
+        assert!(setup.body.contains(&format!("/pages/{}#Steps", workflow.id)), "{}", setup.body);
+        assert_eq!(setup.version, 2, "created empty, then the body");
+        // Config labels, and the property recording them.
+        assert_eq!(setup.labels, ["github", "ai-generated"]);
+        let (_, _, value) = &setup.properties["rfluence"];
+        assert_eq!(value["config_labels"], serde_json::json!(["github", "ai-generated"]));
+        assert_eq!(value["version"], 2);
+        assert_eq!(value["path"], "how-to/github/01-setup.md");
+        assert_eq!(folder.properties["rfluence"].2["managed"], true);
+    }
+    // Each file records its page; the config labels are written back.
+    let readme = p.read("how-to/github/README.md");
+    assert!(readme.contains(&format!("  parent: \"{ANCESTOR}\"\n  version: 2\n")), "{readme}");
+    assert!(readme.contains("  labels: [github, ai-generated]\n"), "{readme}");
+    assert!(readme.ends_with("# GitHub How-tos\n\nStart with [setup](./01-setup.md).\n"), "{readme}");
+
+    // Again: nothing to do.
+    let writes = p.fake.state().writes().len();
+    let o = p.upload(&[]);
+    assert!(o.status.success(), "{}", err(&o));
+    assert!(out(&o).contains("0 pages created, 0 updated, 5 up to date."), "{}", out(&o));
+    assert!(out(&o).contains(&format!("  GitHub How-tos  [page {}]", p.id("how-to/github/README.md"))), "{}", out(&o));
+    assert_eq!(p.fake.state().writes().len(), writes, "{:?}", &p.fake.state().writes()[writes..]);
+
+    // An edit: only that page changes.
+    p.write("how-to/github/actions/runners.md", &p.read("how-to/github/actions/runners.md").replace("Runners.", "Runners, edited."));
+    let o = p.upload(&[]);
+    assert!(out(&o).contains("0 pages created, 1 updated, 4 up to date."), "{}", out(&o));
+}
+
+#[test]
+fn an_ancestor_can_be_a_page_of_the_same_upload() {
+    // Entry 1 is under a page entry 2 creates; entries can come in any order.
+    let config = "- globs: ['notes/*.md']\n  space_key: ENG\n  ancestor: GitHub How-tos\n- globs: ['how-to/github/*.md']\n  space_key: ENG\n  ancestor: Engineering Docs\n";
+    let p = Project::new("ancestor-in-upload", config);
+    p.write("notes/one.md", "# Note one\n");
+    let o = p.upload(&["--dry-run"]);
+    assert!(o.status.success(), "{}", err(&o));
+    assert!(out(&o).contains("Plan for entry 1: space ENG, under \"GitHub How-tos\" (from how-to/github/README.md)"), "{}", out(&o));
+    let o = p.upload(&[]);
+    assert!(o.status.success(), "{}\n{}", out(&o), err(&o));
+    let s = p.fake.state();
+    let readme = s.by_title("page", "GitHub How-tos").unwrap();
+    assert_eq!(s.by_title("page", "Note one").unwrap().parent.as_deref(), Some(readme.id.as_str()));
+    assert_eq!(readme.parent.as_deref(), Some(ANCESTOR));
+}
+
+#[test]
+fn never_creates_a_duplicate_title() {
+    let p = Project::new("duplicate", EXAMPLE);
+    let existing = p.fake.state().add("page", "Managing secrets", Some(HOMEPAGE));
+    let o = p.upload(&[]);
+    assert_eq!(o.status.code(), Some(6), "{}", err(&o));
+    assert!(
+        err(&o).contains(&format!("how-to/github/actions/secrets.md: space ENG already has a page titled \"Managing secrets\" (page {existing})")),
+        "{}",
+        err(&o)
+    );
+    assert!(p.fake.state().writes().is_empty(), "nothing is created before the check");
+}
+
+#[test]
+fn warns_about_pages_moved_in_confluence() {
+    let p = Project::new("moved", EXAMPLE);
+    assert!(p.upload(&[]).status.success());
+    let runners = p.id("how-to/github/actions/runners.md");
+    p.fake.state().content.get_mut(&runners).unwrap().parent = Some(HOMEPAGE.into());
+    let o = p.upload(&[]);
+    assert!(o.status.success(), "{}", err(&o));
+    assert!(err(&o).contains("runners.md: warning: the config puts this page under \"actions\""), "{}", err(&o));
+    assert!(out(&o).contains("1 page is not where the config puts it (left in place; see the warnings)."), "{}", out(&o));
+    assert_eq!(p.fake.state().content[&runners].parent.as_deref(), Some(HOMEPAGE));
+}
+
+#[test]
+fn reports_folder_titles_taken_elsewhere() {
+    let p = Project::new("folder-taken", EXAMPLE);
+    let other = p.fake.state().add("folder", "actions", Some(HOMEPAGE));
+    let o = p.upload(&["--dry-run"]);
+    assert_eq!(o.status.code(), Some(2), "{}", err(&o));
+    assert!(err(&o).contains(&format!("space ENG already has a folder titled \"actions\" (folder {other}) somewhere else")), "{}", err(&o));
+}
+
+#[test]
+fn checks_every_file_before_sending_anything() {
+    let p = Project::new("preflight", EXAMPLE);
+    p.write("how-to/github/02-workflow.md", "# Our GitHub workflow\n\nA footnote[^1].\n\n[^1]: Note.\n");
+    p.write("how-to/github/actions/secrets.md", "# Managing secrets\n\n[gone](./missing.md)\n\n![](secrets.png)\n");
+    let o = p.upload(&[]);
+    assert_eq!(o.status.code(), Some(2), "{}", err(&o));
+    for expected in [
+        "how-to/github/02-workflow.md:3: error: footnotes can't be represented",
+        "files have content Confluence can't store",
+        "secrets.md: links to files without a Confluence page: line 3: ./missing.md (no such file)",
+        "how-to/github/actions/secrets.md:5: image file not found: secrets.png",
+    ] {
+        assert!(err(&o).contains(expected), "{expected}\n{}", err(&o));
+    }
+    // Paths in messages are relative to the project.
+    assert!(err(&o).starts_with("how-to/github/02-workflow.md:3: error"), "{}", err(&o));
+    assert!(p.fake.state().writes().is_empty());
+}

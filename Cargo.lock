@@ -1671,6 +1671,7 @@ version = "0.1.0"
 dependencies = [
  "base64",
  "clap",
+ "globset",
  "ignore",
  "mockito",
  "percent-encoding",
@@ -1679,6 +1680,7 @@ dependencies = [
  "rpassword",
  "serde",
  "serde_json",
+ "serde_norway",
  "similar-asserts",
 ]
 

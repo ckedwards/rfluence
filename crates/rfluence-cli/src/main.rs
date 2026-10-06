@@ -2,10 +2,13 @@
 
 mod auth;
 mod check;
+mod config;
 mod fetch;
+mod plan;
 mod project;
 mod search;
 mod upload;
+mod upload_tree;
 
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -62,7 +65,13 @@ enum Command {
     /// on their text. Afterwards the file's frontmatter has the page ID and new version.
     Upload {
         /// The markdown file.
-        path: PathBuf,
+        #[arg(required_unless_present = "config", conflicts_with = "config")]
+        path: Option<PathBuf>,
+        /// Upload the files listed in a config file (default: .rfluence.yaml in this
+        /// directory or the nearest one above it), as a page tree.
+        #[arg(long, value_name = "FILE", num_args = 0..=1)]
+        #[allow(clippy::option_option)]
+        config: Option<Option<PathBuf>>,
         /// Show what would change, without changing anything.
         #[arg(long)]
         dry_run: bool,
@@ -198,9 +207,23 @@ fn main() -> ExitCode {
         Command::Fetch { page, simplified, section, max_chars, json, site, output, force } => {
             fetch::run(&fetch::Options { page, simplified, section, max_chars, json, site, output, force })
         }
-        Command::Upload { path, dry_run, force, site, space, parent, json } => {
-            upload::run(&upload::Options { path, dry_run, force, site, space, parent, json })
-        }
+        Command::Upload { path, config, dry_run, force, site, space, parent, json } => match (path, config) {
+            (_, Some(config)) => {
+                if space.is_some() || parent.is_some() || json {
+                    eprintln!("rfluence: --space, --parent and --json can't be used with --config");
+                    return ExitCode::from(EXIT_USAGE);
+                }
+                let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+                let config = config.unwrap_or_else(|| {
+                    // Relative to here when it's here or below, so messages show short paths.
+                    let found = project::root(&cwd).join(config::FILE_NAME);
+                    found.strip_prefix(&cwd).map(PathBuf::from).unwrap_or(found)
+                });
+                upload_tree::run(&upload_tree::Options { config, dry_run, force, site })
+            }
+            (Some(path), None) => upload::run(&upload::Options { path, dry_run, force, site, space, parent, json, tree: None }),
+            (None, None) => unreachable!("clap requires one"),
+        },
         Command::Search { query, space, label, cql, limit, site, json } => {
             search::run(&search::Options { query, space, label, cql, limit, site, json })
         }

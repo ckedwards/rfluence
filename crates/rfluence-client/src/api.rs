@@ -552,6 +552,45 @@ pub struct Updated {
     pub parent: Option<String>,
 }
 
+/// Pages and folders: content IDs are shared, so an ID is one or the other.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Kind {
+    Page,
+    Folder,
+}
+
+impl Kind {
+    fn path(self) -> &'static str {
+        match self {
+            Kind::Page => "pages",
+            Kind::Folder => "folders",
+        }
+    }
+}
+
+/// A page or folder.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Content {
+    pub id: String,
+    pub kind: Kind,
+    pub title: String,
+    pub parent_id: Option<String>,
+    pub space_id: Option<String>,
+}
+
+/// A page or folder in its parent's list of children.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+pub struct Child {
+    pub id: String,
+    /// `page` or `folder`.
+    #[serde(rename = "type")]
+    pub kind: String,
+    pub title: String,
+    /// Opaque and sparse: only for comparing.
+    #[serde(rename = "childPosition", default)]
+    pub position: i64,
+}
+
 /// A space: what creating a page in it needs.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 pub struct Space {
@@ -695,7 +734,12 @@ impl Client {
 
     /// Move a page to the trash (it can be restored from there).
     pub fn trash_page(&self, id: &str) -> Result<()> {
-        let url = format!("{}/wiki/api/v2/pages/{id}", self.base_url);
+        self.trash(Kind::Page, id)
+    }
+
+    /// Move a page or folder to the trash. A folder's or page's children move up a level.
+    pub fn trash(&self, kind: Kind, id: &str) -> Result<()> {
+        let url = format!("{}/wiki/api/v2/{}/{id}", self.base_url, kind.path());
         let resp = self.agent.delete(&url).header("Authorization", &self.authorization).call();
         let mut resp = resp.map_err(|e| Error::Network(format!("{url}: {e}")))?;
         match resp.status().as_u16() {
@@ -747,25 +791,102 @@ impl Client {
 
     /// A page's content property, if set.
     pub fn property(&self, page_id: &str, key: &str) -> Result<Option<Property>> {
-        let found: Paged<Property> = self.get(&format!("/wiki/api/v2/pages/{page_id}/properties?key={}", encode(key)))?;
-        Ok(found.results.into_iter().find(|p| p.key == key))
+        self.property_of(Kind::Page, page_id, key)
     }
 
     /// Create or update a page's content property (`existing` from [`Client::property`]).
     pub fn set_property(&self, page_id: &str, key: &str, value: serde_json::Value, existing: Option<&Property>) -> Result<()> {
+        self.set_property_of(Kind::Page, page_id, key, value, existing)
+    }
+
+    /// A page's or folder's content property, if set.
+    pub fn property_of(&self, kind: Kind, id: &str, key: &str) -> Result<Option<Property>> {
+        let found: Paged<Property> = self.get(&format!("/wiki/api/v2/{}/{id}/properties?key={}", kind.path(), encode(key)))?;
+        Ok(found.results.into_iter().find(|p| p.key == key))
+    }
+
+    /// Create or update a page's or folder's content property.
+    pub fn set_property_of(&self, kind: Kind, id: &str, key: &str, value: serde_json::Value, existing: Option<&Property>) -> Result<()> {
+        let base = format!("/wiki/api/v2/{}/{id}/properties", kind.path());
         let _: serde_json::Value = match existing {
             Some(p) => self.send_json(
                 "PUT",
-                &format!("/wiki/api/v2/pages/{page_id}/properties/{}", p.id),
+                &format!("{base}/{}", p.id),
                 &serde_json::json!({ "key": key, "value": value, "version": { "number": p.version.number + 1 } }),
             )?,
-            None => self.send_json(
-                "POST",
-                &format!("/wiki/api/v2/pages/{page_id}/properties"),
-                &serde_json::json!({ "key": key, "value": value }),
-            )?,
+            None => self.send_json("POST", &base, &serde_json::json!({ "key": key, "value": value }))?,
         };
         Ok(())
+    }
+
+    /// A page or folder: what it is, its title, where it is.
+    pub fn content(&self, id: &str) -> Result<Content> {
+        #[derive(Deserialize)]
+        struct Raw {
+            id: String,
+            title: String,
+            #[serde(rename = "parentId")]
+            parent_id: Option<String>,
+            #[serde(rename = "spaceId")]
+            space_id: Option<String>,
+        }
+        let into = |raw: Raw, kind| Content { id: raw.id, kind, title: raw.title, parent_id: raw.parent_id, space_id: raw.space_id };
+        match self.get::<Raw>(&format!("/wiki/api/v2/pages/{id}")) {
+            Ok(raw) => Ok(into(raw, Kind::Page)),
+            Err(Error::NotFound(_)) => match self.get::<Raw>(&format!("/wiki/api/v2/folders/{id}")) {
+                Ok(raw) => Ok(into(raw, Kind::Folder)),
+                Err(Error::NotFound(_)) => Err(Error::NotFound(format!("no page or folder {id} (or not visible to this account)"))),
+                Err(e) => Err(e),
+            },
+            Err(e) => Err(e),
+        }
+    }
+
+    /// The pages and folders directly under a page or folder, in their order.
+    pub fn children(&self, kind: Kind, id: &str) -> Result<Vec<Child>> {
+        let mut out = Vec::new();
+        let mut path = format!("/wiki/api/v2/{}/{id}/direct-children?limit=250", kind.path());
+        loop {
+            let page: Paged<Child> = self.get(&path)?;
+            out.extend(page.results.into_iter().filter(|c| matches!(c.kind.as_str(), "page" | "folder")));
+            match page.links.and_then(|l| l.next) {
+                Some(next) => path = format!("/wiki{next}"),
+                None => return Ok(out),
+            }
+        }
+    }
+
+    /// The folders titled `title` in a space (folder titles are unique per space, so at most
+    /// one, unless it's in the trash). CQL: the v1 content API can't list folders.
+    pub fn folders_titled(&self, space_key: &str, title: &str) -> Result<Vec<String>> {
+        let quote = |s: &str| format!("\"{}\"", s.replace('\\', "\\\\").replace('"', "\\\""));
+        let cql = format!("type = folder and space = {} and title = {}", quote(space_key), quote(title));
+        #[derive(Deserialize)]
+        struct Raw {
+            results: Vec<RawResult>,
+        }
+        #[derive(Deserialize)]
+        struct RawResult {
+            content: Option<RawContent>,
+        }
+        #[derive(Deserialize)]
+        struct RawContent {
+            id: String,
+            title: String,
+        }
+        let raw: Raw = self.get(&format!("/wiki/rest/api/search?cql={}&limit=10", encode(&cql)))?;
+        Ok(raw.results.into_iter().filter_map(|r| r.content).filter(|c| c.title == title).map(|c| c.id).collect())
+    }
+
+    /// Create a folder (under a page or folder) in a space.
+    pub fn create_folder(&self, space_id: &str, parent_id: &str, title: &str) -> Result<String> {
+        #[derive(Deserialize)]
+        struct Raw {
+            id: String,
+        }
+        let body = serde_json::json!({ "spaceId": space_id, "title": title, "parentId": parent_id });
+        let raw: Raw = self.send_json("POST", "/wiki/api/v2/folders", &body)?;
+        Ok(raw.id)
     }
 }
 

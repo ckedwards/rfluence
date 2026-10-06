@@ -99,6 +99,7 @@ Most tests run offline against captured Confluence responses (`fixtures/confluen
 | `rfluence-convert/tests/upload.rs` | Snapshots of the ADF upload produces for the corpus |
 | `rfluence-client/tests/api.rs` | The client against recorded responses on a mock server |
 | `rfluence-cli/tests/*.rs` | The `rfluence` binary: `fetch`, `search`, `upload`, `check` and `auth` (two mock sites) output and exit codes; `upload.rs` checks the requests upload sends |
+| `rfluence-cli/tests/upload_tree.rs` | `upload --config` against an in-memory Confluence (`tests/fake/`), which keeps pages, folders, labels and properties between requests |
 
 ### Updating expected output
 
@@ -113,7 +114,7 @@ The upload snapshots (`crates/rfluence-convert/tests/snapshots/`) use [insta](ht
 
 ### Live tests
 
-`rfluence-cli/tests/live.rs` fetches the reference pages from the real test site, checks the output still matches the fixtures, and times `rfluence fetch`, `search` and `upload`. The upload test creates a temporary page in `rfluencete` (with an image, a label and links), updates it, checks that fetching it gives the file back, and trashes it. They're skipped unless `RFLUENCE_LIVE` is set; credentials come from the environment or `.env`:
+`rfluence-cli/tests/live.rs` fetches the reference pages from the real test site, checks the output still matches the fixtures, and times `rfluence fetch`, `search` and `upload`. The upload test creates a temporary page in `rfluencete` (with an image, a label and links), updates it, checks that fetching it gives the file back, and trashes it. The `upload --config` test uploads a small tree (pages and a folder) under a temporary page twice, then trashes all of it. They're skipped unless `RFLUENCE_LIVE` is set; credentials come from the environment or `.env`:
 
 ```shell
 RFLUENCE_LIVE=1 cargo test -p rfluence-cli --test live -- --nocapture

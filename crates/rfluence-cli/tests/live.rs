@@ -152,3 +152,69 @@ fn creates_and_updates_a_page() {
         std::panic::resume_unwind(e);
     }
 }
+
+/// `upload --config`: a small tree (an index page, two pages, a folder) under a temporary
+/// ancestor, uploaded twice (the second time nothing changes). Then everything is trashed.
+#[test]
+fn uploads_a_page_tree() {
+    if !live() {
+        return;
+    }
+    let env: std::collections::HashMap<String, String> = dotenv().into_iter().collect();
+    let creds = rfluence_client::auth::from_env(|k| std::env::var(k).ok().or_else(|| env.get(k).cloned())).unwrap().unwrap();
+    let client = rfluence_client::Client::new(&creds);
+    let space = client.space("rfluencete").unwrap();
+    let stamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs();
+    let empty = rfluence_convert::adf::Node::doc(Vec::new());
+    let ancestor = client.create_page(&space.id, space.homepage_id.as_deref().unwrap(), &format!("rfluence tree test {stamp} (temporary)"), &empty).unwrap();
+
+    let dir = std::env::temp_dir().join(format!("rfluence-live-tree-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let write = |file: &str, text: &str| {
+        let path = dir.join(file);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, text).unwrap();
+    };
+    write(
+        ".rfluence.yaml",
+        &format!("- globs: ['docs/**/*.md']\n  space_key: rfluencete\n  ancestor_id: \"{}\"\n  labels: [live-tree]\n  folder_title: '{{dir}} {stamp} (temporary)'\n", ancestor.id),
+    );
+    write("docs/README.md", &format!("# Tree index {stamp} (temporary)\n\nStart with [setup](./setup.md).\n"));
+    write("docs/setup.md", &format!("# Tree setup {stamp} (temporary)\n\nSee [runners](./actions/runners.md).\n"));
+    write("docs/actions/runners.md", &format!("# Tree runners {stamp} (temporary)\n\nRunners.\n"));
+
+    let run = || {
+        let start = Instant::now();
+        let out = Command::new(env!("CARGO_BIN_EXE_rfluence")).args(["upload", "--config"]).current_dir(&dir).envs(dotenv()).output().unwrap();
+        (out, start.elapsed())
+    };
+    let result = std::panic::catch_unwind(|| {
+        let (out, took) = run();
+        let stdout = String::from_utf8_lossy(&out.stdout).into_owned();
+        assert!(out.status.success(), "{stdout}{}", String::from_utf8_lossy(&out.stderr));
+        assert!(stdout.contains("3 pages created, 0 updated, 0 up to date, 1 folder created."), "{stdout}");
+        eprintln!("rfluence upload --config (3 new pages, 1 new folder): {took:?}");
+        let (out, took) = run();
+        let stdout = String::from_utf8_lossy(&out.stdout).into_owned();
+        assert!(stdout.contains("0 pages created, 0 updated, 3 up to date."), "{stdout}");
+        eprintln!("rfluence upload --config (3 pages, up to date): {took:?}");
+    });
+
+    // Clean up: every page and folder under the ancestor, then the ancestor.
+    let mut stack = vec![(rfluence_client::Kind::Page, ancestor.id.clone())];
+    let mut all = Vec::new();
+    while let Some((kind, id)) = stack.pop() {
+        for c in client.children(kind, &id).unwrap_or_default() {
+            let k = if c.kind == "folder" { rfluence_client::Kind::Folder } else { rfluence_client::Kind::Page };
+            stack.push((k, c.id.clone()));
+        }
+        all.push((kind, id));
+    }
+    for (kind, id) in all.into_iter().rev() {
+        let _ = client.trash(kind, &id);
+    }
+    let _ = std::fs::remove_dir_all(&dir);
+    if let Err(e) = result {
+        std::panic::resume_unwind(e);
+    }
+}

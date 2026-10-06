@@ -907,6 +907,23 @@ Directories without an `index.md` / `README.md` become folders, and folder title
   * Example: `folder_title: "{parent} / {dir}"` turns `actions/` above into the folder `GitHub How-tos / actions`.
   * On a folder title collision, the pre-flight error suggests setting `folder_title` or adding an `index.md` to the directory.
 
+#### How `upload --config` runs (implemented)
+
+`rfluence upload --config [FILE]` (default: `.rfluence.yaml` in the current directory or the nearest one above it; `--dry-run`, `--force` and `--site` work as for single files):
+
+  1. Load and check the config, and match the files (all errors at once).
+  2. Look up each entry's space and, for `ancestor_id`, the ancestor (page or folder; it must be in the entry's space). Build the tree (titles, folders, order).
+  3. Check every file as single-file upload would (frontmatter, labels, `rfluence check` errors, links, missing images of new pages), and report every problem before anything is sent. Links to files of the upload that have no page yet are allowed: they get one in pass 1.
+  4. Resolve `ancestor` titles: a page or a folder in the space (both: an error asking for `ancestor_id`), else a page of this upload, else an error.
+  5. Files without an ID whose title is already a page in the space: refused (exit 6), all listed, unless `--force`, which uploads to those pages.
+  6. Pass 1, top-down: a folder is found among its parent's children by title (`direct-children`, filtered by type), else created; a folder with that title elsewhere in the space is an error (folder titles are unique per space). New pages are created empty under their tree parent and their `rfluence:` block written at once, with the `rfluence` property (`config_labels` from the entry). Created folders get the property too.
+  7. Pass 2: every file is uploaded as single-file upload does (version check, images, links, inline comments, labels), plus the entry's labels; the property's `config_labels` is kept current. A page that isn't under its tree parent gets a warning and is left where it is (see "Page hierarchy"; `--move` comes later).
+  8. Output: each entry's ancestor and tree (`[new page]`, `[page 123]`, `[new folder]`, ...), a line per file (`created`, `updated (version 3 -> 4)`, `up to date`, labels added, ...), and totals. `--dry-run` shows the same without changing anything.
+
+Not implemented yet: placing new pages in order and reordering (see "Child page order"), `--move`, `--prune` and `--prune-labels`.
+
+API findings (test site): CQL `type = folder and space = "KEY" and title = "..."` finds folders by title; the v1 content API can't (`GET /wiki/rest/api/content?type=folder` returns 501 "Cannot fetch folders with ContentFinder"). `GET /wiki/api/v2/{pages|folders}/{id}/direct-children` lists pages and folders together with `type`, `title` and `childPosition`. Measured: a tree of 3 new pages and a folder takes about 6 s (each page is created, then its body uploaded); the same tree up to date, under 1 s.
+
 #### Project-wide settings
 
 The file stays a top-level list (like md2c), so there's no place for project-wide settings. This is deliberate for now:

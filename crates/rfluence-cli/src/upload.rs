@@ -27,13 +27,37 @@ pub struct Options {
     /// For a new page: the parent page or folder, if the file has no `parent`.
     pub parent: Option<String>,
     pub json: bool,
+    /// Set when the file is uploaded as part of `upload --config`.
+    pub tree: Option<InTree>,
+}
+
+/// What `upload --config` says about a file's page (design.md, "Page hierarchy").
+#[derive(Debug, Clone, Default)]
+pub struct InTree {
+    /// The page or folder the config tree puts the page under.
+    pub parent: String,
+    /// Its title, for messages.
+    pub parent_title: String,
+    /// Labels from the config entry, added to the page and recorded in its property.
+    pub labels: Vec<String>,
+    /// The page was created (empty) by this upload's first pass.
+    pub created: bool,
+}
+
+/// What an upload did (or, with `--dry-run`, would do) to a page.
+#[derive(Debug, Clone, Default)]
+pub struct Outcome {
+    /// A new version was (or would be) made.
+    pub changed: bool,
+    /// The page isn't where the config tree puts it.
+    pub misplaced: bool,
 }
 
 /// The content property on pages rfluence uploads (design.md, "Renames and deletions").
-const PROPERTY: &str = "rfluence";
+pub const PROPERTY: &str = "rfluence";
 
 /// Why an upload stopped.
-enum Stop {
+pub enum Stop {
     Client(rfluence_client::Error),
     Usage(String),
     /// It would overwrite changes made in Confluence.
@@ -50,17 +74,24 @@ impl From<rfluence_client::Error> for Stop {
 
 pub fn run(opts: &Options) -> ExitCode {
     match upload(opts) {
-        Ok(()) => ExitCode::SUCCESS,
-        Err(Stop::Client(e)) => fail(&e),
-        Err(Stop::Usage(m)) => {
+        Ok(_) => ExitCode::SUCCESS,
+        Err(stop) => exit(opts, stop),
+    }
+}
+
+/// Print why an upload stopped, and its exit code.
+pub fn exit(opts: &Options, stop: Stop) -> ExitCode {
+    match stop {
+        Stop::Client(e) => fail(&e),
+        Stop::Usage(m) => {
             eprintln!("rfluence: {}: {m}", opts.path.display());
             ExitCode::from(EXIT_USAGE)
         }
-        Err(Stop::Conflict(m)) => {
+        Stop::Conflict(m) => {
             eprintln!("rfluence: {}: {m}", opts.path.display());
             ExitCode::from(EXIT_CONFLICT)
         }
-        Err(Stop::CheckErrors) => ExitCode::from(EXIT_ERRORS_FOUND),
+        Stop::CheckErrors => ExitCode::from(EXIT_ERRORS_FOUND),
     }
 }
 
@@ -110,23 +141,23 @@ struct Json<'a> {
 }
 
 /// The file, checked: everything that can fail without asking Confluence has.
-struct Local<'a> {
+pub struct Local<'a> {
     md: &'a str,
     yaml: Option<&'a str>,
     /// The body as written (with any title H1).
     file_body: &'a str,
-    fields: frontmatter::RfluenceFields,
+    pub fields: frontmatter::RfluenceFields,
     /// Normalized.
     labels: Vec<String>,
     /// From `title` or the leading H1.
-    title: Option<String>,
+    pub title: Option<String>,
     /// The body to upload (without the title H1), with blank lines in place of the
     /// frontmatter and title, so that line numbers in messages are the file's.
-    body: String,
-    dir: &'a Path,
+    pub body: String,
+    pub dir: &'a Path,
 }
 
-fn upload(opts: &Options) -> Result<(), Stop> {
+fn upload(opts: &Options) -> Result<Outcome, Stop> {
     let md = std::fs::read_to_string(&opts.path).map_err(|e| Stop::Usage(e.to_string()))?;
     let local = check_file(opts, &md)?;
     match local.fields.id.clone() {
@@ -136,14 +167,14 @@ fn upload(opts: &Options) -> Result<(), Stop> {
             let site = url.and_then(rfluence_client::page_ref_site).or_else(|| opts.site.clone());
             let (creds, _) = auth::resolve(site.as_deref())?;
             let space = local.fields.space_key.clone().or_else(|| space_key(url?));
-            let pages = link_targets(local.dir, &local.body, &creds.base_url, space.as_deref())?;
+            let pages = link_targets(local.dir, &local.body, &creds.base_url, space.as_deref(), None)?;
             update(opts, &local, &Client::new(&creds), &id, pages)
         }
         None => create(opts, &local),
     }
 }
 
-fn check_file<'a>(opts: &'a Options, md: &'a str) -> Result<Local<'a>, Stop> {
+pub fn check_file<'a>(opts: &'a Options, md: &'a str) -> Result<Local<'a>, Stop> {
     let path = &opts.path;
     let doc = frontmatter::split(md);
     let yaml = doc.yaml.unwrap_or_default();
@@ -166,8 +197,9 @@ fn check_file<'a>(opts: &'a Options, md: &'a str) -> Result<Local<'a>, Stop> {
         }
     }
 
-    // The same checks as `rfluence check`, before anything is sent.
-    let diags = rfluence_convert::check(md);
+    // The same checks as `rfluence check`, before anything is sent (`upload --config` has
+    // run them for every file already).
+    let diags = if opts.tree.is_none() { rfluence_convert::check(md) } else { Vec::new() };
     for d in &diags {
         eprintln!("{}:{}: {}: {}", path.display(), d.line, d.severity, d.message);
     }
@@ -188,7 +220,7 @@ fn check_file<'a>(opts: &'a Options, md: &'a str) -> Result<Local<'a>, Stop> {
 }
 
 /// Upload to an existing page.
-fn update(opts: &Options, local: &Local, client: &Client, id: &str, pages: HashMap<String, PageRef>) -> Result<(), Stop> {
+pub fn update(opts: &Options, local: &Local, client: &Client, id: &str, pages: HashMap<String, PageRef>) -> Result<Outcome, Stop> {
     let path = &opts.path;
     let (remote, attachments, property, detected) = std::thread::scope(|s| {
         let property = s.spawn(|| client.property(id, PROPERTY));
@@ -209,12 +241,29 @@ fn update(opts: &Options, local: &Local, client: &Client, id: &str, pages: HashM
             None => "has no version in its frontmatter, so changes made in Confluence can't be ruled out; use --force to upload anyway".into(),
         }));
     }
-    if let (Some(wanted), Some(current)) = (fields.parent.as_deref(), remote.meta.parent.as_deref()) {
-        if wanted != current {
-            eprintln!(
-                "rfluence: {}: warning: `parent` is {wanted}, but the page is under {current}; single-file upload doesn't move pages",
-                path.display()
-            );
+    let mut misplaced = false;
+    match &opts.tree {
+        Some(tree) => {
+            if remote.meta.parent.as_deref() != Some(tree.parent.as_str()) {
+                misplaced = true;
+                let target = if tree.parent.is_empty() { "to be created".to_string() } else { tree.parent.clone() };
+                eprintln!(
+                    "rfluence: {}: warning: the config puts this page under {:?} ({target}), but it's under {}; it's left where it is",
+                    path.display(),
+                    tree.parent_title,
+                    remote.meta.parent.as_deref().unwrap_or("the space")
+                );
+            }
+        }
+        None => {
+            if let (Some(wanted), Some(current)) = (fields.parent.as_deref(), remote.meta.parent.as_deref()) {
+                if wanted != current {
+                    eprintln!(
+                        "rfluence: {}: warning: `parent` is {wanted}, but the page is under {current}; single-file upload doesn't move pages",
+                        path.display()
+                    );
+                }
+            }
         }
     }
 
@@ -257,7 +306,10 @@ fn update(opts: &Options, local: &Local, client: &Client, id: &str, pages: HashM
         ctx.synced_copies = std::mem::take(&mut ctx_copies);
         adf_to_markdown(&remote.adf, &ctx) != adf_to_markdown(&new_doc, &ctx)
     };
-    let labels_added: Vec<String> = local.labels.iter().filter(|l| !remote.meta.labels.contains(l)).cloned().collect();
+    let config_labels: &[String] = opts.tree.as_ref().map_or(&[], |t| &t.labels);
+    let mut wanted = local.labels.clone();
+    wanted.extend(config_labels.iter().filter(|l| !local.labels.contains(l)).cloned());
+    let labels_added: Vec<String> = wanted.iter().filter(|l| !remote.meta.labels.contains(l)).cloned().collect();
     let previous = remote.meta.version;
     let mut meta = remote.meta.clone();
     if changed {
@@ -276,19 +328,27 @@ fn update(opts: &Options, local: &Local, client: &Client, id: &str, pages: HashM
             meta.parent = updated.parent.or(meta.parent);
         }
         // Only pages rfluence created have the property (they're the ones `--prune` may
-        // trash); keep its version current.
-        let property = property.as_ref().filter(|_| changed);
-        let value = property.map(|p| property_value(&project_path(local.dir, path), meta.version, Some(p)));
+        // trash); keep its version and config labels current.
+        let recorded = property.as_ref().and_then(|p| p.value.get("config_labels")).cloned().unwrap_or_default();
+        let config_changed = opts.tree.is_some() && recorded != serde_json::json!(config_labels);
+        let property = property.as_ref().filter(|_| changed || config_changed);
+        let value = property.map(|p| {
+            let mut v = property_value(&project_path(local.dir, path), meta.version, Some(p));
+            if opts.tree.is_some() {
+                v["config_labels"] = serde_json::json!(config_labels);
+            }
+            v
+        });
         labels_and_property(client, id, &labels_added, value.map(|v| (v, property)))?;
         write_back(path, local, &new_doc, &meta)?;
     }
 
     report(opts, &Summary { meta: &meta, previous: Some(&remote.meta), changed, images: &images, labels_added: &labels_added, comments: &comments });
-    Ok(())
+    Ok(Outcome { changed, misplaced })
 }
 
 /// Create a page for a file without a page ID (design.md, "Frontmatter" > "New pages").
-fn create(opts: &Options, local: &Local) -> Result<(), Stop> {
+fn create(opts: &Options, local: &Local) -> Result<Outcome, Stop> {
     let path = &opts.path;
     let Some(title) = local.title.clone() else {
         return Err(Stop::Usage("has no title for the new page: start it with `# Title`, or set `title` under `rfluence:`".into()));
@@ -297,7 +357,7 @@ fn create(opts: &Options, local: &Local) -> Result<(), Stop> {
         return Err(Stop::Usage("has no page ID, and no space to create the page in: set `space_key` under `rfluence:`, or pass --space".into()));
     };
     let (creds, _) = auth::resolve(opts.site.as_deref())?;
-    let pages = link_targets(local.dir, &local.body, &creds.base_url, Some(&space_key))?;
+    let pages = link_targets(local.dir, &local.body, &creds.base_url, Some(&space_key), None)?;
     let client = Client::new(&creds);
     // A new page has no attachments: every image is uploaded, and must exist.
     let mut images = plan_images(&client, local.dir, &local.body, &[])?;
@@ -364,7 +424,26 @@ fn create(opts: &Options, local: &Local) -> Result<(), Stop> {
 
     let comments = Reanchored::default();
     report(opts, &Summary { meta: &meta, previous: None, changed: true, images: &images, labels_added: &local.labels, comments: &comments });
-    Ok(())
+    Ok(Outcome { changed: true, misplaced: false })
+}
+
+/// Create an empty page for a file in `upload --config`'s first pass, so that every file has
+/// a page ID before any body (with links between them) is uploaded. Records the page in the
+/// file and gives it the `rfluence` property. Returns its ID.
+pub fn create_empty(client: &Client, path: &Path, space: &rfluence_client::Space, parent: &str, title: &str, config_labels: &[String]) -> Result<String, Stop> {
+    let md = std::fs::read_to_string(path).map_err(|e| Stop::Usage(e.to_string()))?;
+    let doc = frontmatter::split(&md);
+    let meta = client.create_page(&space.id, parent, title, &Node::doc(Vec::new()))?;
+    let fields = doc.yaml.map(frontmatter::rfluence_fields).unwrap_or_default();
+    // Like `write_back`, before the body is uploaded: the title key only if the file sets one.
+    let fetched = rfluence_convert::frontmatter(&meta, fields.title.is_some());
+    let output = format!("{}\n{}", frontmatter::merge(doc.yaml, &fetched), doc.body);
+    fetch::write_atomically(path, &output).map_err(|e| Stop::Usage(format!("writing the new page's ID: {e}")))?;
+    let dir = path.parent().filter(|d| !d.as_os_str().is_empty()).unwrap_or(Path::new("."));
+    let mut value = property_value(&project_path(dir, path), meta.version, None);
+    value["config_labels"] = serde_json::json!(config_labels);
+    client.set_property(&meta.id, PROPERTY, value, None)?;
+    Ok(meta.id)
 }
 
 /// Add labels and set the `rfluence` property (if given), in parallel.
@@ -430,8 +509,15 @@ fn upload_images(client: &Client, page_id: &str, images: &mut [Image]) -> Result
 
 /// The pages relative links point at, from the linked files' frontmatter: their URLs (on
 /// `site`, in `space` unless the files say otherwise), and their headings for anchors. Links
-/// to files without a page ID fail the upload (design.md, "Links" > "Upload").
-fn link_targets(dir: &Path, body: &str, site: &str, space: Option<&str>) -> Result<HashMap<String, PageRef>, Stop> {
+/// to files without a page ID fail the upload (design.md, "Links" > "Upload"), except files in
+/// `pending` (canonical paths): files of the same `upload --config` that get a page first.
+pub fn link_targets(
+    dir: &Path,
+    body: &str,
+    site: &str,
+    space: Option<&str>,
+    pending: Option<&std::collections::HashSet<PathBuf>>,
+) -> Result<HashMap<String, PageRef>, Stop> {
     let mut pages = HashMap::new();
     let mut unresolved = Vec::new();
     for (line, link) in local_links(body) {
@@ -448,7 +534,9 @@ fn link_targets(dir: &Path, body: &str, site: &str, space: Option<&str>) -> Resu
         let site = fields.url.as_deref().and_then(rfluence_client::page_ref_site).unwrap_or_else(|| site.to_string());
         let space = fields.space_key.clone().or_else(|| space_key(fields.url.as_deref()?)).or_else(|| space.map(str::to_string));
         let (Some(id), Some(space)) = (fields.id, space) else {
-            unresolved.push((line, link, "no page ID yet; upload it first"));
+            if !pending.is_some_and(|p| file.canonicalize().is_ok_and(|c| p.contains(&c))) {
+                unresolved.push((line, link, "no page ID yet; upload it first"));
+            }
             continue;
         };
         let (_, target_body) = upload_title(target.body, fields.title.as_deref());
@@ -560,14 +648,15 @@ fn compare_ctx(remote: &Page, new_doc: &Node, attachments: &[Attachment]) -> Fet
 }
 
 /// The file's path from the project root, for the content property.
-fn project_path(dir: &Path, path: &Path) -> String {
-    let root = project::root(dir);
+pub fn project_path(dir: &Path, path: &Path) -> String {
+    let dir = std::path::absolute(dir).unwrap_or_else(|_| dir.to_path_buf());
+    let root = project::root(&dir);
     let rel = project::relative(&root, path);
     rel.strip_prefix("./").unwrap_or(&rel).to_string()
 }
 
 /// The property after an upload: the new version and path, the rest kept.
-fn property_value(path: &str, version: u64, existing: Option<&Property>) -> serde_json::Value {
+pub fn property_value(path: &str, version: u64, existing: Option<&Property>) -> serde_json::Value {
     let mut value = existing.map(|p| p.value.clone()).unwrap_or_default();
     if !value.is_object() {
         value = serde_json::json!({ "managed": true, "config_labels": [] });
@@ -605,6 +694,32 @@ impl Summary<'_> {
 }
 
 fn report(opts: &Options, s: &Summary) {
+    if opts.tree.is_some() && !opts.json {
+        // One line per file: `upload --config` prints a summary at the end.
+        let m = s.meta;
+        let created = opts.tree.as_ref().is_some_and(|t| t.created);
+        let what = match (s.previous, s.changed, opts.dry_run) {
+            (Some(_), _, false) if created => format!("created (version {})", m.version),
+            (Some(p), true, true) => format!("would update (version {} -> {})", p.version, m.version),
+            (Some(p), true, false) => format!("updated (version {} -> {})", p.version, m.version),
+            (Some(_), false, _) => "up to date".to_string(),
+            (None, _, _) => "created".to_string(),
+        };
+        let mut extra = Vec::new();
+        if !s.labels_added.is_empty() {
+            extra.push(format!("labels +{}", s.labels_added.join(" +")));
+        }
+        let images = s.images.iter().filter(|i| i.action != Action::Reuse).count();
+        if images > 0 {
+            extra.push(format!("{images} image{}", plural(images)));
+        }
+        if !s.comments.lost.is_empty() {
+            extra.push(format!("{} inline comment{} detached", s.comments.lost.len(), plural(s.comments.lost.len())));
+        }
+        let extra = if extra.is_empty() { String::new() } else { format!("; {}", extra.join(", ")) };
+        println!("  {}  {} {what}{extra}", opts.path.display(), m.id);
+        return;
+    }
     if opts.json {
         print_json(opts, s);
     } else {
