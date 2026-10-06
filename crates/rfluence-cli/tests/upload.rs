@@ -607,3 +607,24 @@ fn warnings_can_stop_an_upload() {
     let o = site.upload(&["--dry-run", "--warnings-are-errors", "--force"]);
     assert!(o.status.success(), "{}", err(&o));
 }
+
+/// Files with Windows line endings (`\r\n`) work like any other, and keep their line endings
+/// when the upload writes the new version back.
+#[test]
+fn handles_windows_line_endings() {
+    let mut site = Site::new("crlf", None, 2, None);
+    site.fetch();
+    let crlf = |s: &str| s.replace('\n', "\r\n");
+    site.write(&crlf(&site.read()));
+    let unchanged = site.upload(&[]);
+    assert!(unchanged.status.success(), "{}", err(&unchanged));
+    assert!(out(&unchanged).contains("is up to date (version 2)"), "the frontmatter was read: {}", out(&unchanged));
+
+    site.write(&crlf(&(site.read().replace("\r\n", "\n") + "\nLocal edit.\n")));
+    let update = site.expect_update(3, vec![sent_body_contains("Local edit.")]);
+    let o = site.upload(&[]);
+    assert!(o.status.success(), "{}", err(&o));
+    update.assert();
+    let md = site.read();
+    assert!(md.contains("  version: 3\r\n") && !md.replace("\r\n", "").contains('\n'), "still \\r\\n everywhere: {md:?}");
+}

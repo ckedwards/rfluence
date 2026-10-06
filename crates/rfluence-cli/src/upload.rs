@@ -15,7 +15,7 @@ use rfluence_convert::{
 };
 use serde::Serialize;
 
-use crate::{EXIT_CONFLICT, EXIT_ERRORS_FOUND, EXIT_USAGE, fail, fetch, project};
+use crate::{EXIT_CONFLICT, EXIT_ERRORS_FOUND, EXIT_USAGE, fail, project};
 
 pub struct Options {
     pub path: PathBuf,
@@ -167,7 +167,7 @@ pub struct Local<'a> {
 }
 
 fn upload(opts: &Options) -> Result<Outcome, Stop> {
-    let md = std::fs::read_to_string(&opts.path).map_err(|e| Stop::Usage(e.to_string()))?;
+    let md = crate::text::read(&opts.path).map_err(|e| Stop::Usage(e.to_string()))?;
     let local = check_file(opts, &md)?;
     match local.fields.id.clone() {
         Some(id) => {
@@ -489,14 +489,14 @@ fn create(opts: &Options, local: &Local) -> Result<Outcome, Stop> {
 /// a page ID before any body (with links between them) is uploaded. Records the page in the
 /// file and gives it the `rfluence` property. Returns its ID.
 pub fn create_empty(client: &Client, path: &Path, space: &rfluence_client::Space, parent: &str, title: &str, config_labels: &[String]) -> Result<String, Stop> {
-    let md = std::fs::read_to_string(path).map_err(|e| Stop::Usage(e.to_string()))?;
+    let md = crate::text::read(path).map_err(|e| Stop::Usage(e.to_string()))?;
     let doc = frontmatter::split(&md);
     let meta = client.create_page(&space.id, parent, title, &Node::doc(Vec::new()))?;
     let fields = doc.yaml.map(frontmatter::rfluence_fields).unwrap_or_default();
     // Like `write_back`, before the body is uploaded: the title key only if the file sets one.
     let fetched = rfluence_convert::frontmatter(&meta, fields.title.is_some());
     let output = format!("{}\n{}", frontmatter::merge(doc.yaml, &fetched), doc.body);
-    fetch::write_atomically(path, &output).map_err(|e| Stop::Usage(format!("writing the new page's ID: {e}")))?;
+    crate::text::write_atomically(path, &output).map_err(|e| Stop::Usage(format!("writing the new page's ID: {e}")))?;
     let dir = path.parent().filter(|d| !d.as_os_str().is_empty()).unwrap_or(Path::new("."));
     let mut value = property_value(&project_path(dir, path), meta.version, None);
     value["config_labels"] = serde_json::json!(config_labels);
@@ -598,7 +598,7 @@ pub fn link_targets(
             continue;
         }
         let file = dir.join(&link);
-        let Ok(text) = std::fs::read_to_string(&file) else {
+        let Ok(text) = crate::text::read(&file) else {
             unresolved.push((line, link, "no such file"));
             continue;
         };
@@ -745,7 +745,7 @@ fn write_back(path: &Path, local: &Local, doc: &Node, meta: &PageMeta) -> Result
     let fetched = rfluence_convert::frontmatter(meta, local.fields.title.is_some() || starts_with_h1(doc));
     let output = format!("{}\n{}", frontmatter::merge(local.yaml, &fetched), local.file_body);
     if output != local.md {
-        fetch::write_atomically(path, &output).map_err(|e| Stop::Usage(format!("writing the new version back: {e}")))?;
+        crate::text::write_atomically(path, &output).map_err(|e| Stop::Usage(format!("writing the new version back: {e}")))?;
     }
     Ok(())
 }

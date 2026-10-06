@@ -33,7 +33,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - run: cargo build --workspace --all-targets --locked
-      - run: cargo test --workspace --locked
+      # All test binaries, even after a failure, so one run shows every problem.
+      - run: cargo test --workspace --locked --no-fail-fast
 
   clippy:
     name: Clippy

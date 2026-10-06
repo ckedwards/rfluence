@@ -75,7 +75,7 @@ struct FileInfo {
 }
 
 fn read_file(root: &Path, file: &str) -> Result<FileInfo, String> {
-    let md = std::fs::read_to_string(root.join(file)).map_err(|e| format!("{file}: {e}"))?;
+    let md = crate::text::read(root.join(file)).map_err(|e| format!("{file}: {e}"))?;
     let doc = frontmatter::split(&md);
     let fields = doc.yaml.map(frontmatter::rfluence_fields).unwrap_or_default();
     let (title, _) = upload_title(doc.body, fields.title.as_deref());

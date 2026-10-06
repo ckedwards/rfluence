@@ -818,6 +818,7 @@ Confluence titles are separate from the page body, but LLM-written markdown usua
   * After a successful upload, the `rfluence:` block is rewritten to exactly what `rfluence fetch` would produce for the page (including the page's full label set and the new version), plus the user-only `weight`. This keeps `fetch(upload(md))` and the written-back file identical.
   * `rfluence` only rewrites the `rfluence:` block. Other frontmatter keys, their order and comments are left byte-for-byte unchanged. Inside the block, keys are written in the order shown above, and comments in it are not preserved.
   * `rfluence fetch -o` over an existing file keeps that file's non-`rfluence` frontmatter keys and its `weight`, since Confluence doesn't store them.
+  * Line endings: files with Windows line endings (`\r\n`) are read as `\n` everywhere (upload, check, fetch -o's merge, the project scan, `.rfluence.yaml`), and keep `\r\n` when rfluence rewrites them (the written-back `rfluence:` block, `fetch -o` over an existing file). New files get `\n`. Without this, a `\r\n` file's frontmatter wasn't recognised (found by the first Windows CI run).
   * Upload strips all frontmatter from the body. Non-`rfluence` keys are never sent to Confluence, so round-trip comparison covers the body and the `rfluence:` block only.
 
 #### New pages

@@ -163,7 +163,7 @@ fn write_file(
     let fetched_doc = frontmatter::split(&fetched);
 
     // An existing file: keep its other frontmatter, and don't lose local changes.
-    let existing = std::fs::read_to_string(path).ok();
+    let existing = crate::text::read(path).ok();
     let mut output = fetched.clone();
     if let Some(existing) = &existing {
         let doc = frontmatter::split(existing);
@@ -198,7 +198,7 @@ fn write_file(
             Err(e) => return fail(&e),
         }
     };
-    if let Err(e) = write_atomically(path, &output) {
+    if let Err(e) = crate::text::write_atomically(path, &output) {
         eprintln!("rfluence: {}: {e}", path.display());
         return ExitCode::from(EXIT_USAGE);
     }
@@ -316,13 +316,6 @@ fn download_images(client: &Client, page: &Page, attachments: &[Attachment], dir
         }
     }
     Ok((wanted.len(), todo.len()))
-}
-
-/// Write via a temporary file and rename, so an interrupted write never leaves half a file.
-pub(crate) fn write_atomically(path: &Path, contents: &str) -> std::io::Result<()> {
-    let tmp = path.with_extension("md.rfluence-tmp");
-    std::fs::write(&tmp, contents)?;
-    std::fs::rename(&tmp, path)
 }
 
 /// A file-name-safe version of the title (`Ingestion: Overview` -> `ingestion-overview`).
