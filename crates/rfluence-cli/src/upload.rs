@@ -27,6 +27,8 @@ pub struct Options {
     /// For a new page: the parent page or folder, if the file has no `parent`.
     pub parent: Option<String>,
     pub json: bool,
+    /// Move pages that aren't where they belong (design.md, "Page hierarchy").
+    pub move_pages: bool,
     /// Set when the file is uploaded as part of `upload --config`.
     pub tree: Option<InTree>,
 }
@@ -49,8 +51,10 @@ pub struct InTree {
 pub struct Outcome {
     /// A new version was (or would be) made.
     pub changed: bool,
-    /// The page isn't where the config tree puts it.
+    /// The page isn't where the config tree puts it (and wasn't moved).
     pub misplaced: bool,
+    /// The page was (or would be) moved to where it belongs.
+    pub moved: bool,
 }
 
 /// The content property on pages rfluence uploads (design.md, "Renames and deletions").
@@ -241,30 +245,21 @@ pub fn update(opts: &Options, local: &Local, client: &Client, id: &str, pages: H
             None => "has no version in its frontmatter, so changes made in Confluence can't be ruled out; use --force to upload anyway".into(),
         }));
     }
-    let mut misplaced = false;
-    match &opts.tree {
+    // Where the page belongs: the config tree's parent, or (single file) `parent`.
+    let current_parent = remote.meta.parent.as_deref().unwrap_or("the space");
+    let (wanted_parent, described) = match &opts.tree {
         Some(tree) => {
-            if remote.meta.parent.as_deref() != Some(tree.parent.as_str()) {
-                misplaced = true;
-                let target = if tree.parent.is_empty() { "to be created".to_string() } else { tree.parent.clone() };
-                eprintln!(
-                    "rfluence: {}: warning: the config puts this page under {:?} ({target}), but it's under {}; it's left where it is",
-                    path.display(),
-                    tree.parent_title,
-                    remote.meta.parent.as_deref().unwrap_or("the space")
-                );
-            }
+            let target = if tree.parent.is_empty() { "to be created".to_string() } else { tree.parent.clone() };
+            (Some(tree.parent.clone()), format!("the config puts this page under {:?} ({target})", tree.parent_title))
         }
-        None => {
-            if let (Some(wanted), Some(current)) = (fields.parent.as_deref(), remote.meta.parent.as_deref()) {
-                if wanted != current {
-                    eprintln!(
-                        "rfluence: {}: warning: `parent` is {wanted}, but the page is under {current}; single-file upload doesn't move pages",
-                        path.display()
-                    );
-                }
-            }
-        }
+        None => (fields.parent.clone(), format!("`parent` is {}", fields.parent.as_deref().unwrap_or_default())),
+    };
+    let misplaced = wanted_parent.as_deref().is_some_and(|w| remote.meta.parent.as_deref() != Some(w));
+    // A parent that doesn't exist yet (--dry-run) can't be moved to.
+    let move_to = wanted_parent.filter(|w| misplaced && opts.move_pages && !w.is_empty());
+    if misplaced && move_to.is_none() {
+        let hint = if opts.move_pages { "it can't be moved there yet" } else { "it's left where it is; --move moves it" };
+        eprintln!("rfluence: {}: warning: {described}, but the page is under {current_parent}; {hint}", path.display());
     }
 
     let mut images = plan_images(client, local.dir, &local.body, &attachments)?;
@@ -312,15 +307,18 @@ pub fn update(opts: &Options, local: &Local, client: &Client, id: &str, pages: H
     let labels_added: Vec<String> = wanted.iter().filter(|l| !remote.meta.labels.contains(l)).cloned().collect();
     let previous = remote.meta.version;
     let mut meta = remote.meta.clone();
-    if changed {
+    if changed || move_to.is_some() {
         meta.version = previous + 1;
         meta.title = title.clone();
+        meta.parent = move_to.clone().or(meta.parent);
     }
     meta.labels.extend(labels_added.iter().cloned());
 
     if !opts.dry_run {
-        if changed {
-            let updated = client.update_page(id, &title, &new_doc, previous + 1)?;
+        if changed || move_to.is_some() {
+            // One new version for both; without a changed body, Confluence keeps the body.
+            let body = changed.then_some(&new_doc);
+            let updated = client.put_page(id, &title, body, previous + 1, move_to.as_deref())?;
             // Confluence makes no new version if the body is the same after its rewrites.
             changed = updated.version != previous;
             meta.version = updated.version;
@@ -340,11 +338,18 @@ pub fn update(opts: &Options, local: &Local, client: &Client, id: &str, pages: H
             v
         });
         labels_and_property(client, id, &labels_added, value.map(|v| (v, property)))?;
-        write_back(path, local, &new_doc, &meta)?;
+        // A single file's `parent` asks for a move: kept until the page is moved (the
+        // warning repeats), rather than overwritten with where the page is now.
+        let mut written = meta.clone();
+        if misplaced && move_to.is_none() && opts.tree.is_none() {
+            written.parent = fields.parent.clone();
+        }
+        write_back(path, local, &new_doc, &written)?;
     }
 
-    report(opts, &Summary { meta: &meta, previous: Some(&remote.meta), changed, images: &images, labels_added: &labels_added, comments: &comments });
-    Ok(Outcome { changed, misplaced })
+    let moved = move_to.is_some();
+    report(opts, &Summary { meta: &meta, previous: Some(&remote.meta), changed: changed || moved, images: &images, labels_added: &labels_added, comments: &comments });
+    Ok(Outcome { changed, misplaced: misplaced && !moved, moved })
 }
 
 /// Create a page for a file without a page ID (design.md, "Frontmatter" > "New pages").
@@ -424,7 +429,7 @@ fn create(opts: &Options, local: &Local) -> Result<Outcome, Stop> {
 
     let comments = Reanchored::default();
     report(opts, &Summary { meta: &meta, previous: None, changed: true, images: &images, labels_added: &local.labels, comments: &comments });
-    Ok(Outcome { changed: true, misplaced: false })
+    Ok(Outcome { changed: true, misplaced: false, moved: false })
 }
 
 /// Create an empty page for a file in `upload --config`'s first pass, so that every file has
@@ -706,6 +711,10 @@ fn report(opts: &Options, s: &Summary) {
             (None, _, _) => "created".to_string(),
         };
         let mut extra = Vec::new();
+        if let Some(p) = s.previous.filter(|p| p.parent != m.parent) {
+            let verb = if opts.dry_run { "would move" } else { "moved" };
+            extra.push(format!("{verb} from under {}", p.parent.as_deref().unwrap_or("the space")));
+        }
         if !s.labels_added.is_empty() {
             extra.push(format!("labels +{}", s.labels_added.join(" +")));
         }
@@ -764,6 +773,9 @@ fn print_text(opts: &Options, s: &Summary) {
     }
     if let Some(p) = s.previous.filter(|p| p.title != m.title) {
         println!("  title: {:?} -> {:?}", p.title, m.title);
+    }
+    if let Some(p) = s.previous.filter(|p| p.parent != m.parent) {
+        println!("  parent: {} -> {}", p.parent.as_deref().unwrap_or("the space"), m.parent.as_deref().unwrap_or("the space"));
     }
     let verb = |done: &'static str, todo: &'static str| if opts.dry_run { todo } else { done };
     let uploads = s.images(Action::Upload);

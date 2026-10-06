@@ -188,7 +188,7 @@ fn uploads_a_page_tree() {
         let out = Command::new(env!("CARGO_BIN_EXE_rfluence")).args(["upload", "--config"]).current_dir(&dir).envs(dotenv()).output().unwrap();
         (out, start.elapsed())
     };
-    let result = std::panic::catch_unwind(|| {
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         let (out, took) = run();
         let stdout = String::from_utf8_lossy(&out.stdout).into_owned();
         assert!(out.status.success(), "{stdout}{}", String::from_utf8_lossy(&out.stderr));
@@ -198,7 +198,35 @@ fn uploads_a_page_tree() {
         let stdout = String::from_utf8_lossy(&out.stdout).into_owned();
         assert!(stdout.contains("0 pages created, 0 updated, 3 up to date."), "{stdout}");
         eprintln!("rfluence upload --config (3 pages, up to date): {took:?}");
-    });
+
+        // Rearranged in Confluence: setup before the folder (the config's order is by name:
+        // actions/, then setup.md), runners moved out of the folder.
+        let id = |file: &str| {
+            let md = std::fs::read_to_string(dir.join(file)).unwrap();
+            rfluence_convert::frontmatter::rfluence_fields(rfluence_convert::frontmatter::split(&md).yaml.unwrap()).id.unwrap()
+        };
+        let (readme, setup, runners) = (id("docs/README.md"), id("docs/setup.md"), id("docs/actions/runners.md"));
+        let titles = |kind, parent: &str| client.children(kind, parent).unwrap().into_iter().map(|c| c.title).collect::<Vec<_>>();
+        let folder = client.children(rfluence_client::Kind::Page, &readme).unwrap().into_iter().find(|c| c.kind == "folder").unwrap().id;
+        client.move_next_to(&setup, false, &folder).unwrap();
+        let page = client.page(&runners).unwrap();
+        client.put_page(&runners, &page.meta.title, None, page.meta.version + 1, Some(&ancestor.id)).unwrap();
+        assert_eq!(titles(rfluence_client::Kind::Page, &readme), [format!("Tree setup {stamp} (temporary)"), format!("actions {stamp} (temporary)")]);
+
+        // Fetching runners' new version first, so the version check passes.
+        let o = Command::new(env!("CARGO_BIN_EXE_rfluence")).args(["fetch", &runners, "-o", "docs/actions/runners.md", "--force"]).current_dir(&dir).envs(dotenv()).output().unwrap();
+        assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stderr));
+        let start = Instant::now();
+        let out = Command::new(env!("CARGO_BIN_EXE_rfluence")).args(["upload", "--config", "--move"]).current_dir(&dir).envs(dotenv()).output().unwrap();
+        let stdout = String::from_utf8_lossy(&out.stdout).into_owned();
+        assert!(out.status.success(), "{stdout}{}", String::from_utf8_lossy(&out.stderr));
+        assert!(stdout.contains("1 moved to another parent, 1 moved into order."), "{stdout}");
+        eprintln!("rfluence upload --config --move (a page moved back, a page reordered): {:?}", start.elapsed());
+        assert_eq!(titles(rfluence_client::Kind::Page, &readme), [format!("actions {stamp} (temporary)"), format!("Tree setup {stamp} (temporary)")]);
+        assert_eq!(client.page(&runners).unwrap().meta.parent.as_deref(), Some(folder.as_str()));
+        // The body survived the move without a body.
+        assert!(rfluence_convert::adf_to_markdown(&client.page(&runners).unwrap().adf, &Default::default()).contains("Runners."));
+    }));
 
     // Clean up: every page and folder under the ancestor, then the ancestor.
     let mut stack = vec![(rfluence_client::Kind::Page, ancestor.id.clone())];

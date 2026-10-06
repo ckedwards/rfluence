@@ -189,8 +189,56 @@ fn warns_about_pages_moved_in_confluence() {
     let o = p.upload(&[]);
     assert!(o.status.success(), "{}", err(&o));
     assert!(err(&o).contains("runners.md: warning: the config puts this page under \"actions\""), "{}", err(&o));
-    assert!(out(&o).contains("1 page is not where the config puts it (left in place; see the warnings)."), "{}", out(&o));
+    assert!(out(&o).contains("1 page is not where the config puts it (left in place; see the warnings; --move moves them)."), "{}", out(&o));
+    assert!(err(&o).contains("it's left where it is; --move moves it"), "{}", err(&o));
     assert_eq!(p.fake.state().content[&runners].parent.as_deref(), Some(HOMEPAGE));
+
+    // --move puts it back: a new version (no body change), recorded in the file.
+    let version = p.fake.state().content[&runners].version;
+    let o = p.upload(&["--move"]);
+    assert!(o.status.success(), "{}", err(&o));
+    assert!(out(&o).contains("how-to/github/actions/runners.md  ") && out(&o).contains("moved from under 100"), "{}", out(&o));
+    assert!(out(&o).contains("1 moved to another parent"), "{}", out(&o));
+    let s = p.fake.state();
+    let folder = s.by_title("folder", "actions").unwrap().id.clone();
+    assert_eq!(s.content[&runners].parent.as_deref(), Some(folder.as_str()));
+    assert_eq!(s.content[&runners].version, version + 1);
+    // Moved pages go last under their new parent; the order pass puts it back first.
+    assert_eq!(s.children(&folder), ["Self-hosted runners", "Managing secrets"]);
+    drop(s);
+    let md = p.read("how-to/github/actions/runners.md");
+    assert!(md.contains(&format!("  parent: \"{folder}\"\n  version: {}\n", version + 1)), "{md}");
+}
+
+#[test]
+fn keeps_siblings_in_the_config_order() {
+    let p = Project::new("order", EXAMPLE);
+    assert!(p.upload(&[]).status.success());
+    let readme = p.id("how-to/github/README.md");
+    let order = |p: &Project| p.fake.state().children(&readme);
+    assert_eq!(order(&p), ["Setting up GitHub", "Our GitHub workflow", "actions"]);
+
+    // Rearranged in Confluence: a warning, and nothing moves without --move.
+    let (setup, folder) = (p.id("how-to/github/01-setup.md"), p.fake.state().by_title("folder", "actions").unwrap().id.clone());
+    p.fake.state().move_next_to(&setup, true, &folder);
+    let o = p.upload(&[]);
+    assert!(o.status.success(), "{}", err(&o));
+    assert!(err(&o).contains("under \"GitHub How-tos\", \"Setting up GitHub\" is out of the config's order; --move reorders"), "{}", err(&o));
+    assert_eq!(order(&p), ["Our GitHub workflow", "actions", "Setting up GitHub"]);
+    let o = p.upload(&["--move", "--dry-run"]);
+    assert!(out(&o).contains("would move \"Setting up GitHub\" before \"Our GitHub workflow\""), "{}", out(&o));
+    assert_eq!(order(&p), ["Our GitHub workflow", "actions", "Setting up GitHub"]);
+    let o = p.upload(&["--move"]);
+    assert!(out(&o).contains("1 moved into order"), "{}", out(&o));
+    assert_eq!(order(&p), ["Setting up GitHub", "Our GitHub workflow", "actions"]);
+
+    // A new file in the middle is put in place, without --move (natural order: 015 is 15,
+    // so after 02).
+    p.write("how-to/github/015-branches.md", "# Branching\n\nBranches.\n");
+    let o = p.upload(&[]);
+    assert!(o.status.success(), "{}", err(&o));
+    assert_eq!(order(&p), ["Setting up GitHub", "Our GitHub workflow", "Branching", "actions"]);
+    assert!(!out(&o).contains("moved into order"), "placing new pages isn't reordering: {}", out(&o));
 }
 
 #[test]

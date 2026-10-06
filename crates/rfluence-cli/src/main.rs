@@ -4,6 +4,7 @@ mod auth;
 mod check;
 mod config;
 mod fetch;
+mod order;
 mod plan;
 mod project;
 mod search;
@@ -82,6 +83,10 @@ enum Command {
         /// The site to use (default: the site in the file's `url`, or the default site).
         #[arg(long, value_name = "SITE")]
         site: Option<String>,
+        /// Move pages that aren't where they belong: under the config tree's parent (with
+        /// --config) or the file's `parent`, and (with --config) in the config's order.
+        #[arg(long = "move")]
+        move_pages: bool,
         /// For a new page: the space to create it in, if the file has no `space_key`.
         #[arg(long, value_name = "KEY")]
         space: Option<String>,
@@ -207,7 +212,7 @@ fn main() -> ExitCode {
         Command::Fetch { page, simplified, section, max_chars, json, site, output, force } => {
             fetch::run(&fetch::Options { page, simplified, section, max_chars, json, site, output, force })
         }
-        Command::Upload { path, config, dry_run, force, site, space, parent, json } => match (path, config) {
+        Command::Upload { path, config, dry_run, force, move_pages, site, space, parent, json } => match (path, config) {
             (_, Some(config)) => {
                 if space.is_some() || parent.is_some() || json {
                     eprintln!("rfluence: --space, --parent and --json can't be used with --config");
@@ -219,9 +224,9 @@ fn main() -> ExitCode {
                     let found = project::root(&cwd).join(config::FILE_NAME);
                     found.strip_prefix(&cwd).map(PathBuf::from).unwrap_or(found)
                 });
-                upload_tree::run(&upload_tree::Options { config, dry_run, force, site })
+                upload_tree::run(&upload_tree::Options { config, dry_run, force, move_pages, site })
             }
-            (Some(path), None) => upload::run(&upload::Options { path, dry_run, force, site, space, parent, json, tree: None }),
+            (Some(path), None) => upload::run(&upload::Options { path, dry_run, force, site, space, parent, json, move_pages, tree: None }),
             (None, None) => unreachable!("clap requires one"),
         },
         Command::Search { query, space, label, cql, limit, site, json } => {

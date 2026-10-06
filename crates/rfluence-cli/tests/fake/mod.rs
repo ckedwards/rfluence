@@ -28,6 +28,8 @@ pub struct Content {
     pub labels: Vec<String>,
     /// key -> (property ID, version, value)
     pub properties: BTreeMap<String, (String, u64, Value)>,
+    /// Order among siblings (new content goes last).
+    pub position: i64,
 }
 
 #[derive(Default)]
@@ -53,8 +55,33 @@ impl State {
 
     pub fn add_with_id(&mut self, id: &str, kind: &'static str, title: &str, parent: Option<&str>) {
         let body = r#"{"type":"doc","version":1,"content":[]}"#.to_string();
-        let c = Content { id: id.into(), kind, title: title.into(), parent: parent.map(str::to_string), version: 1, body, labels: vec![], properties: BTreeMap::new() };
+        let position = self.last_position() + 10;
+        let c = Content { id: id.into(), kind, title: title.into(), parent: parent.map(str::to_string), version: 1, body, labels: vec![], properties: BTreeMap::new(), position };
         self.content.insert(id.into(), c);
+    }
+
+    fn last_position(&self) -> i64 {
+        self.content.values().map(|c| c.position).max().unwrap_or(0)
+    }
+
+    /// The titles of a page's or folder's children, in order.
+    pub fn children(&self, parent: &str) -> Vec<String> {
+        let mut kids: Vec<&Content> = self.content.values().filter(|c| c.parent.as_deref() == Some(parent)).collect();
+        kids.sort_by_key(|c| c.position);
+        kids.iter().map(|c| c.title.clone()).collect()
+    }
+
+    /// Put `id` right before or after `target`, among `target`'s siblings.
+    pub fn move_next_to(&mut self, id: &str, after: bool, target: &str) {
+        let parent = self.content[target].parent.clone();
+        let mut siblings: Vec<String> = self.content.values().filter(|c| c.parent == parent && c.id != id).map(|c| c.id.clone()).collect();
+        siblings.sort_by_key(|s| self.content[s].position);
+        let at = siblings.iter().position(|s| s == target).unwrap() + usize::from(after);
+        siblings.insert(at, id.to_string());
+        self.content.get_mut(id).unwrap().parent = parent;
+        for (i, s) in siblings.iter().enumerate() {
+            self.content.get_mut(s).unwrap().position = (i as i64 + 1) * 10;
+        }
     }
 
     pub fn by_title(&self, kind: &str, title: &str) -> Option<&Content> {
@@ -196,8 +223,13 @@ fn handle(state: &mut State, method: &str, target: &str, body: &[u8], base: &str
             }
             c.body = new_body;
             c.title = new_title;
-            if new_parent.is_some() {
+            if new_parent.is_some() && new_parent != c.parent {
                 c.parent = new_parent;
+                // A moved page goes last under its new parent.
+                let last = state.last_position();
+                let c = state.content.get_mut(*id).unwrap();
+                c.position = last + 10;
+                return (200, page_json(c, base, false));
             }
             (200, page_json(c, base, false))
         }
@@ -233,7 +265,9 @@ fn handle(state: &mut State, method: &str, target: &str, body: &[u8], base: &str
                 .content
                 .values()
                 .filter(|c| c.parent.as_deref() == Some(*id))
-                .map(|c| json!({ "id": c.id, "type": c.kind, "title": c.title, "childPosition": c.id.parse::<i64>().unwrap_or(0) }))
+                .map(|c| (c.position, json!({ "id": c.id, "type": c.kind, "title": c.title, "childPosition": c.position })))
+                .collect::<BTreeMap<_, _>>()
+                .into_values()
                 .collect();
             (200, json!({ "results": results, "_links": {} }))
         }
@@ -259,6 +293,13 @@ fn handle(state: &mut State, method: &str, target: &str, body: &[u8], base: &str
                 }
             }
             (200, json!({ "results": [] }))
+        }
+        ("PUT", ["wiki", "rest", "api", "content", id, "move", position @ ("before" | "after"), target]) => {
+            if !state.content.contains_key(*id) || !state.content.contains_key(*target) {
+                return not_found();
+            }
+            state.move_next_to(id, *position == "after", target);
+            (200, json!({ "pageId": id }))
         }
         _ => (501, json!({ "message": format!("the fake doesn't serve {method} {path}") })),
     }

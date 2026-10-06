@@ -628,6 +628,12 @@ impl Client {
     /// Replace a page's title and body: the new version is `version`, which must be one more
     /// than the current one (Confluence answers 409 otherwise, reported as a conflict).
     pub fn update_page(&self, id: &str, title: &str, adf: &Node, version: u64) -> Result<Updated> {
+        self.put_page(id, title, Some(adf), version, None)
+    }
+
+    /// Update a page's body (if given) and move it under `parent` (if given), as one new
+    /// version. Without a body, Confluence keeps the current one (design.md, "Page hierarchy").
+    pub fn put_page(&self, id: &str, title: &str, adf: Option<&Node>, version: u64, parent: Option<&str>) -> Result<Updated> {
         #[derive(Deserialize)]
         struct Raw {
             title: String,
@@ -635,13 +641,18 @@ impl Client {
             parent_id: Option<String>,
             version: RawVersion,
         }
-        let body = serde_json::json!({
+        let mut body = serde_json::json!({
             "id": id,
             "status": "current",
             "title": title,
-            "body": { "representation": "atlas_doc_format", "value": serde_json::to_string(adf).expect("ADF serializes") },
             "version": { "number": version, "message": "Uploaded with rfluence" },
         });
+        if let Some(adf) = adf {
+            body["body"] = serde_json::json!({ "representation": "atlas_doc_format", "value": serde_json::to_string(adf).expect("ADF serializes") });
+        }
+        if let Some(parent) = parent {
+            body["parentId"] = parent.into();
+        }
         let raw: Raw = self.send_json("PUT", &format!("/wiki/api/v2/pages/{id}"), &body).map_err(|e| match e {
             Error::Api { status: 409, message } => Error::Conflict(format!("page {id} was changed while uploading: {message}")),
             e => page_not_found(e, id),
@@ -730,6 +741,16 @@ impl Client {
             return Err(Error::Api { status: 200, message });
         }
         Ok(response.data.map(|d| d.contexts.into_iter().flat_map(|c| c.extensions).collect()).unwrap_or_default())
+    }
+
+    /// Put a page or folder right before or after a sibling (v1; works for folders too).
+    /// Doesn't create a version.
+    pub fn move_next_to(&self, id: &str, after: bool, target: &str) -> Result<()> {
+        let position = if after { "after" } else { "before" };
+        let url = format!("{}/wiki/rest/api/content/{id}/move/{position}/{target}", self.base_url);
+        let resp = self.agent.put(&url).header("Authorization", &self.authorization).header("Accept", "application/json").send_empty();
+        let _: serde_json::Value = read_json(resp, &url, &format!("/wiki/rest/api/content/{id}/move"))?;
+        Ok(())
     }
 
     /// Move a page to the trash (it can be restored from there).

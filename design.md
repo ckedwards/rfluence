@@ -768,7 +768,7 @@ rfluence:
 | --- | --- | --- | --- | --- |
 | `id` | string | `rfluence` | yes | Page ID. Absent means "create a new page" (subject to the title fallback in Decisions). |
 | `space_key` | string | `rfluence`; user for new pages | yes | Space key. For files in `.rfluence.yaml`, must match the entry's `space_key`; a mismatch is an error (moving pages between spaces isn't supported). |
-| `parent` | string | `rfluence`; user for new pages | single-file only | Parent page or folder ID. For files in `.rfluence.yaml`, the mirrored tree decides the parent and this is just a record. For single-file `rfluence upload`, a `parent` that differs from the page's current parent follows the `--move` rule (warn; `--move` moves it). |
+| `parent` | string | `rfluence`; user for new pages | single-file only | Parent page or folder ID. For files in `.rfluence.yaml`, the mirrored tree decides the parent and this is just a record. For single-file `rfluence upload`, a `parent` that differs from the page's current parent follows the `--move` rule (warn; `--move` moves it), and is kept in the file until the page is moved rather than overwritten with the current parent. |
 | `title` | string | user; `rfluence` when needed | yes | Page title override. See "Title". |
 | `version` | integer | `rfluence` | yes | Page version after the last fetch/upload. Upload refuses if the remote version is newer, unless `--force`. |
 | `url` | string | `rfluence` | no | Page URL, for people and LLMs to follow. Ignored on upload. |
@@ -920,7 +920,9 @@ Directories without an `index.md` / `README.md` become folders, and folder title
   7. Pass 2: every file is uploaded as single-file upload does (version check, images, links, inline comments, labels), plus the entry's labels; the property's `config_labels` is kept current. A page that isn't under its tree parent gets a warning and is left where it is (see "Page hierarchy"; `--move` comes later).
   8. Output: each entry's ancestor and tree (`[new page]`, `[page 123]`, `[new folder]`, ...), a line per file (`created`, `updated (version 3 -> 4)`, `up to date`, labels added, ...), and totals. `--dry-run` shows the same without changing anything.
 
-Not implemented yet: placing new pages in order and reordering (see "Child page order"), `--move`, `--prune` and `--prune-labels`.
+  9. Pass 3 (implemented): each parent's children in the config's order (see "Child page order"); reordering doesn't create versions. With `--move`, pages that aren't under their tree parent are moved there in pass 2 (in the same new version as a changed body, or a version without a body), and existing pages out of order are reordered; without it, both are warnings, counted in the totals.
+
+Not implemented yet: `--prune` and `--prune-labels`.
 
 API findings (test site): CQL `type = folder and space = "KEY" and title = "..."` finds folders by title; the v1 content API can't (`GET /wiki/rest/api/content?type=folder` returns 501 "Cannot fetch folders with ContentFinder"). `GET /wiki/api/v2/{pages|folders}/{id}/direct-children` lists pages and folders together with `type`, `title` and `childPosition`. Measured: a tree of 3 new pages and a folder takes about 6 s (each page is created, then its body uploaded); the same tree up to date, under 1 s.
 
@@ -940,7 +942,7 @@ The file stays a top-level list (like md2c), so there's no place for project-wid
   * A directory without one: becomes a Confluence **folder** (v2 `/wiki/api/v2/folders`), titled with the entry's `folder_title` template (default: the directory name).
   * Directory nodes are found by title under their expected parent (`/wiki/api/v2/folders/{id}/direct-children` or `/wiki/api/v2/pages/{id}/direct-children`) and created if missing. No IDs are stored for directories, so no lock file is needed. Lookups must filter by type, because a page and a folder can have the same title.
   * Before uploading anything, every title in the upload set is computed (files and directories) and checked for collisions, separately for pages and for folders. On a collision, fail with a list of the clashes; the fix is a `title` in one file's frontmatter (or an `index.md` with a different title for a directory).
-  * New pages get the parent from the tree. For existing pages whose current parent differs from the tree (reorganized in Confluence, or the file moved locally), `upload` warns and leaves the page where it is. `--move` moves pages to match the local tree; `--dry-run` lists the moves first.
+  * New pages get the parent from the tree. For existing pages whose current parent differs from the tree (reorganized in Confluence, or the file moved locally), `upload` warns and leaves the page where it is. `--move` moves pages to match the local tree; `--dry-run` lists the moves first. (Implemented; a page whose tree parent is a folder or page that doesn't exist yet can only be moved by a real run, not shown by `--dry-run`.)
   * Moving a page bumps its version, so after a move the new `version` is written back to the frontmatter along with `parent`.
   * Precedence: for files covered by a config, the config tree decides the parent. Single-file `rfluence upload <path>` uses `parent` from the frontmatter (see "Frontmatter").
 
@@ -964,11 +966,12 @@ Local order:
 
 Applying it:
 
-  * New pages and folders are placed in position when they're created: Confluence appends new children at the end, so `rfluence` creates the page and then moves it after its predecessor (one extra call).
+  * New pages and folders are placed in position: Confluence appends new children at the end, so after the bodies are uploaded each new one is moved after its predecessor in the tree (before everything, if it's first), unless it's already there (one extra call at most).
   * Existing pages that are out of order: `upload` warns and leaves them, and `--move` reorders them. This is the same rule as parent changes (see "Page hierarchy"), so `rfluence` doesn't silently undo reordering done in Confluence. `--dry-run` lists the moves.
-  * Only `rfluence`-managed siblings (those with the `rfluence` content property) are ordered among themselves. Pages people added are left where they are, so they may end up interleaved.
+  * Only siblings in the config's tree are ordered among themselves. Pages people added in Confluence are left where they are, so they may end up interleaved. (This used to say "pages with the `rfluence` property"; the tree is the same set for pages `rfluence` created, also covers fetched pages added to the config, and needs no request per sibling.)
   * Moves are minimized: read the parent's current child order, keep the longest run of managed siblings already in the right relative order, and move only the rest, each placed after its predecessor in the desired order.
   * API: read the order from `GET /wiki/api/v2/pages/{id}/direct-children` or `.../folders/{id}/direct-children`, which returns pages and folders together, sorted by `childPosition` (an opaque, sparse integer; use it only for comparing). Move with v1 `PUT /wiki/rest/api/content/{id}/move/{before|after}/{sibling id}` (no body; returns 200 `{"pageId": ...}`).
+  * Verified again by the live `upload --config` test: a page moved under another parent with `PUT /wiki/api/v2/pages/{id}` (new `parentId`, next version, no body) keeps its body; a page put before a folder with the move API is put back after it by `--move`. Measured: about 1.7 s for a 3-page tree with one page to move back and one to reorder.
 
 Verified on the test site (folder 262167):
 

@@ -556,3 +556,35 @@ fn uploads_mermaid_for_the_apps_the_site_has() {
         assert_eq!(warned, installed.is_none(), "{name}: {}", err(&o));
     }
 }
+
+/// Single file: a `parent` that differs from the page's is a warning; `--move` moves the page
+/// (a new version without a body: Confluence keeps it) and writes the new version back.
+#[test]
+fn moves_a_page_to_its_parent() {
+    let mut site = Site::new("move", None, 2, None);
+    site.fetch();
+    let md = site.read().replace("  parent: \"753877\"", "  parent: \"999\"");
+    site.write(&md);
+    let put = site.server.mock("PUT", Matcher::Any).expect(0).create();
+    let o = site.upload(&[]);
+    assert!(o.status.success(), "{}", err(&o));
+    assert!(err(&o).contains("`parent` is 999, but the page is under 753877; it's left where it is; --move moves it"), "{}", err(&o));
+    assert!(out(&o).contains("is up to date"), "{}", out(&o));
+    put.assert();
+    put.remove();
+    assert!(site.read().contains("  parent: \"999\"\n"), "the requested parent is kept: {}", site.read());
+
+    let mut moved: serde_json::Value = serde_json::from_str(&page_json(&site.server, None, 3)).unwrap();
+    moved["parentId"] = "999".into();
+    let put = site
+        .server
+        .mock("PUT", format!("/wiki/api/v2/pages/{ID}").as_str())
+        .match_body(Matcher::PartialJson(json!({ "parentId": "999", "version": { "number": 3 }, "title": "rfluence image API test" })))
+        .with_body(moved.to_string())
+        .create();
+    let o = site.upload(&["--move"]);
+    assert!(o.status.success(), "{}", err(&o));
+    put.assert();
+    assert!(out(&o).contains("(version 2 -> 3)") && out(&o).contains("  parent: 753877 -> 999"), "{}", out(&o));
+    assert!(site.read().contains("  parent: \"999\"\n  version: 3\n"), "{}", site.read());
+}

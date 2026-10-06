@@ -17,6 +17,7 @@ pub struct Options {
     pub config: PathBuf,
     pub dry_run: bool,
     pub force: bool,
+    pub move_pages: bool,
     pub site: Option<String>,
 }
 
@@ -60,6 +61,7 @@ fn file_options(opts: &Options, path: &Path, tree: Option<InTree>) -> upload::Op
         space: None,
         parent: None,
         json: false,
+        move_pages: opts.move_pages,
         tree,
     }
 }
@@ -318,12 +320,25 @@ fn upload_tree(opts: &Options) -> Result<(), Failure> {
                 if outcome.misplaced {
                     counts.misplaced += 1;
                 }
+                if outcome.moved {
+                    counts.moved += 1;
+                }
             }
             Err(stop) => failure = Some(Failure::File(path, stop)),
         }
     });
     if let Some(f) = failure {
         return Err(f);
+    }
+
+    // Pass 3: siblings in the config's order (moving pages doesn't create versions).
+    for (i, plan) in plans.iter().enumerate() {
+        let (parent, kind, title) = match resolved[i].as_ref().expect("resolved above") {
+            Resolved::Content { id, kind, title } => (Some(id.clone()), *kind, title.clone()),
+            Resolved::InUpload { file, title } => (places[file].id().map(str::to_string), Kind::Page, title.clone()),
+        };
+        let mut ordering = Ordering { opts, client: &client, places: &places, counts: &mut counts };
+        ordering.level(parent.as_deref(), kind, &title, &plan.nodes)?;
     }
     println!("{}", counts.summary(opts.dry_run));
     Ok(())
@@ -430,6 +445,65 @@ impl Pass<'_> {
     }
 }
 
+/// The third pass: each parent's children in the config's order.
+struct Ordering<'a> {
+    opts: &'a Options,
+    client: &'a Client,
+    places: &'a HashMap<String, Place>,
+    counts: &'a mut Counts,
+}
+
+impl Ordering<'_> {
+    fn level(&mut self, parent: Option<&str>, kind: Kind, parent_title: &str, nodes: &[Node]) -> Result<(), Failure> {
+        let ids: Vec<Option<String>> = nodes.iter().map(|n| self.places.get(&key(n)).and_then(|p| p.id().map(str::to_string))).collect();
+        if let Some(parent) = parent.filter(|_| nodes.len() > 1) {
+            let desired: Vec<String> = ids.iter().flatten().cloned().collect();
+            let current: Vec<String> = self.client.children(kind, parent)?.into_iter().map(|c| c.id).collect();
+            let new: HashSet<String> =
+                nodes.iter().filter_map(|n| match self.places.get(&key(n)) { Some(Place::Created(id)) => Some(id.clone()), _ => None }).collect();
+            let (moves, unmoved) = crate::order::moves(&desired, &current, &new, self.opts.move_pages);
+            let title_of = |id: &str| {
+                let i = ids.iter().position(|x| x.as_deref() == Some(id)).expect("a node of this level");
+                nodes[i].title.clone().unwrap_or_else(|| id.to_string())
+            };
+            for m in &moves {
+                if !self.opts.dry_run {
+                    self.client.move_next_to(&m.id, m.after, &m.target)?;
+                }
+                if !new.contains(&m.id) {
+                    let verb = if self.opts.dry_run { "would move" } else { "moved" };
+                    println!("  {verb} {:?} {} {:?} (under {parent_title:?})", title_of(&m.id), if m.after { "after" } else { "before" }, title_of(&m.target));
+                    self.counts.reordered += 1;
+                }
+            }
+            if !unmoved.is_empty() {
+                let titles: Vec<String> = unmoved.iter().map(|id| format!("{:?}", title_of(id))).collect();
+                eprintln!(
+                    "rfluence: warning: under {parent_title:?}, {} out of the config's order; --move reorders",
+                    if titles.len() == 1 { format!("{} is", titles[0]) } else { format!("{} are", titles.join(", ")) }
+                );
+                self.counts.out_of_order += unmoved.len();
+            }
+        }
+        for (node, id) in nodes.iter().zip(&ids) {
+            if !node.children.is_empty() {
+                let kind = if matches!(node.kind, plan::Kind::Folder { .. }) { Kind::Folder } else { Kind::Page };
+                let title = node.title.clone().unwrap_or_default();
+                self.level(id.as_deref(), kind, &title, &node.children)?;
+            }
+        }
+        Ok(())
+    }
+}
+
+/// A node's key in the places map: its file, or its directory with a trailing `/`.
+fn key(node: &Node) -> String {
+    match &node.kind {
+        plan::Kind::Page { file, .. } => file.clone(),
+        plan::Kind::Folder { dir } => format!("{dir}/"),
+    }
+}
+
 fn print_tree(nodes: &[Node], depth: usize, places: &HashMap<String, Place>, dry_run: bool) {
     for n in nodes {
         let pad = "  ".repeat(depth);
@@ -457,6 +531,9 @@ struct Counts {
     unchanged: usize,
     folders_created: usize,
     misplaced: usize,
+    moved: usize,
+    reordered: usize,
+    out_of_order: usize,
 }
 
 impl Counts {
@@ -470,14 +547,24 @@ impl Counts {
         if self.folders_created > 0 {
             parts.push(format!("{} folder{} {create}", self.folders_created, plural(self.folders_created)));
         }
+        let verb = if dry_run { "to move" } else { "moved" };
+        if self.moved > 0 {
+            parts.push(format!("{} {verb} to another parent", self.moved));
+        }
+        if self.reordered > 0 {
+            parts.push(format!("{} {verb} into order", self.reordered));
+        }
         let mut out = format!("{}{}.", if dry_run { "Dry run: " } else { "" }, parts.join(", "));
         if self.misplaced > 0 {
             out.push_str(&format!(
-                " {} page{} not where the config puts {} (left in place; see the warnings).",
+                " {} page{} not where the config puts {} (left in place; see the warnings; --move moves them).",
                 self.misplaced,
                 if self.misplaced == 1 { " is" } else { "s are" },
                 if self.misplaced == 1 { "it" } else { "them" }
             ));
+        }
+        if self.out_of_order > 0 {
+            out.push_str(&format!(" {} out of the config's order (--move reorders).", self.out_of_order));
         }
         out
     }
