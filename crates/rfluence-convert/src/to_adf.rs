@@ -8,11 +8,11 @@ use serde_json::{Value, json};
 
 use crate::adf::{self, Mark, Node};
 use crate::anchors::Anchors;
-use crate::inline::{self, Item, Leaf, MdMark};
 use crate::diagnostics::{Diagnostic, Severity};
+use crate::inline::{self, Item, Leaf, MdMark};
 use crate::markdown::{self, options};
-use crate::settings::Settings;
 use crate::mermaid::{self, MermaidApp, MermaidKind};
+use crate::settings::Settings;
 use crate::{approx, emoji, html_table, language};
 
 /// What upload needs to know beyond the markdown.
@@ -47,13 +47,23 @@ impl UploadContext {
         }
         doc.walk(&mut |n| {
             if mermaid::is_merfluence(n) && self.mermaid.is_none() {
-                self.mermaid = n.attr_str("extensionKey").and_then(MermaidApp::from_extension_key);
+                self.mermaid = n
+                    .attr_str("extensionKey")
+                    .and_then(MermaidApp::from_extension_key);
             }
             if n.is("emoji")
-                && let (Some(short), Some(id), Some(text)) = (n.attr_str("shortName"), n.attr_str("id"), n.attr_str("text"))
-                    && !emoji::is_emoji(text) && emoji::lookup(short).is_none() && emoji::from_id(id).is_none() {
-                        self.custom_emoji.insert(short.trim_matches(':').to_string(), id.to_string());
-                    }
+                && let (Some(short), Some(id), Some(text)) = (
+                    n.attr_str("shortName"),
+                    n.attr_str("id"),
+                    n.attr_str("text"),
+                )
+                && !emoji::is_emoji(text)
+                && emoji::lookup(short).is_none()
+                && emoji::from_id(id).is_none()
+            {
+                self.custom_emoji
+                    .insert(short.trim_matches(':').to_string(), id.to_string());
+            }
         });
     }
 }
@@ -78,7 +88,9 @@ pub struct Upload {
 
 impl Upload {
     pub fn has_errors(&self) -> bool {
-        self.diagnostics.iter().any(|d| d.severity == Severity::Error)
+        self.diagnostics
+            .iter()
+            .any(|d| d.severity == Severity::Error)
     }
 }
 
@@ -97,10 +109,16 @@ impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut parts = Vec::new();
         if !self.images.is_empty() {
-            parts.push(format!("images without an attachment: {}", self.images.join(", ")));
+            parts.push(format!(
+                "images without an attachment: {}",
+                self.images.join(", ")
+            ));
         }
         if !self.links.is_empty() {
-            parts.push(format!("links to files without a page: {}", self.links.join(", ")));
+            parts.push(format!(
+                "links to files without a page: {}",
+                self.links.join(", ")
+            ));
         }
         parts.extend(self.synced.iter().cloned());
         write!(f, "{}", parts.join("; "))
@@ -161,7 +179,8 @@ pub fn local_synced_copies(md: &str) -> Vec<String> {
     let mut ids = Vec::new();
     for n in root.descendants() {
         if let Some(s) = block_comment(n).filter(|s| s.has("synced-block"))
-            && let (Some(page), Some(id)) = (s.get("page"), s.get("id")) {
+            && let (Some(page), Some(id)) = (s.get("page"), s.get("id"))
+        {
             let r = crate::synced::copy_resource_id(page, id);
             if !ids.contains(&r) {
                 ids.push(r);
@@ -173,7 +192,9 @@ pub fn local_synced_copies(md: &str) -> Vec<String> {
 
 /// A link to a local markdown file: its path (percent-decoded) and anchor.
 fn local_md_link(url: &str) -> Option<(String, Option<&str>)> {
-    if url.starts_with('#') || url.contains(':') && url.split(':').next().is_some_and(|s| !s.contains('/')) {
+    if url.starts_with('#')
+        || url.contains(':') && url.split(':').next().is_some_and(|s| !s.contains('/'))
+    {
         return None;
     }
     let (path, anchor) = match url.split_once('#') {
@@ -181,8 +202,13 @@ fn local_md_link(url: &str) -> Option<(String, Option<&str>)> {
         None => (url, None),
     };
     let path = path.split('?').next().unwrap_or(path);
-    let decoded = percent_encoding::percent_decode_str(path).decode_utf8_lossy().into_owned();
-    decoded.to_ascii_lowercase().ends_with(".md").then_some((decoded, anchor))
+    let decoded = percent_encoding::percent_decode_str(path)
+        .decode_utf8_lossy()
+        .into_owned();
+    decoded
+        .to_ascii_lowercase()
+        .ends_with(".md")
+        .then_some((decoded, anchor))
 }
 
 fn convert(md: &str, ctx: &UploadContext, check_only: bool) -> (Node, Vec<Diagnostic>, Error) {
@@ -201,7 +227,11 @@ fn convert(md: &str, ctx: &UploadContext, check_only: bool) -> (Node, Vec<Diagno
         check_only,
         anchors: Anchors::new(headings.iter().map(String::as_str)),
         diags,
-        unresolved: Error { images: Vec::new(), links: Vec::new(), synced: Vec::new() },
+        unresolved: Error {
+            images: Vec::new(),
+            links: Vec::new(),
+            synced: Vec::new(),
+        },
         source: md.to_string(),
         tab_ids: 0,
         place: Place::Top,
@@ -260,7 +290,18 @@ fn is_details_close(literal: &str) -> bool {
 /// them. (`layout=` is a different setting: tables', images' and cards' Confluence `layout`
 /// attribute.)
 fn is_layout_marker(s: &Settings) -> bool {
-    ["columns", "column", "end-columns", "tabs", "tab", "end-tabs", "synced-block", "end-synced-block"].iter().any(|k| s.has(k))
+    [
+        "columns",
+        "column",
+        "end-columns",
+        "tabs",
+        "tab",
+        "end-tabs",
+        "synced-block",
+        "end-synced-block",
+    ]
+    .iter()
+    .any(|k| s.has(k))
 }
 
 /// An `rf:` comment that is a block of its own.
@@ -297,7 +338,10 @@ impl<'a> Reader<'a, '_> {
             match value {
                 NodeValue::Table(_) => {
                     // A table's settings are in the `rf:` comment right after it.
-                    let settings = nodes.get(i + 1).and_then(|n| block_comment(n)).filter(|s| !is_layout_marker(s));
+                    let settings = nodes
+                        .get(i + 1)
+                        .and_then(|n| block_comment(n))
+                        .filter(|s| !is_layout_marker(s));
                     if settings.is_some() {
                         i += 1;
                     }
@@ -308,11 +352,16 @@ impl<'a> Reader<'a, '_> {
                     if literal == "<!-- end list -->" {
                         // comrak's separator between adjacent lists.
                     } else if html_table::is_table_start(literal) {
-                        if let Some((table, end)) = html_table::parse(self.arena, nodes, i, &mut self.diags) {
+                        if let Some((table, end)) =
+                            html_table::parse(self.arena, nodes, i, &mut self.diags)
+                        {
                             let mut settings = table.settings.clone();
                             i = end;
                             if settings.is_none() {
-                                settings = nodes.get(i + 1).and_then(|n| block_comment(n)).filter(|s| !is_layout_marker(s));
+                                settings = nodes
+                                    .get(i + 1)
+                                    .and_then(|n| block_comment(n))
+                                    .filter(|s| !is_layout_marker(s));
                                 if settings.is_some() {
                                     i += 1;
                                 }
@@ -346,9 +395,13 @@ impl<'a> Reader<'a, '_> {
                             out.extend(self.tabs(node, &settings, &nodes[i + 1..j]));
                             i = if closed { j } else { j - 1 };
                         } else if settings.has("synced-block") {
-                            let (j, closed) = marker_end(nodes, i, "synced-block", "end-synced-block");
+                            let (j, closed) =
+                                marker_end(nodes, i, "synced-block", "end-synced-block");
                             if !closed {
-                                self.error(node, "synced block without `<!-- rf: end-synced-block -->`");
+                                self.error(
+                                    node,
+                                    "synced block without `<!-- rf: end-synced-block -->`",
+                                );
                             }
                             out.extend(self.synced(node, &settings, &nodes[i + 1..j]));
                             i = if closed { j } else { j - 1 };
@@ -357,7 +410,10 @@ impl<'a> Reader<'a, '_> {
                         } else if settings.has("tab") || settings.has("end-tabs") {
                             self.error(node, "`rf:` tab marker outside `<!-- rf: tabs -->`");
                         } else if settings.has("end-synced-block") {
-                            self.error(node, "`<!-- rf: end-synced-block -->` without a synced block");
+                            self.error(
+                                node,
+                                "`<!-- rf: end-synced-block -->` without a synced block",
+                            );
                         } else {
                             self.warn(node, "`rf:` comment not attached to a table; ignored");
                         }
@@ -392,7 +448,11 @@ impl<'a> Reader<'a, '_> {
         if content.is_empty() {
             content.push(Node::new("paragraph"));
         }
-        vec![Node::new(kind).with_attr("title", title).with_content(content)]
+        vec![
+            Node::new(kind)
+                .with_attr("title", title)
+                .with_content(content),
+        ]
     }
 
     /// `<!-- rf: columns=50,50 -->` col `<!-- rf: column -->` col `<!-- rf: end-columns -->`
@@ -415,7 +475,11 @@ impl<'a> Reader<'a, '_> {
         if widths.len() != columns.len() {
             self.error(
                 node,
-                format!("layout has {} columns but `columns=` lists {} widths", columns.len(), widths.len()),
+                format!(
+                    "layout has {} columns but `columns=` lists {} widths",
+                    columns.len(),
+                    widths.len()
+                ),
             );
             let w = (10000.0 / columns.len() as f64).round() / 100.0;
             widths = vec![w; columns.len()];
@@ -432,15 +496,27 @@ impl<'a> Reader<'a, '_> {
             if content.is_empty() {
                 content.push(Node::new("paragraph"));
             }
-            section.content.push(Node::new("layoutColumn").with_attr("width", width).with_content(content));
+            section.content.push(
+                Node::new("layoutColumn")
+                    .with_attr("width", width)
+                    .with_content(content),
+            );
         }
         section
     }
 
     /// `<!-- rf: tabs -->`, `<!-- rf: tab title="..." -->` before each tab, `<!-- rf: end-tabs -->`.
-    fn tabs(&mut self, node: &AstNode, settings: &Settings, body: &[&'a AstNode<'a>]) -> Option<Node> {
+    fn tabs(
+        &mut self,
+        node: &AstNode,
+        settings: &Settings,
+        body: &[&'a AstNode<'a>],
+    ) -> Option<Node> {
         if !matches!(self.place, Place::Top | Place::LayoutColumn) {
-            self.error(node, "tabs are only allowed at the top level and in layout columns");
+            self.error(
+                node,
+                "tabs are only allowed at the top level and in layout columns",
+            );
         }
         for key in settings.keys().filter(|k| *k != "tabs") {
             self.warn(node, format!("unknown tabs setting `{key}` ignored"));
@@ -451,7 +527,10 @@ impl<'a> Reader<'a, '_> {
                 Some(s) => tabs.push((s.get("title").unwrap_or_default().to_string(), vec![])),
                 None => match tabs.last_mut() {
                     Some((_, content)) => content.push(n),
-                    None => self.error(n, "content in tabs before the first `<!-- rf: tab title=\"...\" -->`"),
+                    None => self.error(
+                        n,
+                        "content in tabs before the first `<!-- rf: tab title=\"...\" -->`",
+                    ),
                 },
             }
         }
@@ -476,7 +555,10 @@ impl<'a> Reader<'a, '_> {
                 .with_attr("layout", "default")
                 .with_attr("extensionType", "com.atlassian.confluence.native")
                 .with_attr("extensionKey", "native-tabs")
-                .with_attr("parameters", json!({ "tabs": params, "applyToAll": false, "extensionTitle": "Tabs" }))
+                .with_attr(
+                    "parameters",
+                    json!({ "tabs": params, "applyToAll": false, "extensionTitle": "Tabs" }),
+                )
                 .with_content(frames),
         )
     }
@@ -485,20 +567,34 @@ impl<'a> Reader<'a, '_> {
     /// the page's own synced block (as Confluence has it), or a copy of one from another page.
     /// The content between the markers must be unchanged, or empty (design.md, "Tabs and
     /// synced blocks").
-    fn synced(&mut self, node: &AstNode, settings: &Settings, body: &[&'a AstNode<'a>]) -> Option<Node> {
+    fn synced(
+        &mut self,
+        node: &AstNode,
+        settings: &Settings,
+        body: &[&'a AstNode<'a>],
+    ) -> Option<Node> {
         let Some(id) = settings.get("id").filter(|i| !i.is_empty()) else {
             self.error(node, "synced block without `id=`: synced blocks can only be created in Confluence's editor");
             return None;
         };
         for key in settings.keys() {
-            if !matches!(key, "synced-block" | "id" | "page" | "read-only" | "unavailable") {
-                self.warn(node, format!("unknown synced block setting `{key}` ignored"));
+            if !matches!(
+                key,
+                "synced-block" | "id" | "page" | "read-only" | "unavailable"
+            ) {
+                self.warn(
+                    node,
+                    format!("unknown synced block setting `{key}` ignored"),
+                );
             }
         }
         let markdown = self.text_of(body);
         let at = line(node);
         let edited = |content: &[Node]| {
-            let current = crate::to_md::adf_to_markdown(&Node::doc(content.to_vec()), &crate::to_md::FetchContext::default());
+            let current = crate::to_md::adf_to_markdown(
+                &Node::doc(content.to_vec()),
+                &crate::to_md::FetchContext::default(),
+            );
             !markdown.trim().is_empty() && !crate::select::same_content(&markdown, &current)
         };
         let changed = format!(
@@ -542,11 +638,29 @@ impl<'a> Reader<'a, '_> {
 
     /// The markdown of some blocks (dedented, for blocks inside list items).
     fn text_of(&self, body: &[&'a AstNode<'a>]) -> String {
-        let (Some(first), Some(last)) = (body.first(), body.last()) else { return String::new() };
-        let (start, end) = (first.data().sourcepos.start.line, last.data().sourcepos.end.line);
-        let lines: Vec<&str> = self.source.lines().skip(start.saturating_sub(1)).take(end + 1 - start).collect();
-        let indent = lines.iter().filter(|l| !l.trim().is_empty()).map(|l| l.len() - l.trim_start().len()).min().unwrap_or(0);
-        lines.iter().map(|l| l.get(indent..).unwrap_or("").to_string() + "\n").collect()
+        let (Some(first), Some(last)) = (body.first(), body.last()) else {
+            return String::new();
+        };
+        let (start, end) = (
+            first.data().sourcepos.start.line,
+            last.data().sourcepos.end.line,
+        );
+        let lines: Vec<&str> = self
+            .source
+            .lines()
+            .skip(start.saturating_sub(1))
+            .take(end + 1 - start)
+            .collect();
+        let indent = lines
+            .iter()
+            .filter(|l| !l.trim().is_empty())
+            .map(|l| l.len() - l.trim_start().len())
+            .min()
+            .unwrap_or(0);
+        lines
+            .iter()
+            .map(|l| l.get(indent..).unwrap_or("").to_string() + "\n")
+            .collect()
     }
 
     /// A `breakout` mark from `breakout=` / `width=` settings.
@@ -587,10 +701,16 @@ impl<'a> Reader<'a, '_> {
                 for child in self.blocks_in(&children(node), Place::Other) {
                     // ADF quotes can't nest; a nested quote's content joins the outer one.
                     if child.is("blockquote") {
-                        self.error(node, "nested quote can't be represented in Confluence (flattened)");
+                        self.error(
+                            node,
+                            "nested quote can't be represented in Confluence (flattened)",
+                        );
                         content.extend(child.content);
                     } else if child.is("panel") {
-                        self.error(node, "alert in a quote can't be represented in Confluence (flattened)");
+                        self.error(
+                            node,
+                            "alert in a quote can't be represented in Confluence (flattened)",
+                        );
                         content.extend(child.content);
                     } else {
                         content.push(child);
@@ -609,7 +729,11 @@ impl<'a> Reader<'a, '_> {
                     AlertType::Caution => "error",
                 };
                 let content = self.blocks_in(&children(node), Place::Other);
-                vec![Node::new("panel").with_attr("panelType", panel_type).with_content(content)]
+                vec![
+                    Node::new("panel")
+                        .with_attr("panelType", panel_type)
+                        .with_content(content),
+                ]
             }
             NodeValue::FootnoteDefinition(f) => {
                 self.error(node, "footnotes can't be represented in Confluence (definition uploaded as a paragraph)");
@@ -622,8 +746,14 @@ impl<'a> Reader<'a, '_> {
                 content
             }
             other => {
-                self.error(node, format!("unsupported markdown ({other:?}) uploaded as text"));
-                vec![Node::new("paragraph").with_content(vec![Node::text(markdown::inline_text(node))])]
+                self.error(
+                    node,
+                    format!("unsupported markdown ({other:?}) uploaded as text"),
+                );
+                vec![
+                    Node::new("paragraph")
+                        .with_content(vec![Node::text(markdown::inline_text(node))]),
+                ]
             }
         }
     }
@@ -632,8 +762,13 @@ impl<'a> Reader<'a, '_> {
         let mut marks = Vec::new();
         for key in settings.keys() {
             match key {
-                "align" => marks.push(Mark::new("alignment").with_attr("align", settings.get("align").unwrap_or(""))),
-                "indent" => marks.push(Mark::new("indentation").with_attr("level", settings.get_f64("indent").unwrap_or(1.0))),
+                "align" => marks.push(
+                    Mark::new("alignment").with_attr("align", settings.get("align").unwrap_or("")),
+                ),
+                "indent" => marks.push(
+                    Mark::new("indentation")
+                        .with_attr("level", settings.get_f64("indent").unwrap_or(1.0)),
+                ),
                 other => self.warn(node, format!("unknown setting `{other}` ignored")),
             }
         }
@@ -647,36 +782,43 @@ impl<'a> Reader<'a, '_> {
         }
         if settings.has("card")
             && let [link] = inlines.as_slice()
-                && let NodeValue::Link(l) = &link.data().value {
-                    let card = match settings.get("card") {
-                        Some("embed") => {
-                            let mut c = Node::new("embedCard").with_attr("url", self.href(&l.url));
-                            if let Some(layout) = settings.get("layout") {
-                                c = c.with_attr("layout", layout);
-                            }
-                            if let Some(width) = settings.get_f64("width") {
-                                c = c.with_attr("width", width);
-                            }
-                            c
-                        }
-                        _ => Node::new("blockCard").with_attr("url", self.href(&l.url)),
-                    };
-                    return card;
+            && let NodeValue::Link(l) = &link.data().value
+        {
+            let card = match settings.get("card") {
+                Some("embed") => {
+                    let mut c = Node::new("embedCard").with_attr("url", self.href(&l.url));
+                    if let Some(layout) = settings.get("layout") {
+                        c = c.with_attr("layout", layout);
+                    }
+                    if let Some(width) = settings.get_f64("width") {
+                        c = c.with_attr("width", width);
+                    }
+                    c
                 }
+                _ => Node::new("blockCard").with_attr("url", self.href(&l.url)),
+            };
+            return card;
+        }
         let mut p = Node::new("paragraph").with_content(self.inlines(&inlines, &[]));
         p.marks = self.block_marks(node, &settings);
         p
     }
 
     /// A paragraph that is only an image (optionally linked) becomes a `mediaSingle`.
-    fn image_paragraph(&mut self, inlines: &[&'a AstNode<'a>], settings: &Settings) -> Option<Node> {
+    fn image_paragraph(
+        &mut self,
+        inlines: &[&'a AstNode<'a>],
+        settings: &Settings,
+    ) -> Option<Node> {
         let (img, href) = match inlines {
             [n] => match &n.data().value {
                 NodeValue::Image(_) => (*n, None),
                 NodeValue::Link(l) => {
                     let kids = children(n);
                     match kids.as_slice() {
-                        [i] if matches!(i.data().value, NodeValue::Image(_)) => (*i, Some(l.url.clone())),
+                        [i] if matches!(i.data().value, NodeValue::Image(_)) => {
+                            (*i, Some(l.url.clone()))
+                        }
                         _ => return None,
                     }
                 }
@@ -684,20 +826,36 @@ impl<'a> Reader<'a, '_> {
             },
             _ => return None,
         };
-        let NodeValue::Image(link) = img.data().value.clone() else { return None };
+        let NodeValue::Image(link) = img.data().value.clone() else {
+            return None;
+        };
         let alt = markdown::inline_text(img);
         let mut media = if link.url.contains("://") {
-            Node::new("media").with_attr("type", "external").with_attr("url", link.url.clone())
+            Node::new("media")
+                .with_attr("type", "external")
+                .with_attr("url", link.url.clone())
         } else {
-            let path = percent_encoding::percent_decode_str(&link.url).decode_utf8_lossy().into_owned();
-            let mut id = self.ctx.media.get(&link.url).or_else(|| self.ctx.media.get(&path)).cloned();
+            let path = percent_encoding::percent_decode_str(&link.url)
+                .decode_utf8_lossy()
+                .into_owned();
+            let mut id = self
+                .ctx
+                .media
+                .get(&link.url)
+                .or_else(|| self.ctx.media.get(&path))
+                .cloned();
             if self.check_only {
                 id.get_or_insert_with(String::new);
             }
             if id.is_none() {
                 self.unresolved.images.push(link.url.clone());
             }
-            let collection = self.ctx.page_id.as_ref().map(|p| format!("contentId-{p}")).unwrap_or_default();
+            let collection = self
+                .ctx
+                .page_id
+                .as_ref()
+                .map(|p| format!("contentId-{p}"))
+                .unwrap_or_default();
             Node::new("media")
                 .with_attr("type", "file")
                 .with_attr("id", id.unwrap_or_default())
@@ -714,21 +872,30 @@ impl<'a> Reader<'a, '_> {
             media.marks.push(border);
         }
         if let Some(href) = href {
-            media.marks.push(Mark::new("link").with_attr("href", self.href(&href)));
+            media
+                .marks
+                .push(Mark::new("link").with_attr("href", self.href(&href)));
         }
         let mut single = Node::new("mediaSingle");
         if let Some(layout) = settings.get("layout") {
             single = single.with_attr("layout", layout);
         }
         if let Some(width) = settings.get_f64("width") {
-            single = single.with_attr("width", width).with_attr("widthType", settings.get("width-type").unwrap_or("pixel"));
+            single = single
+                .with_attr("width", width)
+                .with_attr("widthType", settings.get("width-type").unwrap_or("pixel"));
         }
         single.content.push(media);
         if let Some(caption) = settings.get("caption") {
-            single.content.push(Node::new("caption").with_content(vec![Node::text(caption)]));
+            single
+                .content
+                .push(Node::new("caption").with_content(vec![Node::text(caption)]));
         }
         for key in settings.keys() {
-            if !matches!(key, "layout" | "width" | "width-type" | "border" | "border-color" | "caption") {
+            if !matches!(
+                key,
+                "layout" | "width" | "width-type" | "border" | "border-color" | "caption"
+            ) {
                 self.warn(img, format!("unknown image setting `{key}` ignored"));
             }
         }
@@ -740,7 +907,10 @@ impl<'a> Reader<'a, '_> {
     fn mermaid_here(&self) -> bool {
         match &self.ctx.mermaid {
             None => false,
-            Some(app) => app.kind == MermaidKind::Merfluence || matches!(self.place, Place::Top | Place::LayoutColumn),
+            Some(app) => {
+                app.kind == MermaidKind::Merfluence
+                    || matches!(self.place, Place::Top | Place::LayoutColumn)
+            }
         }
     }
 
@@ -765,7 +935,11 @@ impl<'a> Reader<'a, '_> {
                     }
                 }
                 self.diagrams += 1;
-                app.diagram(text, &settings, &format!("00000000-0000-4000-8000-{:012x}", self.diagrams))
+                app.diagram(
+                    text,
+                    &settings,
+                    &format!("00000000-0000-4000-8000-{:012x}", self.diagrams),
+                )
             }
             _ => {
                 let marks: Vec<Mark> = self.breakout(node, &settings).into_iter().collect();
@@ -781,10 +955,17 @@ impl<'a> Reader<'a, '_> {
 
     fn list(&mut self, node: &'a AstNode<'a>, list_type: ListType, start: usize) -> Vec<Node> {
         let items = children(node);
-        if items.iter().any(|i| matches!(i.data().value, NodeValue::TaskItem(_))) {
+        if items
+            .iter()
+            .any(|i| matches!(i.data().value, NodeValue::TaskItem(_)))
+        {
             return vec![self.task_list(node)];
         }
-        let kind = if list_type == ListType::Ordered { "orderedList" } else { "bulletList" };
+        let kind = if list_type == ListType::Ordered {
+            "orderedList"
+        } else {
+            "bulletList"
+        };
         let mut list = Node::new(kind);
         if list_type == ListType::Ordered && start != 1 {
             list = list.with_attr("order", start);
@@ -794,7 +975,8 @@ impl<'a> Reader<'a, '_> {
             if content.is_empty() {
                 content.push(Node::new("paragraph"));
             }
-            list.content.push(Node::new("listItem").with_content(content));
+            list.content
+                .push(Node::new("listItem").with_content(content));
         }
         vec![list]
     }
@@ -804,19 +986,32 @@ impl<'a> Reader<'a, '_> {
         for item in children(node) {
             let done = matches!(&item.data().value, NodeValue::TaskItem(t) if t.symbol.is_some());
             if !matches!(item.data().value, NodeValue::TaskItem(_)) {
-                self.warn(item, "list item without a checkbox in a task list uploaded as a task");
+                self.warn(
+                    item,
+                    "list item without a checkbox in a task list uploaded as a task",
+                );
             }
-            let mut task = Node::new("taskItem").with_attr("state", if done { "DONE" } else { "TODO" });
+            let mut task =
+                Node::new("taskItem").with_attr("state", if done { "DONE" } else { "TODO" });
             let mut nested = Vec::new();
             for (i, child) in children(item).into_iter().enumerate() {
                 let value = child.data().value.clone();
                 match value {
-                    NodeValue::Paragraph if i == 0 => task.content = self.inlines(&children(child), &[]),
+                    NodeValue::Paragraph if i == 0 => {
+                        task.content = self.inlines(&children(child), &[])
+                    }
                     // A nested task list follows its parent item in ADF.
-                    NodeValue::List(_) if children(child).iter().any(|c| matches!(c.data().value, NodeValue::TaskItem(_))) => {
+                    NodeValue::List(_)
+                        if children(child)
+                            .iter()
+                            .any(|c| matches!(c.data().value, NodeValue::TaskItem(_))) =>
+                    {
                         nested.push(self.task_list(child))
                     }
-                    _ => self.error(child, "only text and nested task lists can be in a task in Confluence (dropped)"),
+                    _ => self.error(
+                        child,
+                        "only text and nested task lists can be in a task in Confluence (dropped)",
+                    ),
                 }
             }
             list.content.push(task);
@@ -826,9 +1021,17 @@ impl<'a> Reader<'a, '_> {
     }
 
     /// A table node with the settings shared by GFM and HTML tables, and the column widths.
-    fn table_node(&mut self, node: &AstNode, settings: &Settings, extra_keys: &[&str]) -> (Node, Vec<Option<f64>>) {
+    fn table_node(
+        &mut self,
+        node: &AstNode,
+        settings: &Settings,
+        extra_keys: &[&str],
+    ) -> (Node, Vec<Option<f64>>) {
         if self.place == Place::TableCell {
-            self.error(node, "table inside a table cell can't be represented in Confluence");
+            self.error(
+                node,
+                "table inside a table cell can't be represented in Confluence",
+            );
         }
         let widths: Vec<Option<f64>> = match settings.get("colwidths") {
             Some(list) => list.split(',').map(|w| w.trim().parse().ok()).collect(),
@@ -845,22 +1048,36 @@ impl<'a> Reader<'a, '_> {
             table = table.with_attr("width", width);
         }
         for key in settings.keys() {
-            if !matches!(key, "colwidths" | "numbered" | "layout" | "width") && !extra_keys.contains(&key) {
+            if !matches!(key, "colwidths" | "numbered" | "layout" | "width")
+                && !extra_keys.contains(&key)
+            {
                 self.warn(node, format!("unknown table setting `{key}` ignored"));
             }
         }
         (table, widths)
     }
 
-    fn html_table(&mut self, node: &AstNode, html: html_table::Table<'a>, settings: Settings) -> Node {
+    fn html_table(
+        &mut self,
+        node: &AstNode,
+        html: html_table::Table<'a>,
+        settings: Settings,
+    ) -> Node {
         let (mut table, widths) = self.table_node(node, &settings, &[]);
-        let spans: Vec<Vec<(usize, usize)>> =
-            html.rows.iter().map(|r| r.iter().map(|c| (c.colspan, c.rowspan)).collect()).collect();
+        let spans: Vec<Vec<(usize, usize)>> = html
+            .rows
+            .iter()
+            .map(|r| r.iter().map(|c| (c.colspan, c.rowspan)).collect())
+            .collect();
         let grid = html_table::grid_columns(&spans);
         for (row, cols) in html.rows.iter().zip(&grid) {
             let mut tr = Node::new("tableRow");
             for (cell, &col) in row.iter().zip(cols) {
-                let mut td = Node::new(if cell.header { "tableHeader" } else { "tableCell" });
+                let mut td = Node::new(if cell.header {
+                    "tableHeader"
+                } else {
+                    "tableCell"
+                });
                 if cell.colspan > 1 {
                     td = td.with_attr("colspan", cell.colspan);
                 }
@@ -870,7 +1087,9 @@ impl<'a> Reader<'a, '_> {
                 if let Some(bg) = &cell.background {
                     td = td.with_attr("background", bg.clone());
                 }
-                let from_table: Option<Vec<f64>> = (col..col + cell.colspan).map(|c| widths.get(c).copied().flatten()).collect();
+                let from_table: Option<Vec<f64>> = (col..col + cell.colspan)
+                    .map(|c| widths.get(c).copied().flatten())
+                    .collect();
                 if let Some(w) = cell.colwidth.clone().or(from_table) {
                     td = td.with_attr("colwidth", json!(w));
                 }
@@ -886,8 +1105,11 @@ impl<'a> Reader<'a, '_> {
     }
 
     fn table(&mut self, node: &'a AstNode<'a>, settings: Settings) -> Node {
-        let NodeValue::Table(t) = node.data().value.clone() else { unreachable!() };
-        let (mut table, widths) = self.table_node(node, &settings, &["no-header-row", "header-column"]);
+        let NodeValue::Table(t) = node.data().value.clone() else {
+            unreachable!()
+        };
+        let (mut table, widths) =
+            self.table_node(node, &settings, &["no-header-row", "header-column"]);
         let header_row = !settings.has("no-header-row");
         let header_column = settings.has("header-column");
         for (r, row) in children(node).into_iter().enumerate() {
@@ -896,11 +1118,16 @@ impl<'a> Reader<'a, '_> {
                 let header = (r == 0 && header_row) || (c == 0 && header_column);
                 let mut p = Node::new("paragraph").with_content(self.inlines(&children(cell), &[]));
                 match t.alignments.get(c) {
-                    Some(TableAlignment::Center) => p.marks.push(Mark::new("alignment").with_attr("align", "center")),
-                    Some(TableAlignment::Right) => p.marks.push(Mark::new("alignment").with_attr("align", "end")),
+                    Some(TableAlignment::Center) => p
+                        .marks
+                        .push(Mark::new("alignment").with_attr("align", "center")),
+                    Some(TableAlignment::Right) => p
+                        .marks
+                        .push(Mark::new("alignment").with_attr("align", "end")),
                     _ => {}
                 }
-                let mut td = Node::new(if header { "tableHeader" } else { "tableCell" }).with_content(vec![p]);
+                let mut td = Node::new(if header { "tableHeader" } else { "tableCell" })
+                    .with_content(vec![p]);
                 if let Some(Some(w)) = widths.get(c) {
                     td = td.with_attr("colwidth", json!([w]));
                 }
@@ -958,12 +1185,21 @@ impl<'a> Reader<'a, '_> {
                         }
                         match node {
                             Ok(n) => out.push(n),
-                            Err(e) => self.diags.push(Diagnostic::error(at, format!("invalid data-adf span ({e}); dropped"))),
+                            Err(e) => self.diags.push(Diagnostic::error(
+                                at,
+                                format!("invalid data-adf span ({e}); dropped"),
+                            )),
                         }
-                    } else if matches!(h.trim().to_ascii_lowercase().as_str(), "<br>" | "<br/>" | "<br />") {
+                    } else if matches!(
+                        h.trim().to_ascii_lowercase().as_str(),
+                        "<br>" | "<br/>" | "<br />"
+                    ) {
                         out.push(Node::new("hardBreak"));
                     } else if Settings::parse_comment(h).is_none() {
-                        self.diags.push(Diagnostic::warning(at, format!("inline HTML `{h}` dropped")));
+                        self.diags.push(Diagnostic::warning(
+                            at,
+                            format!("inline HTML `{h}` dropped"),
+                        ));
                     }
                 }
                 Leaf::Other(node) => out.extend(self.other_inline(node, marks)),
@@ -978,18 +1214,30 @@ impl<'a> Reader<'a, '_> {
         let value = node.data().value.clone();
         match value {
             NodeValue::Image(l) => {
-                self.error(node, "inline images can't be represented in Confluence (uploaded as a link)");
+                self.error(
+                    node,
+                    "inline images can't be represented in Confluence (uploaded as a link)",
+                );
                 let mut marks = marks;
                 marks.push(Mark::new("link").with_attr("href", self.href(&l.url)));
                 let alt = markdown::inline_text(node);
-                vec![Node::text(if alt.is_empty() { l.url.clone() } else { alt }).with_marks(sorted(marks))]
+                vec![
+                    Node::text(if alt.is_empty() { l.url.clone() } else { alt })
+                        .with_marks(sorted(marks)),
+                ]
             }
             NodeValue::FootnoteReference(f) => {
-                self.error(node, "footnotes can't be represented in Confluence (reference uploaded as text)");
+                self.error(
+                    node,
+                    "footnotes can't be represented in Confluence (reference uploaded as text)",
+                );
                 vec![Node::text(format!("[^{}]", f.name)).with_marks(marks)]
             }
             other => {
-                self.error(node, format!("unsupported inline markdown ({other:?}) uploaded as text"));
+                self.error(
+                    node,
+                    format!("unsupported inline markdown ({other:?}) uploaded as text"),
+                );
                 vec![Node::text(markdown::inline_text(node)).with_marks(marks)]
             }
         }
@@ -1012,7 +1260,10 @@ impl<'a> Reader<'a, '_> {
                 standard(e)
             } else if let Some(id) = self.ctx.custom_emoji.get(sc.name) {
                 let short = format!(":{}:", sc.name);
-                Node::new("emoji").with_attr("shortName", short.clone()).with_attr("id", id.clone()).with_attr("text", short)
+                Node::new("emoji")
+                    .with_attr("shortName", short.clone())
+                    .with_attr("id", id.clone())
+                    .with_attr("text", short)
             } else {
                 continue;
             };
@@ -1041,9 +1292,15 @@ impl<'a> Reader<'a, '_> {
     /// markdown files as page URLs (design.md, "Links" > "Upload").
     fn href(&mut self, url: &str) -> String {
         if let Some(anchor) = url.strip_prefix('#') {
-            return self.anchors.to_confluence(anchor).map(|c| format!("#{c}")).unwrap_or_else(|| url.to_string());
+            return self
+                .anchors
+                .to_confluence(anchor)
+                .map(|c| format!("#{c}"))
+                .unwrap_or_else(|| url.to_string());
         }
-        let Some((path, anchor)) = local_md_link(url) else { return url.to_string() };
+        let Some((path, anchor)) = local_md_link(url) else {
+            return url.to_string();
+        };
         let Some(page) = self.ctx.pages.get(&path) else {
             if !self.check_only && !self.unresolved.links.contains(&path) {
                 self.unresolved.links.push(path);
@@ -1054,7 +1311,11 @@ impl<'a> Reader<'a, '_> {
             Some(a) => {
                 let anchors = Anchors::new(page.headings.iter().map(String::as_str));
                 let decoded = percent_encoding::percent_decode_str(a).decode_utf8_lossy();
-                format!("{}#{}", page.url, anchors.to_confluence(a).unwrap_or(&decoded))
+                format!(
+                    "{}#{}",
+                    page.url,
+                    anchors.to_confluence(a).unwrap_or(&decoded)
+                )
             }
             None => page.url.clone(),
         }
@@ -1137,7 +1398,11 @@ fn marked_card(items: &[Item], i: usize) -> Option<(String, usize)> {
         _ => None,
     })?;
     // Only at the start of the link.
-    let same_link = |it: &Item| it.marks.iter().any(|m| matches!(m, MdMark::Link { url: u, .. } if *u == url));
+    let same_link = |it: &Item| {
+        it.marks
+            .iter()
+            .any(|m| matches!(m, MdMark::Link { url: u, .. } if *u == url))
+    };
     if i > 0 && same_link(&items[i - 1]) {
         return None;
     }
@@ -1146,7 +1411,11 @@ fn marked_card(items: &[Item], i: usize) -> Option<(String, usize)> {
         end += 1;
     }
     match &items.get(end + 1)?.leaf {
-        Leaf::Html(h) if Settings::parse_comment(h).is_some_and(|s| s.get("card") == Some("inline")) => Some((url, end + 1)),
+        Leaf::Html(h)
+            if Settings::parse_comment(h).is_some_and(|s| s.get("card") == Some("inline")) =>
+        {
+            Some((url, end + 1))
+        }
         _ => None,
     }
 }
@@ -1154,12 +1423,17 @@ fn marked_card(items: &[Item], i: usize) -> Option<(String, usize)> {
 /// An autolink (`<url>`, or a link whose text is its URL) is an `inlineCard`: the item's
 /// text equals the URL of a link mark that no neighbouring item shares.
 fn autolink(items: &[Item], i: usize) -> Option<String> {
-    let Leaf::Text(text) = &items[i].leaf else { return None };
+    let Leaf::Text(text) = &items[i].leaf else {
+        return None;
+    };
     let url = items[i].marks.iter().find_map(|m| match m {
         MdMark::Link { url, title } if url == text && title.is_empty() => Some(url.clone()),
         _ => None,
     })?;
-    let link = MdMark::Link { url: url.clone(), title: String::new() };
+    let link = MdMark::Link {
+        url: url.clone(),
+        title: String::new(),
+    };
     let shares = |j: usize| items.get(j).is_some_and(|it| it.marks.contains(&link));
     (!(i > 0 && shares(i - 1)) && !shares(i + 1)).then_some(url)
 }
@@ -1175,9 +1449,12 @@ fn adf_span(html: &str) -> Option<Result<Node, String>> {
 fn trailing_comment<'a>(node: &'a AstNode<'a>) -> (Settings, Vec<&'a AstNode<'a>>) {
     let mut kids = children(node);
     if let Some(last) = kids.last()
-        && let NodeValue::HtmlInline(h) = &last.data().value {
+        && let NodeValue::HtmlInline(h) = &last.data().value
+    {
         // `card=inline` belongs to the link before it, even at the end of a paragraph.
-        if let Some(settings) = Settings::parse_comment(h).filter(|s| s.get("card") != Some("inline")) {
+        if let Some(settings) =
+            Settings::parse_comment(h).filter(|s| s.get("card") != Some("inline"))
+        {
             kids.pop();
             return (settings, kids);
         }
@@ -1221,9 +1498,14 @@ fn sorted(mut marks: Vec<Mark>) -> Vec<Mark> {
 fn assign_local_ids(doc: &mut Node) {
     let mut next = 0u64;
     doc.walk_mut(&mut |n| {
-        if matches!(n.kind.as_str(), "taskList" | "taskItem" | "decisionList" | "decisionItem") && n.attr("localId").is_none() {
+        if matches!(
+            n.kind.as_str(),
+            "taskList" | "taskItem" | "decisionList" | "decisionItem"
+        ) && n.attr("localId").is_none()
+        {
             next += 1;
-            n.attrs.insert("localId".into(), format!("{next:012x}").into());
+            n.attrs
+                .insert("localId".into(), format!("{next:012x}").into());
         }
     });
 }

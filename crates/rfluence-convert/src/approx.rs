@@ -33,21 +33,32 @@ pub fn approximate<'a>(arena: &'a Arena<'a>, root: &'a AstNode<'a>, diags: &mut 
                 strong.append(node(arena, NodeValue::Text(title.into())));
                 p.append(strong);
                 n.prepend(p);
-                diags.push(Diagnostic::warning(line, "alert title written as a bold first line (Confluence panels have no title)"));
+                diags.push(Diagnostic::warning(
+                    line,
+                    "alert title written as a bold first line (Confluence panels have no title)",
+                ));
             }
             NodeValue::Image(l) if !l.title.is_empty() => {
                 if let NodeValue::Image(l) = &mut n.data_mut().value {
                     l.title.clear();
                 }
-                diags.push(Diagnostic::warning(line, "image title dropped (Confluence images have no title)"));
+                diags.push(Diagnostic::warning(
+                    line,
+                    "image title dropped (Confluence images have no title)",
+                ));
             }
-            NodeValue::HtmlBlock(h) if is_details_open(&h.literal) => details(arena, n, &h.literal, diags),
+            NodeValue::HtmlBlock(h) if is_details_open(&h.literal) => {
+                details(arena, n, &h.literal, diags)
+            }
             _ => {}
         }
     }
     let containers: Vec<_> = root
         .descendants()
-        .filter(|n| n.children().any(|c| matches!(c.data().value, NodeValue::HtmlInline(_))))
+        .filter(|n| {
+            n.children()
+                .any(|c| matches!(c.data().value, NodeValue::HtmlInline(_)))
+        })
         .collect();
     for container in containers {
         inline_html(arena, container, diags);
@@ -86,8 +97,10 @@ fn html_tables<'a>(arena: &'a Arena<'a>, root: &'a AstNode<'a>, diags: &mut Vec<
                     if Settings::parse_comment(&h.literal).is_some_and(|s| !(s.has("columns") || s.has("column") || s.has("end-columns"))))
             });
             let mut settings = table.settings.clone();
-            if settings.is_none() && !flags.is_empty()
-                && let Some(next) = next {
+            if settings.is_none()
+                && !flags.is_empty()
+                && let Some(next) = next
+            {
                 if let NodeValue::HtmlBlock(h) = &next.data().value {
                     settings = Settings::parse_comment(&h.literal);
                 }
@@ -110,11 +123,21 @@ fn html_tables<'a>(arena: &'a Arena<'a>, root: &'a AstNode<'a>, diags: &mut Vec<
             replace(&kids[i..=end], &rendered);
             let mut last = *rendered.last().expect("render always returns the table");
             if let Some(settings) = &settings {
-                let comment = node(arena, NodeValue::HtmlBlock(NodeHtmlBlock { block_type: 2, literal: settings.to_comment() }));
+                let comment = node(
+                    arena,
+                    NodeValue::HtmlBlock(NodeHtmlBlock {
+                        block_type: 2,
+                        literal: settings.to_comment(),
+                    }),
+                );
                 last.insert_after(comment);
                 last = comment;
             }
-            i = container.children().position(|c| std::ptr::eq(c, last)).expect("just inserted") + 1;
+            i = container
+                .children()
+                .position(|c| std::ptr::eq(c, last))
+                .expect("just inserted")
+                + 1;
         }
     }
 }
@@ -135,7 +158,10 @@ fn as_gfm<'a>(
 ) -> Option<(&'a AstNode<'a>, Vec<&'static str>)> {
     let ncols = table.rows.first()?.len();
     let header_row = table.rows[0].iter().all(|c| c.header);
-    let header_column = table.rows.len() > 1 && table.rows[1..].iter().all(|r| r.first().is_some_and(|c| c.header));
+    let header_column = table.rows.len() > 1
+        && table.rows[1..]
+            .iter()
+            .all(|r| r.first().is_some_and(|c| c.header));
     for (r, row) in table.rows.iter().enumerate() {
         if row.len() != ncols {
             return None;
@@ -152,8 +178,12 @@ fn as_gfm<'a>(
                 }
                 _ => false,
             };
-            if cell.header != expected || cell.colspan != 1 || cell.rowspan != 1 || cell.background.is_some()
-                || cell.colwidth.is_some() || !simple_content
+            if cell.header != expected
+                || cell.colspan != 1
+                || cell.rowspan != 1
+                || cell.background.is_some()
+                || cell.colwidth.is_some()
+                || !simple_content
             {
                 return None;
             }
@@ -165,7 +195,12 @@ fn as_gfm<'a>(
             alignments: vec![TableAlignment::None; ncols],
             num_columns: ncols,
             num_rows: table.rows.len(),
-            num_nonempty_cells: table.rows.iter().flatten().filter(|c| !c.content.is_empty()).count(),
+            num_nonempty_cells: table
+                .rows
+                .iter()
+                .flatten()
+                .filter(|c| !c.content.is_empty())
+                .count(),
         })),
     );
     set_line(gfm, line);
@@ -177,7 +212,9 @@ fn as_gfm<'a>(
             let td = node(arena, NodeValue::TableCell);
             set_line(td, line);
             tr.append(td);
-            let Some(p) = cell.content.first() else { continue };
+            let Some(p) = cell.content.first() else {
+                continue;
+            };
             for k in p.children().collect::<Vec<_>>() {
                 // A GFM cell is one line.
                 let replacement = match k.data().value {
@@ -217,8 +254,15 @@ fn replace<'a>(old: &[&'a AstNode<'a>], new: &[&'a AstNode<'a>]) {
 
 /// A GFM table with HTML lists in its cells becomes an HTML table (a GFM cell can't hold a
 /// list).
-fn gfm_tables_with_lists<'a>(arena: &'a Arena<'a>, root: &'a AstNode<'a>, diags: &mut Vec<Diagnostic>) {
-    let tables: Vec<_> = root.descendants().filter(|n| matches!(n.data().value, NodeValue::Table(_))).collect();
+fn gfm_tables_with_lists<'a>(
+    arena: &'a Arena<'a>,
+    root: &'a AstNode<'a>,
+    diags: &mut Vec<Diagnostic>,
+) {
+    let tables: Vec<_> = root
+        .descendants()
+        .filter(|n| matches!(n.data().value, NodeValue::Table(_)))
+        .collect();
     for t in tables {
         let has_list = t.descendants().any(|n| match &n.data().value {
             NodeValue::HtmlInline(h) => {
@@ -253,12 +297,22 @@ fn gfm_tables_with_lists<'a>(arena: &'a Arena<'a>, root: &'a AstNode<'a>, diags:
                     rowspan: 1,
                     background: None,
                     colwidth: None,
-                    content: html_table::parse_at_line(arena, &md, cell.data().sourcepos.start.line),
+                    content: html_table::parse_at_line(
+                        arena,
+                        &md,
+                        cell.data().sourcepos.start.line,
+                    ),
                 });
             }
             rows.push(cells);
         }
-        let rendered = html_table::render(arena, &html_table::Table { rows, settings: None });
+        let rendered = html_table::render(
+            arena,
+            &html_table::Table {
+                rows,
+                settings: None,
+            },
+        );
         for r in &rendered {
             if matches!(r.data().value, NodeValue::HtmlBlock(_)) {
                 set_line(r, t.data().sourcepos.start.line);
@@ -275,18 +329,28 @@ pub fn is_details_open(literal: &str) -> bool {
 
 /// The canonical opening line of an expand.
 pub fn details_open(title: &str) -> String {
-    let escaped = title.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;");
+    let escaped = title
+        .replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;");
     format!("<details><summary>{escaped}</summary>")
 }
 
 /// The title in a canonical `<details><summary>...</summary>` line.
 pub fn details_title(literal: &str) -> Option<String> {
-    let inner = literal.trim().strip_prefix("<details><summary>")?.strip_suffix("</summary>")?;
+    let inner = literal
+        .trim()
+        .strip_prefix("<details><summary>")?
+        .strip_suffix("</summary>")?;
     Some(unescape(inner))
 }
 
 fn unescape(s: &str) -> String {
-    s.replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", "\"").replace("&#39;", "'").replace("&amp;", "&")
+    s.replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&quot;", "\"")
+        .replace("&#39;", "'")
+        .replace("&amp;", "&")
 }
 
 fn strip_tags(s: &str) -> String {
@@ -310,15 +374,27 @@ fn find_ci(haystack: &str, needle: &str) -> Option<usize> {
 /// Rewrite a `<details>` HTML block to the canonical one-line form
 /// `<details><summary>Title</summary>`, moving any body written in the same block (no
 /// blank lines) out as markdown, followed by its own `</details>`.
-fn details<'a>(arena: &'a Arena<'a>, n: &'a AstNode<'a>, literal: &str, diags: &mut Vec<Diagnostic>) {
+fn details<'a>(
+    arena: &'a Arena<'a>,
+    n: &'a AstNode<'a>,
+    literal: &str,
+    diags: &mut Vec<Diagnostic>,
+) {
     let line = n.data().sourcepos.start.line;
     let open_end = literal.find('>').map_or(literal.len(), |i| i + 1);
     if literal[..open_end].to_ascii_lowercase().contains(" open") {
-        diags.push(Diagnostic::warning(line, "`<details open>`: Confluence expands always start closed"));
+        diags.push(Diagnostic::warning(
+            line,
+            "`<details open>`: Confluence expands always start closed",
+        ));
     }
     let mut rest = &literal[open_end..];
     let mut title = String::new();
-    if rest.trim_start().to_ascii_lowercase().starts_with("<summary") {
+    if rest
+        .trim_start()
+        .to_ascii_lowercase()
+        .starts_with("<summary")
+    {
         let start = rest.find('>').map_or(rest.len(), |i| i + 1);
         match find_ci(rest, "</summary>") {
             Some(end) if end >= start => {
@@ -347,7 +423,13 @@ fn details<'a>(arena: &'a Arena<'a>, n: &'a AstNode<'a>, literal: &str, diags: &
         }
     }
     if closed {
-        let close = node(arena, NodeValue::HtmlBlock(NodeHtmlBlock { block_type: 6, literal: "</details>".into() }));
+        let close = node(
+            arena,
+            NodeValue::HtmlBlock(NodeHtmlBlock {
+                block_type: 6,
+                literal: "</details>".into(),
+            }),
+        );
         after.insert_after(close);
     }
 }
@@ -371,10 +453,18 @@ fn classify(html: &str, in_table: bool) -> (Tag, String) {
         let rf = crate::settings::Settings::parse_comment(h).is_some();
         return (if rf { Tag::Keep } else { Tag::Drop }, "<!--".into());
     }
-    let name: String = lower.trim_start_matches(['<', '/']).chars().take_while(|c| c.is_ascii_alphanumeric()).collect();
+    let name: String = lower
+        .trim_start_matches(['<', '/'])
+        .chars()
+        .take_while(|c| c.is_ascii_alphanumeric())
+        .collect();
     let tag = match name.as_str() {
         "u" | "sub" | "sup" => Tag::Keep,
-        "span" if lower.starts_with("</") || lower.starts_with("<span data-adf=") || lower.starts_with("<span style=") => {
+        "span"
+            if lower.starts_with("</")
+                || lower.starts_with("<span data-adf=")
+                || lower.starts_with("<span style=") =>
+        {
             Tag::Keep
         }
         "br" if in_table => Tag::Keep,
@@ -397,7 +487,9 @@ fn is_close(html: &str) -> bool {
 /// `<b>x</b>` -> `**x**`), and drop tags with no equivalent, keeping their text.
 fn inline_html<'a>(arena: &'a Arena<'a>, container: &'a AstNode<'a>, diags: &mut Vec<Diagnostic>) {
     let in_table = matches!(container.data().value, NodeValue::TableCell)
-        || container.ancestors().any(|a| matches!(a.data().value, NodeValue::TableCell));
+        || container
+            .ancestors()
+            .any(|a| matches!(a.data().value, NodeValue::TableCell));
     let line = container.data().sourcepos.start.line;
     let mut i = 0;
     loop {
@@ -414,13 +506,19 @@ fn inline_html<'a>(arena: &'a Arena<'a>, container: &'a AstNode<'a>, diags: &mut
             Tag::Wrap(NodeValue::LineBreak) => {
                 n.insert_before(node(arena, NodeValue::LineBreak));
                 n.detach();
-                diags.push(Diagnostic::warning(line, "`<br>` written as a markdown line break"));
+                diags.push(Diagnostic::warning(
+                    line,
+                    "`<br>` written as a markdown line break",
+                ));
                 continue;
             }
             Tag::Drop => {
                 n.detach();
                 if !closing {
-                    diags.push(Diagnostic::warning(line, format!("inline HTML `{}` dropped, text kept", html.trim())));
+                    diags.push(Diagnostic::warning(
+                        line,
+                        format!("inline HTML `{}` dropped, text kept", html.trim()),
+                    ));
                 }
                 continue;
             }
@@ -450,7 +548,10 @@ fn inline_html<'a>(arena: &'a Arena<'a>, container: &'a AstNode<'a>, diags: &mut
                 }
                 let Some(j) = close else {
                     n.detach();
-                    diags.push(Diagnostic::warning(line, format!("`{}` without a closing tag dropped", html.trim())));
+                    diags.push(Diagnostic::warning(
+                        line,
+                        format!("`{}` without a closing tag dropped", html.trim()),
+                    ));
                     continue;
                 };
                 let inner: Vec<_> = kids[i + 1..j].to_vec();
@@ -459,12 +560,21 @@ fn inline_html<'a>(arena: &'a Arena<'a>, container: &'a AstNode<'a>, diags: &mut
                     Tag::Code => {
                         let text: String = inner.iter().map(|k| markdown::inline_text(k)).collect();
                         if !text.is_empty() {
-                            n.insert_before(node(arena, NodeValue::Code(NodeCode { num_backticks: 1, literal: text })));
+                            n.insert_before(node(
+                                arena,
+                                NodeValue::Code(NodeCode {
+                                    num_backticks: 1,
+                                    literal: text,
+                                }),
+                            ));
                         }
                         for k in &inner {
                             k.detach();
                         }
-                        diags.push(Diagnostic::warning(line, format!("`{shown}` written as inline code")));
+                        diags.push(Diagnostic::warning(
+                            line,
+                            format!("`{shown}` written as inline code"),
+                        ));
                     }
                     Tag::Wrap(value) => {
                         let wrapper = node(arena, value);
@@ -473,12 +583,18 @@ fn inline_html<'a>(arena: &'a Arena<'a>, container: &'a AstNode<'a>, diags: &mut
                             k.detach();
                             wrapper.append(k);
                         }
-                        diags.push(Diagnostic::warning(line, format!("`{shown}` written as markdown formatting")));
+                        diags.push(Diagnostic::warning(
+                            line,
+                            format!("`{shown}` written as markdown formatting"),
+                        ));
                     }
                     Tag::Underline => {
                         n.insert_before(node(arena, NodeValue::HtmlInline("<u>".into())));
                         kids[j].insert_before(node(arena, NodeValue::HtmlInline("</u>".into())));
-                        diags.push(Diagnostic::warning(line, format!("`{shown}` written as `<u>`")));
+                        diags.push(Diagnostic::warning(
+                            line,
+                            format!("`{shown}` written as `<u>`"),
+                        ));
                     }
                     _ => unreachable!(),
                 }

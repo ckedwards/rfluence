@@ -13,7 +13,11 @@ use serde_json::{Map, Value};
 pub struct Node {
     #[serde(rename = "type")]
     pub kind: String,
-    #[serde(default, skip_serializing_if = "Map::is_empty", deserialize_with = "null_as_empty")]
+    #[serde(
+        default,
+        skip_serializing_if = "Map::is_empty",
+        deserialize_with = "null_as_empty"
+    )]
     pub attrs: Map<String, Value>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub content: Vec<Node>,
@@ -31,7 +35,11 @@ pub struct Node {
 pub struct Mark {
     #[serde(rename = "type")]
     pub kind: String,
-    #[serde(default, skip_serializing_if = "Map::is_empty", deserialize_with = "null_as_empty")]
+    #[serde(
+        default,
+        skip_serializing_if = "Map::is_empty",
+        deserialize_with = "null_as_empty"
+    )]
     pub attrs: Map<String, Value>,
 }
 
@@ -41,7 +49,10 @@ fn null_as_empty<'de, D: Deserializer<'de>>(d: D) -> Result<Map<String, Value>, 
 
 impl Node {
     pub fn new(kind: &str) -> Self {
-        Node { kind: kind.to_string(), ..Default::default() }
+        Node {
+            kind: kind.to_string(),
+            ..Default::default()
+        }
     }
 
     /// A `doc` node with `version: 1`.
@@ -52,7 +63,11 @@ impl Node {
     }
 
     pub fn text(text: impl Into<String>) -> Self {
-        Node { kind: "text".into(), text: Some(text.into()), ..Default::default() }
+        Node {
+            kind: "text".into(),
+            text: Some(text.into()),
+            ..Default::default()
+        }
     }
 
     pub fn with_attr(mut self, key: &str, value: impl Into<Value>) -> Self {
@@ -124,7 +139,10 @@ impl Node {
 
 impl Mark {
     pub fn new(kind: &str) -> Self {
-        Mark { kind: kind.to_string(), attrs: Map::new() }
+        Mark {
+            kind: kind.to_string(),
+            attrs: Map::new(),
+        }
     }
 
     pub fn with_attr(mut self, key: &str, value: impl Into<Value>) -> Self {
@@ -208,7 +226,9 @@ pub fn strip_noise(node: &mut Node) {
             }
             "table" => {
                 let layout = n.attr_str("layout").unwrap_or("default").to_string();
-                if n.attr_f64("width").is_some() && n.attr_f64("width") == default_table_width(&layout) {
+                if n.attr_f64("width").is_some()
+                    && n.attr_f64("width") == default_table_width(&layout)
+                {
                     n.attrs.remove("width");
                 }
                 if layout == "default" {
@@ -217,7 +237,11 @@ pub fn strip_noise(node: &mut Node) {
             }
             "mediaSingle" => {
                 // Natural width in pixels is the default (design.md, "Images and attachments").
-                let natural = n.content.first().filter(|m| m.is("media")).and_then(|m| m.attr_f64("width"));
+                let natural = n
+                    .content
+                    .first()
+                    .filter(|m| m.is("media"))
+                    .and_then(|m| m.attr_f64("width"));
                 if natural.is_some()
                     && n.attr_f64("width") == natural
                     && n.attr_str("widthType").unwrap_or("pixel") == "pixel"
@@ -231,11 +255,14 @@ pub fn strip_noise(node: &mut Node) {
             }
             _ => {}
         }
-        n.marks.retain(|m| !(m.kind == "breakout" && is_default_breakout(m)));
+        n.marks
+            .retain(|m| !(m.kind == "breakout" && is_default_breakout(m)));
         for mark in &mut n.marks {
             if mark.kind == "breakout" {
                 let mode = mark.attr_str("mode").unwrap_or("").to_string();
-                if mark.attr_f64("width").is_some() && mark.attr_f64("width") == default_breakout_width(&mode) {
+                if mark.attr_f64("width").is_some()
+                    && mark.attr_f64("width") == default_breakout_width(&mode)
+                {
                     mark.attrs.remove("width");
                 }
             }
@@ -254,7 +281,10 @@ pub fn strip_noise(node: &mut Node) {
 }
 
 fn mark_sort_key(mark: &Mark) -> (String, String) {
-    (mark.kind.clone(), Value::Object(mark.attrs.clone()).to_string())
+    (
+        mark.kind.clone(),
+        Value::Object(mark.attrs.clone()).to_string(),
+    )
 }
 
 fn merge_text_nodes_deep(node: &mut Node) {
@@ -273,8 +303,13 @@ pub fn merge_text_nodes(nodes: &mut Vec<Node>) {
             continue;
         }
         if let Some(prev) = out.last_mut()
-            && node.is("text") && prev.is("text") && prev.marks == node.marks {
-            prev.text.get_or_insert_with(String::new).push_str(node.text.as_deref().unwrap_or(""));
+            && node.is("text")
+            && prev.is("text")
+            && prev.marks == node.marks
+        {
+            prev.text
+                .get_or_insert_with(String::new)
+                .push_str(node.text.as_deref().unwrap_or(""));
             continue;
         }
         out.push(node);

@@ -22,8 +22,12 @@ fn check_reference_output(file: &str, simplified: bool) {
     let update = std::env::var_os("RFLUENCE_UPDATE_FIXTURES").is_some();
     let mut changed = Vec::new();
     for name in pages() {
-        let ctx = rfluence_convert::FetchContext { simplified, ..fetch_ctx(&name) };
-        let md = rfluence_convert::page_markdown(&page_adf(&name, "adf.json"), &page_meta(&name), &ctx);
+        let ctx = rfluence_convert::FetchContext {
+            simplified,
+            ..fetch_ctx(&name)
+        };
+        let md =
+            rfluence_convert::page_markdown(&page_adf(&name, "adf.json"), &page_meta(&name), &ctx);
         let path = fixtures().join("confluence").join(&name).join(file);
         let expected = std::fs::read_to_string(&path).unwrap_or_default();
         if md != expected {
@@ -37,7 +41,11 @@ fn check_reference_output(file: &str, simplified: bool) {
             }
         }
     }
-    assert!(changed.is_empty(), "{}\n\nRun with RFLUENCE_UPDATE_FIXTURES=1 to update {file}.", changed.join("\n\n"));
+    assert!(
+        changed.is_empty(),
+        "{}\n\nRun with RFLUENCE_UPDATE_FIXTURES=1 to update {file}.",
+        changed.join("\n\n")
+    );
 }
 
 /// An editor save rewrites the whole page (localIds, default widths, mark order, ...).
@@ -48,11 +56,18 @@ fn check_reference_output(file: &str, simplified: bool) {
 #[test]
 fn editor_save_doesnt_change_markdown() {
     let ctx = fetch_ctx("code-languages-and-widths");
-    let api = adf_to_markdown(&page_adf("code-languages-and-widths", "adf.v2-api-save.json"), &ctx);
+    let api = adf_to_markdown(
+        &page_adf("code-languages-and-widths", "adf.v2-api-save.json"),
+        &ctx,
+    );
     let editor = adf_to_markdown(&page_adf("code-languages-and-widths", "adf.json"), &ctx);
     let expected = api
         .replacen("width variants.\n", "width variants. XX\n", 1)
-        .replacen("```plaintext breakout=wide\n", "```plaintext width=1011\n", 1);
+        .replacen(
+            "```plaintext breakout=wide\n",
+            "```plaintext width=1011\n",
+            1,
+        );
     similar_asserts::assert_eq!(expected, editor);
 }
 
@@ -73,8 +88,14 @@ fn editor_save_of_reference_page_keeps_untouched_part() {
     // The pages moved to another space after the saved version was captured, and a move
     // rewrites the space key in page URLs (design.md, "Links"), so ignore it.
     let cut = |md: String| without_space_keys(&md[..md.find("## (editor)").unwrap()]);
-    let api = cut(adf_to_markdown(&page_adf("adf-reference", "adf.v2-api-save.json"), &ctx));
-    let editor = cut(adf_to_markdown(&page_adf("adf-reference", "adf.json"), &ctx));
+    let api = cut(adf_to_markdown(
+        &page_adf("adf-reference", "adf.v2-api-save.json"),
+        &ctx,
+    ));
+    let editor = cut(adf_to_markdown(
+        &page_adf("adf-reference", "adf.json"),
+        &ctx,
+    ));
     similar_asserts::assert_eq!(api, editor);
 }
 

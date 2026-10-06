@@ -19,7 +19,11 @@ use std::process::ExitCode;
 use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
-#[command(name = "rfluence", version, about = "Fetch, search and upload Confluence pages as markdown")]
+#[command(
+    name = "rfluence",
+    version,
+    about = "Fetch, search and upload Confluence pages as markdown"
+)]
 struct Cli {
     #[command(subcommand)]
     command: Command,
@@ -222,7 +226,11 @@ pub fn fail(e: &rfluence_client::Error) -> ExitCode {
     use rfluence_client::Error;
     eprintln!("rfluence: {e}");
     ExitCode::from(match e {
-        Error::NotConfigured | Error::NoSite | Error::PartialEnv(_) | Error::Invalid(_) | Error::Io(_) => EXIT_USAGE,
+        Error::NotConfigured
+        | Error::NoSite
+        | Error::PartialEnv(_)
+        | Error::Invalid(_)
+        | Error::Io(_) => EXIT_USAGE,
         Error::NotFound(_) => EXIT_NOT_FOUND,
         Error::Auth(_) | Error::Forbidden(_) => EXIT_AUTH,
         Error::Conflict(_) => EXIT_CONFLICT,
@@ -232,10 +240,39 @@ pub fn fail(e: &rfluence_client::Error) -> ExitCode {
 
 fn main() -> ExitCode {
     match Cli::parse().command {
-        Command::Fetch { page, simplified, section, max_chars, json, site, output, force } => {
-            fetch::run(&fetch::Options { page, simplified, section, max_chars, json, site, output, force })
-        }
-        Command::Upload { path, config, dry_run, force, move_pages, prune, prune_labels, warnings_are_errors, site, space, parent, json } => match (path, config) {
+        Command::Fetch {
+            page,
+            simplified,
+            section,
+            max_chars,
+            json,
+            site,
+            output,
+            force,
+        } => fetch::run(&fetch::Options {
+            page,
+            simplified,
+            section,
+            max_chars,
+            json,
+            site,
+            output,
+            force,
+        }),
+        Command::Upload {
+            path,
+            config,
+            dry_run,
+            force,
+            move_pages,
+            prune,
+            prune_labels,
+            warnings_are_errors,
+            site,
+            space,
+            parent,
+            json,
+        } => match (path, config) {
             (_, Some(config)) => {
                 if space.is_some() || parent.is_some() || json {
                     eprintln!("rfluence: --space, --parent and --json can't be used with --config");
@@ -247,29 +284,54 @@ fn main() -> ExitCode {
                     let found = project::root(&cwd).join(config::FILE_NAME);
                     found.strip_prefix(&cwd).map(PathBuf::from).unwrap_or(found)
                 });
-                upload_tree::run(&upload_tree::Options { config, dry_run, force, move_pages, prune, prune_labels, warnings_are_errors, site })
-            }
-            (Some(path), None) => {
-                upload::run(&upload::Options {
-                    path,
+                upload_tree::run(&upload_tree::Options {
+                    config,
                     dry_run,
                     force,
-                    site,
-                    space,
-                    parent,
-                    json,
                     move_pages,
+                    prune,
                     prune_labels,
                     warnings_are_errors,
-                    tree: None,
+                    site,
                 })
             }
+            (Some(path), None) => upload::run(&upload::Options {
+                path,
+                dry_run,
+                force,
+                site,
+                space,
+                parent,
+                json,
+                move_pages,
+                prune_labels,
+                warnings_are_errors,
+                tree: None,
+            }),
             (None, None) => unreachable!("clap requires one"),
         },
-        Command::Search { query, space, label, cql, limit, site, json } => {
-            search::run(&search::Options { query, space, label, cql, limit, site, json })
-        }
-        Command::Check { paths, json, warnings_are_errors } => check::run(&paths, json, warnings_are_errors),
+        Command::Search {
+            query,
+            space,
+            label,
+            cql,
+            limit,
+            site,
+            json,
+        } => search::run(&search::Options {
+            query,
+            space,
+            label,
+            cql,
+            limit,
+            site,
+            json,
+        }),
+        Command::Check {
+            paths,
+            json,
+            warnings_are_errors,
+        } => check::run(&paths, json, warnings_are_errors),
         Command::Auth { action } => match action {
             AuthAction::Login { email, with_token } => auth::login(email, with_token),
             AuthAction::Logout => auth::logout(),

@@ -5,8 +5,8 @@
 //! rebuilding it with a fixed nesting order ([`build`]) gives one canonical form, so the
 //! normalizer and fetch agree however the formatting was nested.
 
-use comrak::nodes::{AstNode, NodeCode, NodeLink, NodeValue};
 use comrak::Arena;
+use comrak::nodes::{AstNode, NodeCode, NodeLink, NodeValue};
 
 use crate::markdown::append;
 
@@ -108,7 +108,10 @@ pub fn flatten<'a>(nodes: &[&'a AstNode<'a>], marks: &[MdMark]) -> Vec<Item<'a>>
                     NodeValue::Emph => MdMark::Emph,
                     NodeValue::Strong => MdMark::Strong,
                     NodeValue::Strikethrough => MdMark::Strike,
-                    NodeValue::Link(l) => MdMark::Link { url: l.url.clone(), title: l.title.clone() },
+                    NodeValue::Link(l) => MdMark::Link {
+                        url: l.url.clone(),
+                        title: l.title.clone(),
+                    },
                     _ => unreachable!(),
                 };
                 cur.push(mark);
@@ -164,7 +167,9 @@ fn parse_mark_tag(html: &str) -> Option<(&'static str, MdMark)> {
 }
 
 fn tag_name(s: &str) -> &str {
-    let end = s.find(|c: char| !(c.is_ascii_alphanumeric() || c == '-')).unwrap_or(s.len());
+    let end = s
+        .find(|c: char| !(c.is_ascii_alphanumeric() || c == '-'))
+        .unwrap_or(s.len());
     &s[..end]
 }
 
@@ -179,7 +184,10 @@ fn open_tag(html: &str) -> Option<&str> {
         return None;
     }
     let name = tag_name(h.strip_prefix('<')?);
-    let void = matches!(name.to_ascii_lowercase().as_str(), "br" | "img" | "hr" | "wbr" | "input");
+    let void = matches!(
+        name.to_ascii_lowercase().as_str(),
+        "br" | "img" | "hr" | "wbr" | "input"
+    );
     (!name.is_empty() && !void).then_some(name)
 }
 
@@ -199,12 +207,21 @@ pub fn build<'a>(arena: &'a Arena<'a>, parent: &'a AstNode<'a>, items: &[Item<'a
         }
         let mut inner: Vec<Item<'a>> = items[i..j]
             .iter()
-            .map(|it| Item::new(it.marks.iter().filter(|m| **m != outer).cloned().collect(), it.leaf.clone()))
+            .map(|it| {
+                Item::new(
+                    it.marks.iter().filter(|m| **m != outer).cloned().collect(),
+                    it.leaf.clone(),
+                )
+            })
             .collect();
         // Emphasis delimiters can't open after or close before whitespace (`** a**` isn't
         // bold), so move edge whitespace outside them.
         let delimited = matches!(outer, MdMark::Strong | MdMark::Emph | MdMark::Strike);
-        let (lead, trail) = if delimited { trim_edges(&mut inner) } else { (String::new(), String::new()) };
+        let (lead, trail) = if delimited {
+            trim_edges(&mut inner)
+        } else {
+            (String::new(), String::new())
+        };
         if !lead.is_empty() {
             leaf(arena, parent, &Leaf::Text(lead));
         }
@@ -255,7 +272,10 @@ fn wrap<'a>(arena: &'a Arena<'a>, parent: &'a AstNode<'a>, mark: &MdMark, inner:
         return;
     }
     let value = match mark {
-        MdMark::Link { url, title } => NodeValue::Link(Box::new(NodeLink { url: url.clone(), title: title.clone() })),
+        MdMark::Link { url, title } => NodeValue::Link(Box::new(NodeLink {
+            url: url.clone(),
+            title: title.clone(),
+        })),
         MdMark::Strong => NodeValue::Strong,
         MdMark::Emph => NodeValue::Emph,
         MdMark::Strike => NodeValue::Strikethrough,
@@ -282,7 +302,14 @@ fn leaf<'a>(arena: &'a Arena<'a>, parent: &'a AstNode<'a>, leaf: &Leaf<'a>) {
         // comrak's code span renderer can't handle an empty literal.
         Leaf::Code(c) if c.is_empty() => {}
         Leaf::Code(c) => {
-            append(arena, parent, NodeValue::Code(NodeCode { num_backticks: 1, literal: c.replace('\n', " ") }));
+            append(
+                arena,
+                parent,
+                NodeValue::Code(NodeCode {
+                    num_backticks: 1,
+                    literal: c.replace('\n', " "),
+                }),
+            );
         }
         Leaf::Html(h) => {
             append(arena, parent, NodeValue::HtmlInline(h.clone()));

@@ -26,8 +26,16 @@ pub struct PageMeta {
 pub fn page_markdown(doc: &Node, meta: &PageMeta, ctx: &FetchContext) -> String {
     let body = adf_to_markdown(doc, ctx);
     let starts_with_h1 = starts_with_h1(doc);
-    let frontmatter = if ctx.simplified { simplified_frontmatter(meta) } else { frontmatter(meta, starts_with_h1) };
-    let title = if starts_with_h1 { String::new() } else { format!("{}\n", markdown::heading(1, &meta.title)) };
+    let frontmatter = if ctx.simplified {
+        simplified_frontmatter(meta)
+    } else {
+        frontmatter(meta, starts_with_h1)
+    };
+    let title = if starts_with_h1 {
+        String::new()
+    } else {
+        format!("{}\n", markdown::heading(1, &meta.title))
+    };
     format!("{frontmatter}\n{title}{body}")
 }
 
@@ -43,13 +51,19 @@ pub fn starts_with_h1(doc: &Node) -> bool {
 /// The page title for upload, and the body to upload: the frontmatter `title` if set (the
 /// body as is), else the body's leading H1, which is removed (so Confluence doesn't show the
 /// title twice). `None` if neither. See design.md, "Frontmatter" > "Title".
-pub fn upload_title<'a>(body: &'a str, frontmatter_title: Option<&str>) -> (Option<String>, &'a str) {
+pub fn upload_title<'a>(
+    body: &'a str,
+    frontmatter_title: Option<&str>,
+) -> (Option<String>, &'a str) {
     if let Some(t) = frontmatter_title.filter(|t| !t.trim().is_empty()) {
         return (Some(t.trim().to_string()), body);
     }
     let arena = comrak::Arena::new();
     let root = comrak::parse_document(&arena, body, &markdown::options());
-    let Some(first) = root.children().find(|n| !matches!(n.data().value, comrak::nodes::NodeValue::FrontMatter(_))) else {
+    let Some(first) = root
+        .children()
+        .find(|n| !matches!(n.data().value, comrak::nodes::NodeValue::FrontMatter(_)))
+    else {
         return (None, body);
     };
     let level = match first.data().value {
@@ -61,8 +75,15 @@ pub fn upload_title<'a>(body: &'a str, frontmatter_title: Option<&str>) -> (Opti
     }
     let title = markdown::inline_text(first).trim().to_string();
     let end_line = first.data().sourcepos.end.line;
-    let offset: usize = body.split_inclusive('\n').take(end_line).map(str::len).sum();
-    (Some(title), body[offset.min(body.len())..].trim_start_matches('\n'))
+    let offset: usize = body
+        .split_inclusive('\n')
+        .take(end_line)
+        .map(str::len)
+        .sum();
+    (
+        Some(title),
+        body[offset.min(body.len())..].trim_start_matches('\n'),
+    )
 }
 
 /// The `rfluence:` frontmatter block, in the key order of design.md, "Frontmatter".
@@ -114,18 +135,29 @@ fn quoted(s: &str) -> String {
 /// A YAML scalar, quoted only when YAML would read it as something else.
 fn scalar(s: &str) -> String {
     let plain = !s.is_empty()
-        && s.chars().all(|c| c.is_alphanumeric() || " _-./:~+()&?,'".contains(c))
+        && s.chars()
+            .all(|c| c.is_alphanumeric() || " _-./:~+()&?,'".contains(c))
         && !s.starts_with(|c: char| c.is_whitespace() || "-?:,'&~".contains(c))
         && !s.ends_with(char::is_whitespace)
         && !s.contains(": ")
         && !s.contains(" #")
         && s.parse::<f64>().is_err()
-        && !matches!(s.to_ascii_lowercase().as_str(), "true" | "false" | "yes" | "no" | "on" | "off" | "null" | "~");
+        && !matches!(
+            s.to_ascii_lowercase().as_str(),
+            "true" | "false" | "yes" | "no" | "on" | "off" | "null" | "~"
+        );
     if plain { s.to_string() } else { quoted(s) }
 }
 
 fn list(items: &[String]) -> String {
-    format!("[{}]", items.iter().map(|i| scalar(i)).collect::<Vec<_>>().join(", "))
+    format!(
+        "[{}]",
+        items
+            .iter()
+            .map(|i| scalar(i))
+            .collect::<Vec<_>>()
+            .join(", ")
+    )
 }
 
 #[cfg(test)]
@@ -169,10 +201,22 @@ mod tests {
 
     #[test]
     fn takes_the_upload_title() {
-        assert_eq!(upload_title("# The Title\n\nBody\n", None), (Some("The Title".into()), "Body\n"));
-        assert_eq!(upload_title("The Title\n=========\n\nBody\n", None), (Some("The Title".into()), "Body\n"));
-        assert_eq!(upload_title("# H1\n\nBody\n", Some("Set")), (Some("Set".into()), "# H1\n\nBody\n"));
-        assert_eq!(upload_title("Intro\n\n# Later H1\n", None), (None, "Intro\n\n# Later H1\n"));
+        assert_eq!(
+            upload_title("# The Title\n\nBody\n", None),
+            (Some("The Title".into()), "Body\n")
+        );
+        assert_eq!(
+            upload_title("The Title\n=========\n\nBody\n", None),
+            (Some("The Title".into()), "Body\n")
+        );
+        assert_eq!(
+            upload_title("# H1\n\nBody\n", Some("Set")),
+            (Some("Set".into()), "# H1\n\nBody\n")
+        );
+        assert_eq!(
+            upload_title("Intro\n\n# Later H1\n", None),
+            (None, "Intro\n\n# Later H1\n")
+        );
         assert_eq!(upload_title("## H2\n", None), (None, "## H2\n"));
     }
 
@@ -181,10 +225,16 @@ mod tests {
         let ctx = FetchContext::default();
         let doc: Node = serde_json::from_str(r#"{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Body"}]}]}"#).unwrap();
         let md = page_markdown(&doc, &meta(), &ctx);
-        assert!(md.ends_with("---\n\n# Ingestion: overview\n\nBody\n"), "{md}");
+        assert!(
+            md.ends_with("---\n\n# Ingestion: overview\n\nBody\n"),
+            "{md}"
+        );
         assert!(!md.contains("  title:"));
         let doc: Node = serde_json::from_str(r#"{"type":"doc","content":[{"type":"heading","attrs":{"level":1},"content":[{"type":"text","text":"Other"}]}]}"#).unwrap();
         let md = page_markdown(&doc, &meta(), &ctx);
-        assert!(md.contains("  title: \"Ingestion: overview\"\n") && md.ends_with("---\n\n# Other\n"), "{md}");
+        assert!(
+            md.contains("  title: \"Ingestion: overview\"\n") && md.ends_with("---\n\n# Other\n"),
+            "{md}"
+        );
     }
 }

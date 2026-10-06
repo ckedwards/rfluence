@@ -44,6 +44,9 @@ fn corpus_as_adf() {
         };
         let upload = markdown_to_adf(&md, &ctx).unwrap();
         let json = serde_json::to_string_pretty(&upload.doc).unwrap();
-        insta::assert_snapshot!(name.clone(), format!("{json}\n\ndiagnostics: {:#?}", upload.diagnostics));
+        insta::assert_snapshot!(
+            name.clone(),
+            format!("{json}\n\ndiagnostics: {:#?}", upload.diagnostics)
+        );
     }
 }

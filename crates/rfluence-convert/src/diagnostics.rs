@@ -21,11 +21,19 @@ pub struct Diagnostic {
 
 impl Diagnostic {
     pub fn warning(line: usize, message: impl Into<String>) -> Self {
-        Diagnostic { line, severity: Severity::Warning, message: message.into() }
+        Diagnostic {
+            line,
+            severity: Severity::Warning,
+            message: message.into(),
+        }
     }
 
     pub fn error(line: usize, message: impl Into<String>) -> Self {
-        Diagnostic { line, severity: Severity::Error, message: message.into() }
+        Diagnostic {
+            line,
+            severity: Severity::Error,
+            message: message.into(),
+        }
     }
 }
 

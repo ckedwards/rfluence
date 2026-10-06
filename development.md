@@ -86,6 +86,7 @@ Create API tokens at <https://id.atlassian.com/manage-profile/security/api-token
 ```shell
 cargo test --workspace
 cargo clippy --workspace --all-targets
+cargo fmt --all               # CI fails on unformatted code
 ```
 
 Most tests run offline against captured Confluence responses (`fixtures/confluence`) and the markdown corpus (`fixtures/markdown`):
@@ -142,7 +143,7 @@ The captured pages, how they were made, and what each covers are described in [f
 
 ## CI and releases
 
-GitHub Actions run `.github/workflows/ci.yml` on every push to `master` and every pull request: build and tests on Linux, macOS and Windows, clippy (warnings are errors), and a build with the minimum Rust version (1.88). The live tests skip themselves there.
+GitHub Actions run `.github/workflows/ci.yml` on every push to `master` and every pull request: build and tests on Linux, macOS and Windows, clippy (warnings are errors), `cargo fmt --check`, and a build with the minimum Rust version (1.88). The live tests skip themselves there.
 
 To release:
 

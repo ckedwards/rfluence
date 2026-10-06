@@ -22,13 +22,17 @@ pub fn run(opts: &Options) -> ExitCode {
         (None, Some(q)) => search_cql(q, &opts.space, &opts.label),
         (None, None) => unreachable!("clap requires a query or --cql"),
     };
-    let found = auth::resolve(opts.site.as_deref()).and_then(|(creds, _)| Client::new(&creds).search(&cql, opts.limit));
+    let found = auth::resolve(opts.site.as_deref())
+        .and_then(|(creds, _)| Client::new(&creds).search(&cql, opts.limit));
     let found = match found {
         Ok(f) => f,
         Err(e) => return fail(&e),
     };
     if opts.json {
-        println!("{}", serde_json::to_string_pretty(&found).expect("JSON serializes"));
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&found).expect("JSON serializes")
+        );
         return ExitCode::SUCCESS;
     }
     if found.results.is_empty() {
@@ -53,9 +57,15 @@ pub fn run(opts: &Options) -> ExitCode {
     }
     let shown = found.results.len() as u64;
     if found.total > shown {
-        println!("{shown} of {} results (--limit for more). Read one with `rfluence fetch <id>`.", found.total);
+        println!(
+            "{shown} of {} results (--limit for more). Read one with `rfluence fetch <id>`.",
+            found.total
+        );
     } else {
-        println!("{shown} result{}. Read one with `rfluence fetch <id>`.", if shown == 1 { "" } else { "s" });
+        println!(
+            "{shown} result{}. Read one with `rfluence fetch <id>`.",
+            if shown == 1 { "" } else { "s" }
+        );
     }
     ExitCode::SUCCESS
 }

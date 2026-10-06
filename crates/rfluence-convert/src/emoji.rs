@@ -14,7 +14,10 @@ const VS16: char = '\u{FE0F}';
 
 /// Look up a shortcode (GitHub's names, e.g. `tada`, `+1`), with or without the colons.
 pub fn lookup(name: &str) -> Option<Emoji> {
-    let name = name.strip_prefix(':').and_then(|n| n.strip_suffix(':')).unwrap_or(name);
+    let name = name
+        .strip_prefix(':')
+        .and_then(|n| n.strip_suffix(':'))
+        .unwrap_or(name);
     emojis::get_by_shortcode(name)
 }
 
@@ -25,19 +28,29 @@ pub fn get(text: &str) -> Option<Emoji> {
 
 /// The node `id` Confluence uses: the codepoints in hex, joined by `-` (`1f44d-1f3fd`).
 pub fn id(e: Emoji) -> String {
-    e.as_str().chars().map(|c| format!("{:x}", c as u32)).collect::<Vec<_>>().join("-")
+    e.as_str()
+        .chars()
+        .map(|c| format!("{:x}", c as u32))
+        .collect::<Vec<_>>()
+        .join("-")
 }
 
 /// The characters for a node `id`, if they are an emoji.
 pub fn from_id(id: &str) -> Option<Emoji> {
-    let text: Option<String> = id.split('-').map(|cp| u32::from_str_radix(cp, 16).ok().and_then(char::from_u32)).collect();
+    let text: Option<String> = id
+        .split('-')
+        .map(|cp| u32::from_str_radix(cp, 16).ok().and_then(char::from_u32))
+        .collect();
     get(&text?)
 }
 
 /// The node `shortName`: the emoji's GitHub shortcode (the base emoji's, for a skin-tone
 /// variant), or the characters when it has none. Confluence doesn't depend on it.
 pub fn short_name(e: Emoji) -> String {
-    let base = e.skin_tone().and_then(|_| e.with_skin_tone(emojis::SkinTone::Default)).unwrap_or(e);
+    let base = e
+        .skin_tone()
+        .and_then(|_| e.with_skin_tone(emojis::SkinTone::Default))
+        .unwrap_or(e);
     match base.shortcode() {
         Some(code) => format!(":{code}:"),
         None => e.as_str().to_string(),
@@ -58,7 +71,8 @@ fn default_emoji(c: char) -> bool {
 
 /// Would these characters be shown as an emoji (not as text)?
 fn is_emoji_presentation(s: &str) -> bool {
-    s.chars().any(|c| matches!(c, VS16 | '\u{20E3}' | '\u{200D}') || c as u32 >= 0x1F000)
+    s.chars()
+        .any(|c| matches!(c, VS16 | '\u{20E3}' | '\u{200D}') || c as u32 >= 0x1F000)
         || s.chars().next().is_some_and(default_emoji)
 }
 
@@ -77,11 +91,19 @@ pub fn find_emoji(text: &str) -> Vec<(Range<usize>, Emoji)> {
             i += c.len_utf8();
             continue;
         }
-        let ends: Vec<usize> = text[i..].char_indices().map(|(j, ch)| i + j + ch.len_utf8()).take(MAX_CHARS).collect();
+        let ends: Vec<usize> = text[i..]
+            .char_indices()
+            .map(|(j, ch)| i + j + ch.len_utf8())
+            .take(MAX_CHARS)
+            .collect();
         let hit = ends.iter().rev().find_map(|&end| {
             let e = get(&text[i..end])?;
             // A trailing variation selector belongs to the emoji.
-            let end = if text[end..].starts_with(VS16) { end + VS16.len_utf8() } else { end };
+            let end = if text[end..].starts_with(VS16) {
+                end + VS16.len_utf8()
+            } else {
+                end
+            };
             is_emoji_presentation(&text[i..end]).then_some((i..end, e))
         });
         match hit {
@@ -121,21 +143,35 @@ pub fn find_shortcodes(text: &str) -> Vec<Shortcode<'_>> {
     let mut i = 0;
     while let Some(off) = text[i..].find(':') {
         let start = i + off;
-        if text[..start].chars().next_back().is_some_and(char::is_alphanumeric) {
-            i = start + 1;
-            continue;
-        }
-        let rest = &text[start + 1..];
-        let name_len: usize = rest.chars().take_while(|&c| is_name_char(c)).map(char::len_utf8).sum();
-        let end = start + 1 + name_len + 1;
-        if name_len == 0
-            || !rest[name_len..].starts_with(':')
-            || text[end..].chars().next().is_some_and(char::is_alphanumeric)
+        if text[..start]
+            .chars()
+            .next_back()
+            .is_some_and(char::is_alphanumeric)
         {
             i = start + 1;
             continue;
         }
-        found.push(Shortcode { range: start..end, name: &text[start + 1..end - 1] });
+        let rest = &text[start + 1..];
+        let name_len: usize = rest
+            .chars()
+            .take_while(|&c| is_name_char(c))
+            .map(char::len_utf8)
+            .sum();
+        let end = start + 1 + name_len + 1;
+        if name_len == 0
+            || !rest[name_len..].starts_with(':')
+            || text[end..]
+                .chars()
+                .next()
+                .is_some_and(char::is_alphanumeric)
+        {
+            i = start + 1;
+            continue;
+        }
+        found.push(Shortcode {
+            range: start..end,
+            name: &text[start + 1..end - 1],
+        });
         i = end;
     }
     found
@@ -174,8 +210,14 @@ mod tests {
 
     #[test]
     fn finds_shortcodes_with_boundaries() {
-        assert_eq!(names(":tada: and :+1:, (:rocket:)"), ["tada", "+1", "rocket"]);
-        assert_eq!(names("10:30:45 a:b:c 1:100:3 https://x.y"), Vec::<&str>::new());
+        assert_eq!(
+            names(":tada: and :+1:, (:rocket:)"),
+            ["tada", "+1", "rocket"]
+        );
+        assert_eq!(
+            names("10:30:45 a:b:c 1:100:3 https://x.y"),
+            Vec::<&str>::new()
+        );
         assert_eq!(names(":not_an_emoji: :piñata:"), ["not_an_emoji", "piñata"]);
         assert_eq!(names("a :b c: d"), Vec::<&str>::new());
     }
@@ -195,19 +237,39 @@ mod tests {
     #[test]
     fn finds_emoji_characters() {
         fn found(t: &str) -> Vec<(&str, &str)> {
-            find_emoji(t).into_iter().map(|(r, e)| (&t[r], e.as_str())).collect()
+            find_emoji(t)
+                .into_iter()
+                .map(|(r, e)| (&t[r], e.as_str()))
+                .collect()
         }
         assert_eq!(found("ok 🎉 and 👍🏽!"), [("🎉", "🎉"), ("👍🏽", "👍🏽")]);
-        assert_eq!(found("😮\u{200d}💨 ✅ 🇳🇿 🫨"), [("😮\u{200d}💨", "😮\u{200d}💨"), ("✅", "✅"), ("🇳🇿", "🇳🇿"), ("🫨", "🫨")]);
+        assert_eq!(
+            found("😮\u{200d}💨 ✅ 🇳🇿 🫨"),
+            [
+                ("😮\u{200d}💨", "😮\u{200d}💨"),
+                ("✅", "✅"),
+                ("🇳🇿", "🇳🇿"),
+                ("🫨", "🫨")
+            ]
+        );
         // Text-style characters are emoji only with the variation selector.
         assert!(found("© 2026, ✔ done, 1 # *").is_empty());
-        assert_eq!(found("✔\u{fe0f} ❤\u{fe0f}"), [("✔\u{fe0f}", "✔\u{fe0f}"), ("❤\u{fe0f}", "❤\u{fe0f}")]);
+        assert_eq!(
+            found("✔\u{fe0f} ❤\u{fe0f}"),
+            [("✔\u{fe0f}", "✔\u{fe0f}"), ("❤\u{fe0f}", "❤\u{fe0f}")]
+        );
         assert!(is_emoji("🎉") && !is_emoji(":rfluence:") && !is_emoji("🎉 x"));
     }
 
     #[test]
     fn canonicalizes_text() {
-        assert_eq!(canonical_text("yes :+1: :tada: :rfluence: ⛹ 10:30"), "yes 👍 🎉 :rfluence: ⛹ 10:30");
-        assert_eq!(canonical_text("❤ ⛹\u{fe0f} 1\u{20e3}"), "❤ ⛹\u{fe0f} 1\u{fe0f}\u{20e3}");
+        assert_eq!(
+            canonical_text("yes :+1: :tada: :rfluence: ⛹ 10:30"),
+            "yes 👍 🎉 :rfluence: ⛹ 10:30"
+        );
+        assert_eq!(
+            canonical_text("❤ ⛹\u{fe0f} 1\u{20e3}"),
+            "❤ ⛹\u{fe0f} 1\u{fe0f}\u{20e3}"
+        );
     }
 }
