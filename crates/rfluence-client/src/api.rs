@@ -281,6 +281,10 @@ impl Client {
         let raw: RawPage = self
             .get(&format!("/wiki/api/v2/pages/{id}?body-format=atlas_doc_format&include-labels=true{version_query}"))
             .map_err(|e| page_not_found(e, id))?;
+        // The v2 API returns trashed pages too (status "trashed").
+        if version.is_none() && raw.status.as_deref().is_some_and(|s| s != "current") {
+            return Err(in_trash(id, raw.status.as_deref()));
+        }
         let mut labels: Vec<String> = Vec::new();
         let mut more = false;
         if let Some(l) = &raw.labels {
@@ -576,6 +580,7 @@ pub struct Content {
     pub title: String,
     pub parent_id: Option<String>,
     pub space_id: Option<String>,
+    pub version: Option<u64>,
 }
 
 /// A page or folder in its parent's list of children.
@@ -589,6 +594,8 @@ pub struct Child {
     /// Opaque and sparse: only for comparing.
     #[serde(rename = "childPosition", default)]
     pub position: i64,
+    #[serde(default)]
+    pub status: Option<String>,
 }
 
 /// A space: what creating a page in it needs.
@@ -810,6 +817,20 @@ impl Client {
         Ok(())
     }
 
+    /// Remove a global label from a page (v1; the query form works for names with `/`).
+    pub fn remove_label(&self, page_id: &str, label: &str) -> Result<()> {
+        let path = format!("/wiki/rest/api/content/{page_id}/label?name={}", encode(label));
+        let url = format!("{}{path}", self.base_url);
+        let mut resp = self.agent.delete(&url).header("Authorization", &self.authorization).call().map_err(|e| Error::Network(format!("{url}: {e}")))?;
+        match resp.status().as_u16() {
+            200..=299 => Ok(()),
+            status => {
+                let body = resp.body_mut().read_to_string().unwrap_or_default();
+                Err(Error::Api { status, message: error_message(&body).unwrap_or(body) })
+            }
+        }
+    }
+
     /// A page's content property, if set.
     pub fn property(&self, page_id: &str, key: &str) -> Result<Option<Property>> {
         self.property_of(Kind::Page, page_id, key)
@@ -850,12 +871,27 @@ impl Client {
             parent_id: Option<String>,
             #[serde(rename = "spaceId")]
             space_id: Option<String>,
+            version: Option<RawVersion>,
+            #[serde(default)]
+            status: Option<String>,
         }
-        let into = |raw: Raw, kind| Content { id: raw.id, kind, title: raw.title, parent_id: raw.parent_id, space_id: raw.space_id };
+        // The v2 API returns trashed content too (status "trashed").
+        let current = |raw: Raw| match raw.status.as_deref() {
+            Some(s) if s != "current" => Err(in_trash(id, Some(s))),
+            _ => Ok(raw),
+        };
+        let into = |raw: Raw, kind| Content {
+            id: raw.id,
+            kind,
+            title: raw.title,
+            parent_id: raw.parent_id,
+            space_id: raw.space_id,
+            version: raw.version.map(|v| v.number),
+        };
         match self.get::<Raw>(&format!("/wiki/api/v2/pages/{id}")) {
-            Ok(raw) => Ok(into(raw, Kind::Page)),
+            Ok(raw) => Ok(into(current(raw)?, Kind::Page)),
             Err(Error::NotFound(_)) => match self.get::<Raw>(&format!("/wiki/api/v2/folders/{id}")) {
-                Ok(raw) => Ok(into(raw, Kind::Folder)),
+                Ok(raw) => Ok(into(current(raw)?, Kind::Folder)),
                 Err(Error::NotFound(_)) => Err(Error::NotFound(format!("no page or folder {id} (or not visible to this account)"))),
                 Err(e) => Err(e),
             },
@@ -869,7 +905,7 @@ impl Client {
         let mut path = format!("/wiki/api/v2/{}/{id}/direct-children?limit=250", kind.path());
         loop {
             let page: Paged<Child> = self.get(&path)?;
-            out.extend(page.results.into_iter().filter(|c| matches!(c.kind.as_str(), "page" | "folder")));
+            out.extend(page.results.into_iter().filter(|c| matches!(c.kind.as_str(), "page" | "folder") && c.status.as_deref().is_none_or(|s| s == "current")));
             match page.links.and_then(|l| l.next) {
                 Some(next) => path = format!("/wiki{next}"),
                 None => return Ok(out),
@@ -988,6 +1024,15 @@ fn space_key_of(webui: &str) -> String {
     webui.strip_prefix("/spaces/").and_then(|r| r.split('/').next()).unwrap_or_default().to_string()
 }
 
+/// A page or folder that exists, but in the trash (or archived): as good as not found.
+fn in_trash(id: &str, status: Option<&str>) -> Error {
+    match status {
+        Some("trashed") => Error::NotFound(format!("page or folder {id} is in the trash")),
+        Some(other) => Error::NotFound(format!("page or folder {id} is {other}")),
+        None => Error::NotFound(format!("page or folder {id} not found")),
+    }
+}
+
 fn page_not_found(e: Error, id: &str) -> Error {
     match e {
         Error::NotFound(_) => Error::NotFound(format!("page {id} not found (or not visible to this account)")),
@@ -1032,6 +1077,8 @@ struct NextLink {
 struct RawPage {
     id: String,
     title: String,
+    #[serde(default)]
+    status: Option<String>,
     #[serde(rename = "parentId")]
     parent_id: Option<String>,
     version: RawVersion,

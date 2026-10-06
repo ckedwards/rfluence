@@ -29,6 +29,8 @@ pub struct Options {
     pub json: bool,
     /// Move pages that aren't where they belong (design.md, "Page hierarchy").
     pub move_pages: bool,
+    /// Remove labels the file (and config entry) don't have (design.md, "Labels").
+    pub prune_labels: bool,
     /// Set when the file is uploaded as part of `upload --config`.
     pub tree: Option<InTree>,
 }
@@ -140,6 +142,7 @@ struct Json<'a> {
     images_uploaded: Vec<&'a str>,
     images_updated: Vec<&'a str>,
     labels_added: &'a [String],
+    labels_removed: &'a [String],
     comments_kept: usize,
     comments_detached: &'a [String],
 }
@@ -302,9 +305,24 @@ pub fn update(opts: &Options, local: &Local, client: &Client, id: &str, pages: H
         adf_to_markdown(&remote.adf, &ctx) != adf_to_markdown(&new_doc, &ctx)
     };
     let config_labels: &[String] = opts.tree.as_ref().map_or(&[], |t| &t.labels);
-    let mut wanted = local.labels.clone();
-    wanted.extend(config_labels.iter().filter(|l| !local.labels.contains(l)).cloned());
+    let recorded_config_labels: Vec<String> = property
+        .as_ref()
+        .and_then(|p| p.value.get("config_labels"))
+        .and_then(|v| v.as_array())
+        .map(|a| a.iter().filter_map(|l| l.as_str().map(str::to_string)).collect())
+        .unwrap_or_default();
+    // With --prune-labels, labels dropped from the config entry since the last upload go, even
+    // though the frontmatter lists them (it was written back with them; design.md, "Labels").
+    let dropped: Vec<&String> = if opts.prune_labels && opts.tree.is_some() {
+        recorded_config_labels.iter().filter(|l| !config_labels.contains(l)).collect()
+    } else {
+        Vec::new()
+    };
+    let mut wanted: Vec<String> = local.labels.iter().filter(|l| !dropped.contains(l)).cloned().collect();
+    wanted.extend(config_labels.iter().filter(|l| !wanted.contains(l)).cloned().collect::<Vec<_>>());
     let labels_added: Vec<String> = wanted.iter().filter(|l| !remote.meta.labels.contains(l)).cloned().collect();
+    let labels_removed: Vec<String> =
+        if opts.prune_labels { remote.meta.labels.iter().filter(|l| !wanted.contains(l)).cloned().collect() } else { Vec::new() };
     let previous = remote.meta.version;
     let mut meta = remote.meta.clone();
     if changed || move_to.is_some() {
@@ -312,9 +330,13 @@ pub fn update(opts: &Options, local: &Local, client: &Client, id: &str, pages: H
         meta.title = title.clone();
         meta.parent = move_to.clone().or(meta.parent);
     }
+    meta.labels.retain(|l| !labels_removed.contains(l));
     meta.labels.extend(labels_added.iter().cloned());
 
     if !opts.dry_run {
+        for label in &labels_removed {
+            client.remove_label(id, label)?;
+        }
         if changed || move_to.is_some() {
             // One new version for both; without a changed body, Confluence keeps the body.
             let body = changed.then_some(&new_doc);
@@ -327,13 +349,18 @@ pub fn update(opts: &Options, local: &Local, client: &Client, id: &str, pages: H
         }
         // Only pages rfluence created have the property (they're the ones `--prune` may
         // trash); keep its version and config labels current.
-        let recorded = property.as_ref().and_then(|p| p.value.get("config_labels")).cloned().unwrap_or_default();
-        let config_changed = opts.tree.is_some() && recorded != serde_json::json!(config_labels);
+        // Config labels stay recorded until they're pruned, so that a later --prune-labels
+        // still knows a label taken out of the config came from it.
+        let mut to_record: Vec<String> = config_labels.to_vec();
+        if !opts.prune_labels {
+            to_record.extend(recorded_config_labels.iter().filter(|l| !config_labels.contains(l)).cloned());
+        }
+        let config_changed = opts.tree.is_some() && recorded_config_labels != to_record;
         let property = property.as_ref().filter(|_| changed || config_changed);
         let value = property.map(|p| {
             let mut v = property_value(&project_path(local.dir, path), meta.version, Some(p));
             if opts.tree.is_some() {
-                v["config_labels"] = serde_json::json!(config_labels);
+                v["config_labels"] = serde_json::json!(to_record);
             }
             v
         });
@@ -348,7 +375,18 @@ pub fn update(opts: &Options, local: &Local, client: &Client, id: &str, pages: H
     }
 
     let moved = move_to.is_some();
-    report(opts, &Summary { meta: &meta, previous: Some(&remote.meta), changed: changed || moved, images: &images, labels_added: &labels_added, comments: &comments });
+    report(
+        opts,
+        &Summary {
+            meta: &meta,
+            previous: Some(&remote.meta),
+            changed: changed || moved,
+            images: &images,
+            labels_added: &labels_added,
+            labels_removed: &labels_removed,
+            comments: &comments,
+        },
+    );
     Ok(Outcome { changed, misplaced: misplaced && !moved, moved })
 }
 
@@ -428,7 +466,7 @@ fn create(opts: &Options, local: &Local) -> Result<Outcome, Stop> {
     }
 
     let comments = Reanchored::default();
-    report(opts, &Summary { meta: &meta, previous: None, changed: true, images: &images, labels_added: &local.labels, comments: &comments });
+    report(opts, &Summary { meta: &meta, previous: None, changed: true, images: &images, labels_added: &local.labels, labels_removed: &[], comments: &comments });
     Ok(Outcome { changed: true, misplaced: false, moved: false })
 }
 
@@ -689,6 +727,7 @@ struct Summary<'a> {
     changed: bool,
     images: &'a [Image],
     labels_added: &'a [String],
+    labels_removed: &'a [String],
     comments: &'a Reanchored,
 }
 
@@ -717,6 +756,9 @@ fn report(opts: &Options, s: &Summary) {
         }
         if !s.labels_added.is_empty() {
             extra.push(format!("labels +{}", s.labels_added.join(" +")));
+        }
+        if !s.labels_removed.is_empty() {
+            extra.push(format!("labels -{}", s.labels_removed.join(" -")));
         }
         let images = s.images.iter().filter(|i| i.action != Action::Reuse).count();
         if images > 0 {
@@ -750,6 +792,7 @@ fn print_json(opts: &Options, s: &Summary) {
         images_uploaded: s.images(Action::Upload),
         images_updated: s.images(Action::NewVersion),
         labels_added: s.labels_added,
+        labels_removed: s.labels_removed,
         comments_kept: s.comments.kept,
         comments_detached: &s.comments.lost,
     };
@@ -788,6 +831,9 @@ fn print_text(opts: &Options, s: &Summary) {
     }
     if !s.labels_added.is_empty() {
         println!("  labels {}: {}", verb("added", "to add"), s.labels_added.join(", "));
+    }
+    if !s.labels_removed.is_empty() {
+        println!("  labels {}: {}", verb("removed", "to remove"), s.labels_removed.join(", "));
     }
     let lost = &s.comments.lost;
     if !lost.is_empty() {

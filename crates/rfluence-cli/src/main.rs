@@ -87,6 +87,14 @@ enum Command {
         /// --config) or the file's `parent`, and (with --config) in the config's order.
         #[arg(long = "move")]
         move_pages: bool,
+        /// With --config: trash pages and folders rfluence created whose files or directories
+        /// are gone (skipping pages edited in Confluence since, unless --force).
+        #[arg(long, requires = "config")]
+        prune: bool,
+        /// Remove labels the file doesn't list (and, with --config, labels taken out of the
+        /// config). Without it, upload only adds labels.
+        #[arg(long)]
+        prune_labels: bool,
         /// For a new page: the space to create it in, if the file has no `space_key`.
         #[arg(long, value_name = "KEY")]
         space: Option<String>,
@@ -212,7 +220,7 @@ fn main() -> ExitCode {
         Command::Fetch { page, simplified, section, max_chars, json, site, output, force } => {
             fetch::run(&fetch::Options { page, simplified, section, max_chars, json, site, output, force })
         }
-        Command::Upload { path, config, dry_run, force, move_pages, site, space, parent, json } => match (path, config) {
+        Command::Upload { path, config, dry_run, force, move_pages, prune, prune_labels, site, space, parent, json } => match (path, config) {
             (_, Some(config)) => {
                 if space.is_some() || parent.is_some() || json {
                     eprintln!("rfluence: --space, --parent and --json can't be used with --config");
@@ -224,9 +232,11 @@ fn main() -> ExitCode {
                     let found = project::root(&cwd).join(config::FILE_NAME);
                     found.strip_prefix(&cwd).map(PathBuf::from).unwrap_or(found)
                 });
-                upload_tree::run(&upload_tree::Options { config, dry_run, force, move_pages, site })
+                upload_tree::run(&upload_tree::Options { config, dry_run, force, move_pages, prune, prune_labels, site })
             }
-            (Some(path), None) => upload::run(&upload::Options { path, dry_run, force, site, space, parent, json, move_pages, tree: None }),
+            (Some(path), None) => {
+                upload::run(&upload::Options { path, dry_run, force, site, space, parent, json, move_pages, prune_labels, tree: None })
+            }
             (None, None) => unreachable!("clap requires one"),
         },
         Command::Search { query, space, label, cql, limit, site, json } => {

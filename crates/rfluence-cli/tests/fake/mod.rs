@@ -38,6 +38,8 @@ pub struct State {
     pub content: BTreeMap<String, Content>,
     /// Every request: `METHOD /path?query`.
     pub log: Vec<String>,
+    /// Trashed content, by ID.
+    pub trashed: BTreeMap<String, Content>,
 }
 
 impl State {
@@ -147,7 +149,7 @@ fn serve(stream: std::net::TcpStream, state: &Mutex<State>, base: &str) -> std::
     let mut body = vec![0; length];
     reader.read_exact(&mut body)?;
     let (status, response) = handle(&mut state.lock().unwrap(), &method, &target, &body, base);
-    let text = response.to_string();
+    let text = if status == 204 { String::new() } else { response.to_string() };
     let mut stream = stream;
     write!(stream, "HTTP/1.1 {status} X\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{text}", text.len())?;
     stream.flush()
@@ -300,6 +302,21 @@ fn handle(state: &mut State, method: &str, target: &str, body: &[u8], base: &str
             }
             state.move_next_to(id, *position == "after", target);
             (200, json!({ "pageId": id }))
+        }
+        ("DELETE", ["wiki", "rest", "api", "content", id, "label"]) => {
+            let Some(c) = state.content.get_mut(*id) else { return not_found() };
+            let name = query_param(query, "name").unwrap_or_default();
+            c.labels.retain(|l| *l != name);
+            (204, Value::Null)
+        }
+        ("DELETE", ["wiki", "api", "v2", "pages" | "folders", id]) => {
+            let Some(c) = state.content.remove(*id) else { return not_found() };
+            // Like Confluence: the children move up a level.
+            for child in state.content.values_mut().filter(|x| x.parent.as_deref() == Some(*id)) {
+                child.parent = c.parent.clone();
+            }
+            state.trashed.insert(id.to_string(), c);
+            (204, Value::Null)
         }
         _ => (501, json!({ "message": format!("the fake doesn't serve {method} {path}") })),
     }

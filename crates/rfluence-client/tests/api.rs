@@ -119,3 +119,18 @@ fn maps_http_errors() {
     assert!(matches!(c.page("2"), Err(Error::Auth(_))));
     assert!(matches!(c.page("3"), Err(Error::Api { status: 500, message }) if message == "boom"));
 }
+
+/// The v2 API returns trashed pages too (verified): they count as not found.
+#[test]
+fn trashed_pages_are_not_found() {
+    let mut server = mockito::Server::new();
+    let mut page: serde_json::Value = serde_json::from_str(&page_response("adf-reference")).unwrap();
+    page["status"] = "trashed".into();
+    server.mock("GET", "/wiki/api/v2/pages/458790").match_query(Matcher::Any).with_body(page.to_string()).create();
+    let client = client(&server);
+    match client.page("458790") {
+        Err(Error::NotFound(m)) => assert_eq!(m, "page or folder 458790 is in the trash"),
+        other => panic!("{other:?}"),
+    }
+    assert!(matches!(client.content("458790"), Err(Error::NotFound(_))));
+}

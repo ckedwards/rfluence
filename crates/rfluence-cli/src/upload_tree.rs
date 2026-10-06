@@ -18,6 +18,8 @@ pub struct Options {
     pub dry_run: bool,
     pub force: bool,
     pub move_pages: bool,
+    pub prune: bool,
+    pub prune_labels: bool,
     pub site: Option<String>,
 }
 
@@ -62,6 +64,7 @@ fn file_options(opts: &Options, path: &Path, tree: Option<InTree>) -> upload::Op
         parent: None,
         json: false,
         move_pages: opts.move_pages,
+        prune_labels: opts.prune_labels,
         tree,
     }
 }
@@ -340,6 +343,24 @@ fn upload_tree(opts: &Options) -> Result<(), Failure> {
         let mut ordering = Ordering { opts, client: &client, places: &places, counts: &mut counts };
         ordering.level(parent.as_deref(), kind, &title, &plan.nodes)?;
     }
+
+    // Pass 4: pages and folders rfluence created whose files are gone (design.md, "Renames
+    // and deletions"). Found under every entry's ancestor, which takes a request per page, so
+    // only with --prune or --dry-run; trashed only with --prune.
+    let known: HashSet<String> = places.values().filter_map(|p| p.id().map(str::to_string)).collect();
+    let mut roots: Vec<(String, Kind)> = Vec::new();
+    for r in resolved.iter().flatten() {
+        let root = match r {
+            Resolved::Content { id, kind, .. } => Some((id.clone(), *kind)),
+            Resolved::InUpload { file, .. } => places[file].id().map(|id| (id.to_string(), Kind::Page)),
+        };
+        if let Some(root) = root.filter(|r| !roots.contains(r)) {
+            roots.push(root);
+        }
+    }
+    if opts.prune || opts.dry_run {
+        prune(opts, &client, &roots, &known, &mut counts)?;
+    }
     println!("{}", counts.summary(opts.dry_run));
     Ok(())
 }
@@ -445,6 +466,144 @@ impl Pass<'_> {
     }
 }
 
+/// A page or folder under an entry's ancestor, for finding orphans.
+struct Found {
+    id: String,
+    kind: Kind,
+    title: String,
+    /// Has the `rfluence` property: rfluence created it.
+    managed: bool,
+    /// The version rfluence last uploaded (pages), from the property.
+    uploaded_version: Option<u64>,
+    /// The `path` recorded in the property.
+    path: Option<String>,
+    children: Vec<usize>,
+}
+
+/// Find orphans under the ancestors: pages and folders rfluence created that aren't in the
+/// tree any more. Report them, and with --prune trash those that can go: not edited in
+/// Confluence since rfluence's last upload (unless --force), and with nothing under them that
+/// stays (trashing moves children up a level).
+fn prune(opts: &Options, client: &Client, roots: &[(String, Kind)], known: &HashSet<String>, counts: &mut Counts) -> Result<(), Failure> {
+    // Everything under the ancestors, with the `rfluence` property of each.
+    let mut found: Vec<Found> = Vec::new();
+    let mut top: Vec<usize> = Vec::new();
+    let mut queue: Vec<(Option<usize>, String, Kind)> = roots.iter().map(|(id, kind)| (None, id.clone(), *kind)).collect();
+    let mut seen: HashSet<String> = roots.iter().map(|(id, _)| id.clone()).collect();
+    while let Some((parent, id, kind)) = queue.pop() {
+        for child in client.children(kind, &id)? {
+            if !seen.insert(child.id.clone()) {
+                continue;
+            }
+            let kind = if child.kind == "folder" { Kind::Folder } else { Kind::Page };
+            let i = found.len();
+            found.push(Found { id: child.id.clone(), kind, title: child.title, managed: false, uploaded_version: None, path: None, children: vec![] });
+            match parent {
+                Some(p) => found[p].children.push(i),
+                None => top.push(i),
+            }
+            queue.push((Some(i), child.id, kind));
+        }
+    }
+    const PARALLEL: usize = 6;
+    for chunk in (0..found.len()).collect::<Vec<_>>().chunks(PARALLEL) {
+        let properties: Vec<_> = std::thread::scope(|s| {
+            let handles: Vec<_> = chunk.iter().map(|&i| {
+                let (kind, id) = (found[i].kind, found[i].id.clone());
+                s.spawn(move || client.property_of(kind, &id, upload::PROPERTY))
+            }).collect();
+            handles.into_iter().map(|h| h.join().expect("property thread doesn't panic")).collect()
+        });
+        for (&i, property) in chunk.iter().zip(properties) {
+            if let Some(p) = property? {
+                found[i].managed = p.value.get("managed").and_then(|m| m.as_bool()).unwrap_or(false);
+                found[i].uploaded_version = p.value.get("version").and_then(|v| v.as_u64());
+                found[i].path = p.value.get("path").and_then(|v| v.as_str()).map(str::to_string);
+            }
+        }
+    }
+
+    // Decide bottom-up: a node can go if it's an orphan, unchanged since rfluence's upload,
+    // and everything under it goes too.
+    let mut goes = vec![false; found.len()];
+    let mut reasons: Vec<(usize, String)> = Vec::new();
+    fn decide(i: usize, found: &[Found], known: &HashSet<String>, client: &Client, force: bool, goes: &mut Vec<bool>, reasons: &mut Vec<(usize, String)>) -> Result<bool, Failure> {
+        let mut all_children_go = true;
+        for &c in &found[i].children {
+            all_children_go &= decide(c, found, known, client, force, goes, reasons)?;
+        }
+        let f = &found[i];
+        if !f.managed || known.contains(&f.id) {
+            return Ok(false);
+        }
+        if !all_children_go {
+            let staying: Vec<String> = f.children.iter().filter(|&&c| !goes[c]).map(|&c| format!("{:?}", found[c].title)).collect();
+            reasons.push((i, format!("has pages or folders that stay under it ({})", staying.join(", "))));
+            return Ok(false);
+        }
+        if f.kind == Kind::Page && !force {
+            let current = client.content(&f.id)?.version;
+            if current != f.uploaded_version {
+                reasons.push((
+                    i,
+                    format!(
+                        "was edited in Confluence since rfluence uploaded it (version {} -> {}); --force trashes it anyway",
+                        f.uploaded_version.map_or("?".into(), |v| v.to_string()),
+                        current.map_or("?".into(), |v| v.to_string())
+                    ),
+                ));
+                return Ok(false);
+            }
+        }
+        goes[i] = true;
+        Ok(true)
+    }
+    for &i in &top {
+        decide(i, &found, known, client, opts.force, &mut goes, &mut reasons)?;
+    }
+
+    let orphans: Vec<usize> = (0..found.len()).filter(|&i| found[i].managed && !known.contains(&found[i].id)).collect();
+    if orphans.is_empty() {
+        return Ok(());
+    }
+    println!("Orphans (rfluence created them; their files or directories are gone):");
+    // Children before parents, so folders are empty when they go.
+    let mut order: Vec<usize> = Vec::new();
+    fn post_order(i: usize, found: &[Found], out: &mut Vec<usize>) {
+        for &c in &found[i].children {
+            post_order(c, found, out);
+        }
+        out.push(i);
+    }
+    for &i in &top {
+        post_order(i, &found, &mut order);
+    }
+    for i in order.into_iter().filter(|i| orphans.contains(i)) {
+        let f = &found[i];
+        let what = format!(
+            "{} {} {:?}{}",
+            if f.kind == Kind::Folder { "folder" } else { "page" },
+            f.id,
+            f.title,
+            f.path.as_deref().map(|p| format!(" (was {p})")).unwrap_or_default()
+        );
+        if let Some((_, reason)) = reasons.iter().find(|(r, _)| *r == i) {
+            println!("  kept {what}: {reason}");
+            counts.orphans_kept += 1;
+        } else if !opts.prune {
+            println!("  {what}");
+            counts.orphans += 1;
+        } else {
+            if !opts.dry_run {
+                client.trash(f.kind, &f.id)?;
+            }
+            println!("  {} {what}", if opts.dry_run { "would trash" } else { "trashed" });
+            counts.pruned += 1;
+        }
+    }
+    Ok(())
+}
+
 /// The third pass: each parent's children in the config's order.
 struct Ordering<'a> {
     opts: &'a Options,
@@ -534,6 +693,11 @@ struct Counts {
     moved: usize,
     reordered: usize,
     out_of_order: usize,
+    /// Orphans found without --prune.
+    orphans: usize,
+    /// Orphans --prune keeps (edited, or with things under them that stay).
+    orphans_kept: usize,
+    pruned: usize,
 }
 
 impl Counts {
@@ -554,6 +718,9 @@ impl Counts {
         if self.reordered > 0 {
             parts.push(format!("{} {verb} into order", self.reordered));
         }
+        if self.pruned > 0 {
+            parts.push(format!("{} {}", self.pruned, if dry_run { "to trash" } else { "trashed" }));
+        }
         let mut out = format!("{}{}.", if dry_run { "Dry run: " } else { "" }, parts.join(", "));
         if self.misplaced > 0 {
             out.push_str(&format!(
@@ -565,6 +732,12 @@ impl Counts {
         }
         if self.out_of_order > 0 {
             out.push_str(&format!(" {} out of the config's order (--move reorders).", self.out_of_order));
+        }
+        if self.orphans > 0 {
+            out.push_str(&format!(" {} orphan{} (--prune trashes them).", self.orphans, plural(self.orphans)));
+        }
+        if self.orphans_kept > 0 {
+            out.push_str(&format!(" {} orphan{} kept (see above).", self.orphans_kept, plural(self.orphans_kept)));
         }
         out
     }

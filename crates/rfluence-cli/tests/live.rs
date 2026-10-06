@@ -226,6 +226,23 @@ fn uploads_a_page_tree() {
         assert_eq!(client.page(&runners).unwrap().meta.parent.as_deref(), Some(folder.as_str()));
         // The body survived the move without a body.
         assert!(rfluence_convert::adf_to_markdown(&client.page(&runners).unwrap().adf, &Default::default()).contains("Runners."));
+
+        // The directory deleted locally, and the config's label taken out: --prune trashes the
+        // page and its folder, --prune-labels removes the label.
+        std::fs::remove_dir_all(dir.join("docs/actions")).unwrap();
+        // (Its link has to go too: upload refuses links to files without a page.)
+        let setup_md = std::fs::read_to_string(dir.join("docs/setup.md")).unwrap();
+        std::fs::write(dir.join("docs/setup.md"), setup_md.replace("See [runners](./actions/runners.md).", "No runners.")).unwrap();
+        let config = std::fs::read_to_string(dir.join(".rfluence.yaml")).unwrap();
+        std::fs::write(dir.join(".rfluence.yaml"), config.replace("labels: [live-tree]", "labels: []")).unwrap();
+        let start = Instant::now();
+        let out = Command::new(env!("CARGO_BIN_EXE_rfluence")).args(["upload", "--config", "--prune", "--prune-labels"]).current_dir(&dir).envs(dotenv()).output().unwrap();
+        let stdout = String::from_utf8_lossy(&out.stdout).into_owned();
+        assert!(out.status.success(), "{stdout}{}", String::from_utf8_lossy(&out.stderr));
+        assert!(stdout.contains("2 trashed"), "{stdout}");
+        eprintln!("rfluence upload --config --prune --prune-labels: {:?}", start.elapsed());
+        assert!(matches!(client.content(&runners), Err(rfluence_client::Error::NotFound(_))), "runners trashed");
+        assert!(client.page(&setup).unwrap().meta.labels.is_empty(), "live-tree removed");
     }));
 
     // Clean up: every page and folder under the ancestor, then the ancestor.

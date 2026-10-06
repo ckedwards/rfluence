@@ -917,12 +917,12 @@ Directories without an `index.md` / `README.md` become folders, and folder title
   4. Resolve `ancestor` titles: a page or a folder in the space (both: an error asking for `ancestor_id`), else a page of this upload, else an error.
   5. Files without an ID whose title is already a page in the space: refused (exit 6), all listed, unless `--force`, which uploads to those pages.
   6. Pass 1, top-down: a folder is found among its parent's children by title (`direct-children`, filtered by type), else created; a folder with that title elsewhere in the space is an error (folder titles are unique per space). New pages are created empty under their tree parent and their `rfluence:` block written at once, with the `rfluence` property (`config_labels` from the entry). Created folders get the property too.
-  7. Pass 2: every file is uploaded as single-file upload does (version check, images, links, inline comments, labels), plus the entry's labels; the property's `config_labels` is kept current. A page that isn't under its tree parent gets a warning and is left where it is (see "Page hierarchy"; `--move` comes later).
+  7. Pass 2: every file is uploaded as single-file upload does (version check, images, links, inline comments, labels), plus the entry's labels; the property's `config_labels` is kept current. A page that isn't under its tree parent gets a warning and is left where it is, unless `--move` (see "Page hierarchy").
   8. Output: each entry's ancestor and tree (`[new page]`, `[page 123]`, `[new folder]`, ...), a line per file (`created`, `updated (version 3 -> 4)`, `up to date`, labels added, ...), and totals. `--dry-run` shows the same without changing anything.
 
   9. Pass 3 (implemented): each parent's children in the config's order (see "Child page order"); reordering doesn't create versions. With `--move`, pages that aren't under their tree parent are moved there in pass 2 (in the same new version as a changed body, or a version without a body), and existing pages out of order are reordered; without it, both are warnings, counted in the totals.
 
-Not implemented yet: `--prune` and `--prune-labels`.
+  10. Pass 4 (implemented), only with `--prune` or `--dry-run`: orphans (see "Renames and deletions" > "Deleting files"). Everything under each ancestor is listed with its `rfluence` property (6 property requests at a time), which is slow under a big ancestor, so an ordinary upload skips it. `--dry-run` lists orphans (and with `--prune`, what would be trashed); `--prune` trashes them, children first.
 
 API findings (test site): CQL `type = folder and space = "KEY" and title = "..."` finds folders by title; the v1 content API can't (`GET /wiki/rest/api/content?type=folder` returns 501 "Cannot fetch folders with ContentFinder"). `GET /wiki/api/v2/{pages|folders}/{id}/direct-children` lists pages and folders together with `type`, `title` and `childPosition`. Measured: a tree of 3 new pages and a folder takes about 6 s (each page is created, then its body uploaded); the same tree up to date, under 1 s.
 
@@ -984,10 +984,10 @@ Verified on the test site (folder 262167):
 Labels live in frontmatter as `rfluence.labels` (see Frontmatter). Only global labels are handled; `my:` / `team:` prefixed labels are ignored.
 
   * Fetch: labels are written to the frontmatter, including for stdout output (useful context for an LLM). `GET /wiki/api/v2/pages/{id}?body-format=atlas_doc_format&include-labels=true` returns body and labels in one call; follow `labels.meta.hasMore` if a page has many labels.
-  * Upload is **additive**: labels in the frontmatter that are missing in Confluence are added; labels are never removed by default. `--prune-labels` removes Confluence labels that aren't in the frontmatter (same opt-in pattern as `--move`).
+  * Upload is **additive**: labels in the frontmatter that are missing in Confluence are added; labels are never removed by default. `--prune-labels` removes Confluence labels that aren't in the frontmatter (same opt-in pattern as `--move`). (Implemented, for single files and `--config`.)
   * Why additive: adding or removing labels does not bump the page version (verified), so the version check can't detect labels added in Confluence after a fetch. Exact sync would silently delete them.
   * `.rfluence.yaml` entries can list `labels` that are added to every page in the entry (e.g. `ai-generated`).
-  * Config labels are recorded in the page's `rfluence` content property (`config_labels`). Because the full label set is written back to frontmatter after upload, removing a label from the config wouldn't otherwise remove it anywhere. With `--prune-labels`, a label that is in `config_labels` but no longer in the entry's `labels` is removed from Confluence and from the frontmatter, even though the frontmatter still lists it.
+  * Config labels are recorded in the page's `rfluence` content property (`config_labels`). Because the full label set is written back to frontmatter after upload, removing a label from the config wouldn't otherwise remove it anywhere. With `--prune-labels`, a label that is in `config_labels` but no longer in the entry's `labels` is removed from Confluence and from the frontmatter, even though the frontmatter still lists it. A label taken out of the config stays in `config_labels` until it's pruned, so a later `--prune-labels` still knows where it came from.
   * Before upload, labels are normalized: lowercase, and spaces -> `-`. Labels containing disallowed characters fail the upload with a clear error before anything is sent. The normalized labels are written back to the frontmatter so the next fetch matches.
   * API: add with `POST /wiki/rest/api/content/{id}/label` (`[{"prefix": "global", "name": "..."}]`), remove with `DELETE /wiki/rest/api/content/{id}/label?name=<url-encoded name>` (the query form works for names containing `/`). v2 can only read labels.
 
@@ -1008,17 +1008,17 @@ Renaming or moving files:
   * Moving a file to another directory changes its parent in the tree; handled by the `--move` rule in "Page hierarchy".
   * Changing a title (frontmatter `title` or H1) renames the page on upload, subject to the normal collision check. Links keep working because they use page IDs.
   * Links in other local files that point at a renamed file become unresolved, and `upload` fails with the list (see "Links").
-  * Renaming a directory without an `index.md` renames its folder. The API can't rename folders (verified), and folders are found by title, so `rfluence` detects the rename through the directory's pages: their IDs are known, and if they all currently sit in an `rfluence`-managed folder with a different title, that is the old folder. With `--move`: create the new folder, move the pages into it, then trash the old folder once it's empty. Without `--move`: warn.
+  * Renaming a directory without an `index.md` renames its folder. The API can't rename folders (verified), and folders are found by title. Implemented without special detection: the new folder is created (pass 1); with `--move` the directory's pages move into it (pass 2); the old folder is then an empty orphan, which `--prune` trashes. Without `--move` the pages stay in the old folder with warnings, and the new folder stays empty until they're moved.
 
 Deleting files:
 
   * Single-file `rfluence upload` never deletes anything.
-  * `upload --config` lists the descendants of each entry's ancestor and reports orphans: `rfluence`-managed pages whose ID isn't in any local file's frontmatter, and `rfluence`-managed folders with no matching directory.
-  * `--prune` moves orphans to the trash. `--dry-run` lists them first.
+  * `upload --config --prune` (or `--dry-run`) lists the descendants of each entry's ancestor and reports orphans: `rfluence`-managed pages whose ID isn't in any local file's frontmatter, and `rfluence`-managed folders with no matching directory. An ordinary upload doesn't look for them: it takes a request per page and folder under the ancestor.
+  * `--prune` moves orphans to the trash. `--dry-run` lists them first. (Implemented: orphans are listed after the other passes, with the path recorded in their property.)
   * `--prune` skips (and reports) orphans that:
     * have been edited in Confluence since `rfluence` last uploaded them (page version != `version` in the `rfluence` property), unless `--force` is passed;
     * have child pages that aren't `rfluence`-managed, because deleting a page moves its children up a level (verified), which would silently reorganize pages people added.
-  * Folders are only pruned once empty.
+  * Folders are only pruned once empty. (Implemented as: a page or folder is only trashed if everything under it is trashed too, so nothing moves up a level.)
 
 Content property (`rfluence`), written on every page and folder `rfluence` creates, and updated (`version`, `path`) whenever it uploads a new version of one. Pages `rfluence` didn't create never get it, even when it uploads to them (e.g. a fetched page sent back with `rfluence upload`), so they can never be pruned:
 
@@ -1036,6 +1036,7 @@ Verified on the test site (folder 262167):
   * Folders can't be renamed via the API: v2 `PUT /wiki/api/v2/folders/{id}` fails (`body is required`, then `No referenceId found` with a body), and v1 `PUT /wiki/rest/api/content/{id}` returns 501 `Cannot validate update of content of type folder`. The fallback (new folder, move pages, trash the old one) works.
   * `DELETE /wiki/api/v2/pages/{id}` and `DELETE /wiki/api/v2/folders/{id}` return 204 and move the item to the trash (`status: "trashed"`).
   * Deleting a page with child pages moves the children up to the deleted page's parent. Deleting a folder that still contains pages does the same: the pages move up, they aren't deleted.
+  * `GET /wiki/api/v2/pages/{id}` (and `/folders/{id}`) still returns trashed content, with `200` and `status: "trashed"`. The client treats anything but `current` as not found ("page or folder 123 is in the trash"), so a trashed ancestor, or a file whose page was trashed, is reported instead of used; `direct-children` results are filtered to `current` too.
   * Trashed titles don't block reuse: a new page or folder can be created with the title of a trashed one.
 
 ### Output and errors

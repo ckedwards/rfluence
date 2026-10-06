@@ -269,3 +269,119 @@ fn checks_every_file_before_sending_anything() {
     assert!(err(&o).starts_with("how-to/github/02-workflow.md:3: error"), "{}", err(&o));
     assert!(p.fake.state().writes().is_empty());
 }
+
+/// Pages and folders rfluence created whose files are gone are orphans: listed, and trashed
+/// with --prune.
+#[test]
+fn prunes_orphans() {
+    let p = Project::new("prune", EXAMPLE);
+    assert!(p.upload(&[]).status.success());
+    let (secrets, runners) = (p.id("how-to/github/actions/secrets.md"), p.id("how-to/github/actions/runners.md"));
+    let folder = p.fake.state().by_title("folder", "actions").unwrap().id.clone();
+    // A page someone added in Confluence is never an orphan.
+    let theirs = p.fake.state().add("page", "Added by a person", Some(ANCESTOR));
+    std::fs::remove_dir_all(p.dir.join("how-to/github/actions")).unwrap();
+
+    // Only looked for with --prune or --dry-run (it takes a request per page).
+    let o = p.upload(&[]);
+    assert!(o.status.success(), "{}", err(&o));
+    assert!(!out(&o).contains("Orphans"), "{}", out(&o));
+    assert!(!p.fake.state().log.iter().any(|l| l.contains("/properties?key=") && l.contains(&theirs)), "no orphan search");
+
+    let o = p.upload(&["--dry-run"]);
+    assert!(o.status.success(), "{}", err(&o));
+    let text = out(&o);
+    for expected in [
+        "Orphans (rfluence created them; their files or directories are gone):",
+        &format!("  page {runners} \"Self-hosted runners\" (was how-to/github/actions/runners.md)"),
+        &format!("  page {secrets} \"Managing secrets\" (was how-to/github/actions/secrets.md)"),
+        &format!("  folder {folder} \"actions\" (was how-to/github/actions)"),
+        "3 orphans (--prune trashes them).",
+    ] {
+        assert!(text.contains(expected), "{expected}\n{text}");
+    }
+    assert!(!text.contains("Added by a person"), "{text}");
+
+    let o = p.upload(&["--prune", "--dry-run"]);
+    assert!(out(&o).contains(&format!("  would trash folder {folder} \"actions\"")) && out(&o).contains("3 to trash"), "{}", out(&o));
+    assert!(p.fake.state().content.contains_key(&folder));
+
+    let o = p.upload(&["--prune"]);
+    assert!(o.status.success(), "{}", err(&o));
+    assert!(out(&o).contains("3 trashed"), "{}", out(&o));
+    let s = p.fake.state();
+    for id in [&runners, &secrets, &folder] {
+        assert!(s.trashed.contains_key(id), "{id} trashed");
+    }
+    assert!(s.content.contains_key(&theirs));
+}
+
+#[test]
+fn keeps_orphans_that_were_edited_or_hold_other_pages() {
+    let p = Project::new("prune-keep", EXAMPLE);
+    assert!(p.upload(&[]).status.success());
+    let secrets = p.id("how-to/github/actions/secrets.md");
+    let folder = p.fake.state().by_title("folder", "actions").unwrap().id.clone();
+    std::fs::remove_dir_all(p.dir.join("how-to/github/actions")).unwrap();
+    // Edited in Confluence since rfluence uploaded it.
+    p.fake.state().content.get_mut(&secrets).unwrap().version += 1;
+    // And a page someone put in the folder.
+    p.fake.state().add("page", "Someone's page", Some(&folder));
+
+    let o = p.upload(&["--prune"]);
+    assert!(o.status.success(), "{}", err(&o));
+    let text = out(&o);
+    assert!(text.contains(&format!("  kept page {secrets} \"Managing secrets\" (was how-to/github/actions/secrets.md): was edited in Confluence since rfluence uploaded it (version 2 -> 3)")), "{text}");
+    assert!(text.contains(&format!("  kept folder {folder} \"actions\" (was how-to/github/actions): has pages or folders that stay under it (\"Managing secrets\", \"Someone's page\")")), "{text}");
+    assert!(text.contains("1 trashed") && text.contains("2 orphans kept"), "{text}");
+
+    // --force trashes the edited page; the folder still holds someone's page.
+    let o = p.upload(&["--prune", "--force"]);
+    assert!(p.fake.state().trashed.contains_key(&secrets), "{}", out(&o));
+    assert!(p.fake.state().content.contains_key(&folder));
+}
+
+/// A renamed directory: its new folder is created, --move moves the pages into it, and
+/// --prune trashes the old (now empty) folder.
+#[test]
+fn follows_a_renamed_directory() {
+    let p = Project::new("rename-dir", EXAMPLE);
+    assert!(p.upload(&[]).status.success());
+    let old = p.fake.state().by_title("folder", "actions").unwrap().id.clone();
+    std::fs::rename(p.dir.join("how-to/github/actions"), p.dir.join("how-to/github/ci")).unwrap();
+    let o = p.upload(&["--move", "--prune"]);
+    assert!(o.status.success(), "{}\n{}", out(&o), err(&o));
+    assert!(out(&o).contains("2 moved to another parent") && out(&o).contains("1 trashed"), "{}", out(&o));
+    let s = p.fake.state();
+    let new = s.by_title("folder", "ci").expect("the new folder").id.clone();
+    assert_eq!(s.children(&new), ["Self-hosted runners", "Managing secrets"]);
+    assert!(s.trashed.contains_key(&old));
+}
+
+/// Labels are only added, unless --prune-labels: then labels the file doesn't list go, and
+/// so do labels taken out of the config (though the file lists them from the last upload).
+#[test]
+fn prunes_labels_only_when_asked() {
+    let p = Project::new("prune-labels", EXAMPLE);
+    assert!(p.upload(&[]).status.success());
+    let setup = p.id("how-to/github/01-setup.md");
+    p.write(".rfluence.yaml", &EXAMPLE.replace("[github, AI Generated]", "[github]"));
+    p.fake.state().content.get_mut(&setup).unwrap().labels.push("extra".into());
+
+    let o = p.upload(&[]);
+    assert!(o.status.success(), "{}", err(&o));
+    assert_eq!(p.fake.state().content[&setup].labels, ["github", "ai-generated", "extra"]);
+    // The write-back lists every label the page has.
+    assert!(p.read("how-to/github/01-setup.md").contains("  labels: [github, ai-generated, extra]\n"));
+
+    // The file drops "extra"; the config dropped "ai-generated".
+    p.write("how-to/github/01-setup.md", &p.read("how-to/github/01-setup.md").replace("[github, ai-generated, extra]", "[github, ai-generated]"));
+    let o = p.upload(&["--prune-labels"]);
+    assert!(o.status.success(), "{}", err(&o));
+    assert!(out(&o).contains("how-to/github/01-setup.md") && out(&o).contains("labels -ai-generated -extra"), "{}", out(&o));
+    assert_eq!(p.fake.state().content[&setup].labels, ["github"]);
+    assert!(p.read("how-to/github/01-setup.md").contains("  labels: [github]\n"));
+    let readme = p.id("how-to/github/README.md");
+    assert_eq!(p.fake.state().content[&readme].labels, ["github"]);
+    assert_eq!(p.fake.state().content[&readme].properties["rfluence"].2["config_labels"], serde_json::json!(["github"]));
+}
